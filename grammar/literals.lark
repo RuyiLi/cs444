@@ -1,0 +1,31 @@
+?literal: integer_l
+        | boolean_l
+        | char_l
+        | string_l
+        | null_l
+
+integer_l: INT
+
+boolean_l: "true" -> true
+        | "false" -> false
+
+char_l: "'" (LETTER | escape_seq) "'"
+escape_seq: "\\" (/[btnfr\"\'\\]/ | INT)
+
+string_l: "\"" (LETTER | escape_seq)* "\""
+
+null_l: "null"
+
+java_letter: LETTER | "$" | "_"
+java_letter_or_digit: java_letter | DIGIT
+
+identifier: java_letter java_letter_or_digit*
+
+?expr:  keyword
+        | literal
+        | literal operator expr
+
+%import common.DIGIT
+%import common.INT
+%import common.LETTER
+%ignore " "           // Disregard spaces in text

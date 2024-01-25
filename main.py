@@ -10,4 +10,4 @@ for file in files:
 
 l = Lark(grammar, start="expr", parser="lalr")
 
-print(l.parse("'f' + 3 - '\\b' / '\\0177' + \"foo\\b\" + null").pretty())
+print(l.parse("'f' + 3 - '\\b' / '\\0177' + \"foo\\b\" >>>= null + abstract").pretty())
