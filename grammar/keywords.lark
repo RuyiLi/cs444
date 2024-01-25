@@ -1,0 +1,98 @@
+KEYWORD: 
+    | ABSTRACT_KW
+    | DEFAULT_KW
+    | IF_KW
+    | PRIVATE_KW
+    | THIS_KW
+    | BOOLEAN_KW
+    | DO_KW
+    | IMPLEMENTS_KW
+    | PROTECTED_KW
+    | THROW_KW
+    | BREAK_KW
+    | DOUBLE_KW
+    | IMPORT_KW
+    | PUBLIC_KW
+    | THROWS_KW
+    | BYTE_KW
+    | ELSE_KW
+    | INSTANCEOF_KW
+    | RETURN_KW
+    | TRANSIENT_KW
+    | CASE_KW
+    | EXTENDS_KW
+    | INT_KW
+    | SHORT_KW
+    | TRY_KW
+    | CATCH_KW
+    | FINAL_KW
+    | INTERFACE_KW
+    | STATIC_KW
+    | VOID_KW
+    | CHAR_KW
+    | FINALLY_KW
+    | LONG_KW
+    | STRICTFP_KW
+    | VOLATILE_KW
+    | CLASS_KW
+    | FLOAT_KW
+    | NATIVE_KW
+    | SUPER_KW
+    | WHILE_KW
+    | CONST_KW
+    | FOR_KW
+    | NEW_KW
+    | SWITCH_KW
+    | CONTINUE_KW
+    | GOTO_KW
+    | PACKAGE_KW
+    | SYNCHRONIZED_KW
+
+ABSTRACT_KW: "abstract"
+DEFAULT_KW: "default"
+IF_KW: "if"
+PRIVATE_KW: "private"
+THIS_KW: "this"
+BOOLEAN_KW: "boolean"
+DO_KW: "do"
+IMPLEMENTS_KW: "implements"
+PROTECTED_KW: "protected"
+THROW_KW: "throw"
+BREAK_KW: "break"
+DOUBLE_KW: "double"
+IMPORT_KW: "import"
+PUBLIC_KW: "public"
+THROWS_KW: "throws"
+BYTE_KW: "byte"
+ELSE_KW: "else"
+INSTANCEOF_KW: "instanceof"
+RETURN_KW: "return"
+TRANSIENT_KW: "transient"
+CASE_KW: "case"
+EXTENDS_KW: "extends"
+INT_KW: "int"
+SHORT_KW: "short"
+TRY_KW: "try"
+CATCH_KW: "catch"
+FINAL_KW: "final"
+INTERFACE_KW: "interface"
+STATIC_KW: "static"
+VOID_KW: "void"
+CHAR_KW: "char"
+FINALLY_KW: "finally"
+LONG_KW: "long"
+STRICTFP_KW: "strictfp"
+VOLATILE_KW: "volatile"
+CLASS_KW: "class"
+FLOAT_KW: "float"
+NATIVE_KW: "native"
+SUPER_KW: "super"
+WHILE_KW: "while"
+CONST_KW: "const"
+FOR_KW: "for"
+NEW_KW: "new"
+SWITCH_KW: "switch"
+CONTINUE_KW: "continue"
+GOTO_KW: "goto"
+PACKAGE_KW: "package"
+SYNCHRONIZED_KW: "synchronized"
