@@ -1,6 +1,7 @@
 from lark import Lark
 
-l = Lark('''
+l = Lark(
+    """
             ?literal: integer_l
             | boolean_l
             # | char_l
@@ -27,6 +28,9 @@ l = Lark('''
             %import common.NUMBER
             %import common.LETTER
             %ignore " "           // Disregard spaces in text
-         ''', start="expr", parser="lalr")
+         """,
+    start="expr",
+    parser="lalr",
+)
 
 print(l.parse("true + 3").pretty())
