@@ -1,26 +1,29 @@
-?literal: integer_l
-| boolean_l
-# | char_l
-# | string_l
-# | null_l
+?literal:  integer_l
+            | boolean_l
+            | char_l
+            | string_l
+            | null_l
 
-integer_l: /[0-9]+/
+integer_l: INT
 
-boolean_l: "true" -> true
-| "false"         -> false
+boolean_l: "true"    -> true
+            | "false"   -> false
 
-# char_l: "'" (LETTER+ | escape_seq) "'"
+char_l: "'" (LETTER | escape_seq) "'"
+escape_seq: "\\\\" (/[btnfr\\\"\\\'\\\\]/ | INT)
 
-# escape_seq: "\\" (/[btnfr]/ | "\"" | "'" | "\\")
+string_l: "\\\"" (LETTER | escape_seq)* "\\\""
 
-op: "+"  -> plus
-| "-"    -> minus
-| "*"    -> times
-| "/"    -> divide
+null_l: "null"
 
-?expr: literal
-| literal op expr
+op:  "+"    -> plus
+    | "-"    -> minus
+    | "*"    -> times
+    | "/"    -> divide
 
-%import common.NUMBER
+?expr:  literal
+        | literal op expr
+
+%import common.INT
 %import common.LETTER
 %ignore " "           // Disregard spaces in text

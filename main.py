@@ -8,6 +8,6 @@ for file in files:
     with open(file) as f:
         grammar += "\n" + f.read()
 
-lark = Lark(grammar, start="expr", parser="lalr")
+l = Lark(grammar, start="expr", parser="lalr")
 
-print(lark.parse("import foo;").pretty())
+print(l.parse("'f' + 3 - '\\b' / '\\0177' + \"foo\\b\" + null").pretty())
