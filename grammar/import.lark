@@ -1,0 +1,7 @@
+// temp test implementation
+SEMICOLON: ";"
+WILDCARD: "*"
+
+import_statement: IMPORT_KW package_name SEMICOLON
+package_name: identifier 
+            | identifier ("." identifier)* "." (identifier | WILDCARD)
