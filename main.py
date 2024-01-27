@@ -24,7 +24,7 @@ def load_assignment_testcases(assignment: int):
             try:
                 print(l.parse(test_file_contents).pretty())
             except Exception as e:
-                print(f"Failed {test_file}", e)
+                print(f"Failed {test_file}:", e)
 
 
 def load_custom_testcases(test_names: List[str]):
@@ -40,7 +40,7 @@ def load_custom_testcases(test_names: List[str]):
                 try:
                     print(l.parse(test_file_contents).pretty())
                 except Exception as e:
-                    print(f"Failed {test_name}", e)
+                    print(f"Failed {test_name}:", e)
 
 
 if __name__ == "__main__":
