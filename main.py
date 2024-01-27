@@ -4,8 +4,7 @@ import os
 from lark import Lark
 
 grammar = ""
-
-files = glob.glob(r"./grammar/**/*.lark")
+files = glob.glob(r"./grammar/**/*.lark", recursive=True)
 for file in files:
     print(f"Loaded grammar {file[2:]}")
     with open(file) as f:
