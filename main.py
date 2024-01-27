@@ -43,12 +43,28 @@ def load_custom_testcases(test_names: List[str]):
                     print(f"Failed {test_name}:", e)
 
 
+def load_path_testcase(path: str):
+    print(f"Testing {path}")
+    try:
+        f = open(f"./{path}", "r")
+    except FileNotFoundError:
+        print(f"Could not find test with name {path}, skipping...")
+    else:
+        with f:
+            test_file_contents = f.read()
+            try:
+                print(l.parse(test_file_contents).pretty())
+            except Exception as e:
+                print(f"Failed {path}:", e)
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Joos test suite utilities.")
     parser.add_argument("-a", type=int, help="Load assignment testcases")
     parser.add_argument("-t", type=str, nargs="+", help="Load custom testcases")
+    parser.add_argument("-p", type=str, help="Load testcases from path")
 
     args = parser.parse_args()
 
