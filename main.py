@@ -5,8 +5,9 @@ from lark import Lark
 
 grammar = ""
 
-files = glob.glob(r"./grammar/*.lark")
+files = glob.glob(r"./grammar/**/*.lark")
 for file in files:
+    print(f"Loaded grammar {file[2:]}")
     with open(file) as f:
         grammar += "\n" + f.read()
 
