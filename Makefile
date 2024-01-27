@@ -65,31 +65,31 @@ test:
 	done
 
 test_a1:
-	@$(MAKE) test TEST_DIR=our_testcases/a1
+	@$(MAKE) test TEST_DIR=custom_testcases/a1
 
 test_a2:
-	@$(MAKE) test TEST_DIR=our_testcases/a2
+	@$(MAKE) test TEST_DIR=custom_testcases/a2
 
 test_a3:
-	@$(MAKE) test TEST_DIR=our_testcases/a3
+	@$(MAKE) test TEST_DIR=custom_testcases/a3
 
 test_a4:
-	@$(MAKE) test TEST_DIR=our_testcases/a4
+	@$(MAKE) test TEST_DIR=custom_testcases/a4
 
 test_a5:
-	@$(MAKE) test TEST_DIR=our_testcases/a5
+	@$(MAKE) test TEST_DIR=custom_testcases/a5
 
 test_pa1:
-	@$(MAKE) test TEST_DIR=public_testcases/a1
+	@$(MAKE) test TEST_DIR=assignment_testcases/a1
 
 test_pa2:
-	@$(MAKE) test TEST_DIR=public_testcases/a2
+	@$(MAKE) test TEST_DIR=assignment_testcases/a2
 
 test_pa3:
-	@$(MAKE) test TEST_DIR=public_testcases/a3
+	@$(MAKE) test TEST_DIR=assignment_testcases/a3
 
 test_pa4:
-	@$(MAKE) test TEST_DIR=public_testcases/a4
+	@$(MAKE) test TEST_DIR=assignment_testcases/a4
 
 test_pa5:
-	@$(MAKE) test TEST_DIR=public_testcases/a5
+	@$(MAKE) test TEST_DIR=assignment_testcases/a5
