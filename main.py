@@ -1,3 +1,4 @@
+from typing import List
 import glob
 import os
 
@@ -12,16 +13,47 @@ for file in files:
 
 l = Lark(grammar, start="expr", parser="lalr")
 
-print(l.parse("'f' + 3 - '\\b' / '\\0177' + \"foo\\b\" + null").pretty())
 
-test_directory = os.path.join(os.getcwd(), "assignment_testcases/a1")
-test_files = os.listdir(test_directory)
-for test_file in test_files:
-    with open(os.path.join(test_directory, test_file), "r") as f:
-        test_file_contents = f.read()
+def load_assignment_testcases(assignment: int):
+    test_directory = os.path.join(os.getcwd(), f"assignment_testcases/a{assignment}")
+    test_files = os.listdir(test_directory)
+    for test_file in test_files:
+        print(f"Testing {test_file}")
+        with open(os.path.join(test_directory, test_file), "r") as f:
+            test_file_contents = f.read()
+            try:
+                print(l.parse(test_file_contents).pretty())
+            except Exception as e:
+                print(f"Failed {test_file}", e)
+
+
+def load_custom_testcases(test_names: List[str]):
+    for test_name in test_names:
+        print(f"Testing {test_name}")
         try:
-            # print(l.parse(test_file_contents).pretty())
-            pass
-        except:
-            # print(f"Failed {test_file}")
-            pass
+            f = open(f"./custom_testcases/{test_name}.java", "r")
+        except FileNotFoundError:
+            print(f"Could not find test with name {test_name}, skipping...")
+        else:
+            with f:
+                test_file_contents = f.read()
+                try:
+                    print(l.parse(test_file_contents).pretty())
+                except Exception as e:
+                    print(f"Failed {test_name}", e)
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Joos test suite utilities.")
+    parser.add_argument("-a", type=int, help="Load assignment testcases")
+    parser.add_argument("-t", type=str, nargs="+", help="Load custom testcases")
+
+    args = parser.parse_args()
+
+    if args.a is not None:
+        load_assignment_testcases(args.a)
+
+    if args.t is not None:
+        load_custom_testcases(args.t)
