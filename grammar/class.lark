@@ -1,0 +1,39 @@
+// https://docs.oracle.com/javase/specs/jls/se7/html/jls-18.html
+
+CLASS_OR_INTERFACE_MODIFIER: PUBLIC_KW | ABSTRACT_KW | FINAL_KW
+MODIFIER: PUBLIC_KW | PROTECTED_KW | ABSTRACT_KW | FINAL_KW
+
+// TODO move some of these to shared files (like most of these shouldnt be here)
+basic_type: INT_KW | BOOLEAN_KW | "String"
+reference_type: identifier ("." identifier)*
+type_list: reference_type ("," reference_type)*
+// ! this assumes we don't need to support default arguments
+type: basic_type | reference_type
+argument: type identifier 
+argument_list: argument ("," argument)*
+
+class_or_interface_declaration: CLASS_OR_INTERFACE_MODIFIER* (class_declaration | interface_declaration)
+class_declaration: normal_class_declaration | enum_declaration
+
+normal_class_declaration: CLASS_KW identifier (EXTENDS_KW type_list)? (IMPLEMENTS_KW type_list)? class_body
+
+class_body: "{" class_body_declaration* "}"
+class_body_declaration: SEMICOLON 
+                      | MODIFIER* member_declaration
+                      | STATIC_KW? block
+member_declaration: method_or_field_declaration
+                  | constructor_declaration
+                  | class_declaration
+                  | interface_declaration
+
+method_or_field_declaration: type identifier method_or_field_rest
+method_or_field_rest: (field_declarator SEMICOLON) | method_declarator
+field_declarator: 1 // TODO variables.lark
+method_declarator: 1 // TODO variables.lark
+
+constructor_declaration: MODIFIER* identifier "(" argument_list ")" "{" block "}" 
+
+interface_declaration: INTERFACE_KW identifier (EXTENDS_KW type_list)? interface_body
+interface_body: "{" interface_body_declaration* "}"
+// interface_body_declaration: SEMICOLON | interface_member
+// interface_member: FIELD_MODIFIER* 

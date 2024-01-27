@@ -1,0 +1,3 @@
+block: block_statements*
+block_statements: block_statement*
+block_statement: class_or_interface_declaration // | variable_declaration | statement
