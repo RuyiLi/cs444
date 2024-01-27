@@ -55,3 +55,7 @@ joosc:
 	@$(MAKE) install
 	echo "$$JOOSC_FILE_CONTENTS" > joosc
 	chmod +x joosc
+
+zip:
+	zip -r joos_submission.zip custom_testcases grammar main.py Makefile
+	unzip joos_submission.zip
