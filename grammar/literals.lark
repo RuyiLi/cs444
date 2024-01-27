@@ -7,7 +7,7 @@
 integer_l: INT
 
 boolean_l: "true" -> true
-        | "false" -> false
+         | "false" -> false
 
 char_l: "'" (LETTER | escape_seq) "'"
 escape_seq: "\\" (/[btnfr\"\'\\]/ | INT)
@@ -19,19 +19,28 @@ null_l: "null"
 // ?java_letter: LETTER | "$" | "_"
 // ?java_letter_or_digit: java_letter | DIGIT
 // identifier: java_letter java_letter_or_digit*
-//      using regex instead so we can get a single string instead of 
-//      a bunch of characters in the parse tree
+//      using regex instead so we can get a single string instead of a bunch
+//      of characters in the parse tree. just easier for reading test output
 //      unfortunately idk how to use LETTER and DIGIT in the regex
 identifier: /[a-zA-Z$_][a-zA-Z0-9$_]+/
 
-?expr:  keyword
-        | literal
-        | literal operator expr
-        | import_statement expr          //temp
-        | import_statement               //temp
+expr: literal
+    | binary_expr
+    | grouped_expr
+    // | unary_expr
+
+binary_expr: literal operator expr
+grouped_expr: "(" expr ")"
+
+// ?expr: keyword
+//      | literal
+//      | literal operator expr
+//      | import_statement expr          //temp
+//      | import_statement               //temp
 
 %import common.DIGIT
 %import common.INT
 %import common.LETTER
 %import common.WS
 %ignore WS
+// not sure if we can actually do this because of // comments
