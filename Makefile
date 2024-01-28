@@ -41,7 +41,7 @@ endef
 export JOOSC_FILE_CONTENTS
 
 TEST_DIR := test
-
+CURR_ASSIGNMENT = a1
 all: joosc
 
 clean:
@@ -55,4 +55,6 @@ joosc:
 	chmod +x joosc
 
 zip:
-	zip -r joos_submission.zip custom_testcases grammar main.py Makefile
+	git --no-pager log > $(CURR_ASSIGNMENT).log
+	zip -r joos_submission.zip custom_testcases grammar main.py Makefile $(CURR_ASSIGNMENT).log
+	rm -f $(CURR_ASSIGNMENT).log
