@@ -1,6 +1,7 @@
 from typing import List
 import glob
 import os
+import sys
 
 from lark import Lark
 
@@ -14,6 +15,10 @@ for file in files:
 l = Lark(grammar, start="expr", parser="lalr")
 
 
+def should_error(file_name: str):
+    return file_name[:2] == "Je"
+
+
 def load_assignment_testcases(assignment: int):
     test_directory = os.path.join(os.getcwd(), f"assignment_testcases/a{assignment}")
     test_files = os.listdir(test_directory)
@@ -23,8 +28,16 @@ def load_assignment_testcases(assignment: int):
             test_file_contents = f.read()
             try:
                 print(l.parse(test_file_contents).pretty())
+                if should_error(test_file):
+                    print(f"Failed {test_file} (should have thrown an error):")
+                else:
+                    print(f"Passed {test_file} (correctly did not throw an error):")
+
             except Exception as e:
-                print(f"Failed {test_file}:", e)
+                if should_error(test_file):
+                    print(f"Passed {test_file} (correctly threw an error):", e)
+                else:
+                    print(f"Failed {test_file} (should not have thrown an error):", e)
 
 
 def load_custom_testcases(test_names: List[str]):
