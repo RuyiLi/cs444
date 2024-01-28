@@ -19,21 +19,27 @@
             | "," -> comma
             | "." -> dot
 
-?operator:    "=" -> equal
-            | ">" -> gt
+?assign_op:   "=" -> equal
+                | "+=" -> add_assign
+                | "-=" -> sub_assign
+                | "*=" -> mult_assign
+                | "/=" -> div_assign
+                | "&=" -> and_assign
+                | "|=" -> or_assign
+                | "^=" -> xor_assign
+                | "%=" -> mod_assign
+                | "<<=" -> l_shift_assign
+                | ">>=" -> r_shift_assign
+                | ">>>=" -> ur_shift_assign
+
+?infix_op:    ">" -> gt
             | "<" -> lt
-            | "!" -> excl
-            | "~" -> tilde
-            | "?" -> question
-            | ":" -> colon
             | "==" -> eq
             | "<=" -> lt_eq
             | ">=" -> gt_eq
             | "!=" -> not_eq
             | "&&" -> logical_and
             | "||" -> logical_or
-            | "++" -> auto_inc
-            | "--" -> auto_dec
             | "+" -> plus
             | "-" -> minus
             | "*" -> star
@@ -45,14 +51,13 @@
             | "<<" -> l_shift
             | ">>" -> r_shift
             | ">>>" -> ur_shift
-            | "+=" -> add_assign
-            | "-=" -> sub_assign
-            | "*=" -> mult_assign
-            | "/=" -> div_assign
-            | "&=" -> and_assign
-            | "|=" -> or_assign
-            | "^=" -> xor_assign
-            | "%=" -> mod_assign
-            | "<<=" -> l_shift_assign
-            | ">>=" -> r_shift_assign
-            | ">>>=" -> ur_shift_assign
+
+?prefix_op:   "++" -> pre_inc
+            | "--" -> pre_dec
+            | "!" -> excl
+            | "~" -> tilde
+            | "+" -> pos
+            | "-" -> neg
+
+?postfix_op:  "++" -> post_inc
+            | "--" -> post_dec

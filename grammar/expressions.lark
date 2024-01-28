@@ -1,0 +1,12 @@
+expr: expr_1 (assign_op expr_1)?
+
+expr_1: expr_2 expr_1_rest?
+expr_1_rest: ("?" expr ":" expr_1)?
+
+expr_2: expr_3 expr_2_rest?
+expr_2_rest:  (infix_op expr_3)*
+            | expr_3 INSTANCEOF_KW type
+
+expr_3:   prefix_op expr_3
+        | "(" (expr | type) ")" expr_3
+        // | primary selector* postfix_op*

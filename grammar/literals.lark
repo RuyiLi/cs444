@@ -24,13 +24,13 @@ null_l: "null"
 //      unfortunately idk how to use LETTER and DIGIT in the regex
 identifier: /[a-zA-Z$_][a-zA-Z0-9$_]+/
 
-expr: literal
-    | binary_expr
-    | grouped_expr
+// expr: literal
+//     | binary_expr
+//     | grouped_expr
     // | unary_expr
 
-binary_expr: literal operator expr
-grouped_expr: "(" expr ")"
+// binary_expr: literal operator expr
+// grouped_expr: "(" expr ")"
 
 // ?expr: keyword
 //      | literal
