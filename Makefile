@@ -1,4 +1,4 @@
-.PHONY: all
+.PHONY: all clean install joosc zip
 
 define JOOSC_FILE_CONTENTS
 #!/bin/bash
@@ -46,16 +46,13 @@ all: joosc
 
 clean:
 	rm -f joosc
+	rm -f joos_submission.zip
 	pip uninstall -r requirements.txt -y
 
-install:
-	pip install -r requirements.txt
-
 joosc:
-	@$(MAKE) install
+	pip install lark
 	echo "$$JOOSC_FILE_CONTENTS" > joosc
 	chmod +x joosc
 
 zip:
 	zip -r joos_submission.zip custom_testcases grammar main.py Makefile
-	unzip joos_submission.zip
