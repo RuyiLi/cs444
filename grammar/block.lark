@@ -1,7 +1,7 @@
 block: "{" block_statements* "}"
 ?block_statements: block_statement*
 ?block_statement: local_var_declaration ";"
-			// | class_or_interface_declaration
+			| class_or_interface_declaration
 			| statement
 
 local_var_declaration: FINAL_KW? type var_declarator

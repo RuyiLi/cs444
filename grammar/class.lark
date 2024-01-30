@@ -24,13 +24,13 @@ member_declaration: method_or_field_declaration
 
 method_or_field_declaration: type identifier method_or_field_rest
 method_or_field_rest: (field_declarator SEMICOLON) | method_declarator
-field_declarator: "1" // TODO variables.lark
-method_declarator: "1" // TODO variables.lark
+field_declarator: "field_declarator" // TODO variables.lark
+method_declarator: "method_declarator" // TODO variables.lark
 
-constructor_declaration: MODIFIER* identifier "(" argument_list ")" "{" block "}" 
+constructor_declaration: identifier "(" argument_list ")" "{" block "}" 
 
 interface_declaration: INTERFACE_KW identifier (EXTENDS_KW type_list)? interface_body
 interface_body: "{" interface_body_declaration* "}"
-interface_body_declaration: SEMICOLON
+interface_body_declaration: "interface_body_declaration"
                         //   | interface_member
 // interface_member: FIELD_MODIFIER* 
