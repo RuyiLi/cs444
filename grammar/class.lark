@@ -1,36 +1,44 @@
 // https://docs.oracle.com/javase/specs/jls/se7/html/jls-18.html
 
-CLASS_OR_INTERFACE_MODIFIER: PUBLIC_KW | ABSTRACT_KW | FINAL_KW
-MODIFIER: PUBLIC_KW | PROTECTED_KW | ABSTRACT_KW | FINAL_KW
+SEMICOLON: ";"
 
-type_list: reference_type ("," reference_type)*
+CLASS_MODIFIER: PUBLIC_KW | ABSTRACT_KW | FINAL_KW
+CONSTRUCTOR_MODIFIER: PUBLIC_KW | PROTECTED_KW
+FIELD_MODIFIER: PUBLIC_KW | PROTECTED_KW | STATIC_KW
+METHOD_MODIFIER: PUBLIC_KW | PROTECTED_KW | STATIC_KW | FINAL_KW
+
+class_declaration: CLASS_MODIFIER* CLASS_KW identifier (EXTENDS_KW class_type)? (IMPLEMENTS_KW interface_type_list)? class_body
+interface_type_list: interface_type ("," interface_type)*
+
 // ! this assumes we don't need to support default arguments
 argument: type identifier 
 argument_list: argument ("," argument)*
 
-class_or_interface_declaration: CLASS_OR_INTERFACE_MODIFIER* (class_declaration | interface_declaration)
-class_declaration: normal_class_declaration
-
-normal_class_declaration: CLASS_KW identifier (EXTENDS_KW type_list)? (IMPLEMENTS_KW type_list)? class_body
-
 class_body: "{" class_body_declaration* "}"
-class_body_declaration: SEMICOLON 
-                      | MODIFIER* member_declaration
+
+class_body_declaration: member_declaration
                       | STATIC_KW? block
-member_declaration: method_or_field_declaration
-                  | constructor_declaration
+                      | constructor_declaration
+member_declaration: SEMICOLON
+                  | method_declaration
+                  | field_declaration
                   | class_declaration
-                  | interface_declaration
+                  // | interface_declaration
 
-method_or_field_declaration: type identifier method_or_field_rest
-method_or_field_rest: (field_declarator SEMICOLON) | method_declarator
-field_declarator: "field_declarator" // TODO variables.lark
-method_declarator: "method_declarator" // TODO variables.lark
+method_declaration: METHOD_MODIFIER* (type | VOID_KW) method_declarator method_body
 
-constructor_declaration: identifier "(" argument_list ")" "{" block "}" 
+field_declaration: FIELD_MODIFIER* type var_declarators SEMICOLON
+var_declarators: var_declarator ("," var_declarator)*
 
-interface_declaration: INTERFACE_KW identifier (EXTENDS_KW type_list)? interface_body
-interface_body: "{" interface_body_declaration* "}"
-interface_body_declaration: "interface_body_declaration"
+method_declarator: identifier "(" (formal_param ("," formal_param)*)? ")"
+formal_param: type var_declarator_id
+
+method_body: block | SEMICOLON
+
+constructor_declaration: CONSTRUCTOR_MODIFIER* type_name "(" argument_list ")" block
+
+// interface_declaration: INTERFACE_KW identifier (EXTENDS_KW type_list)? interface_body
+// interface_body: "{" interface_body_declaration* "}"
+// interface_body_declaration: "interface_body_declaration"
                         //   | interface_member
 // interface_member: FIELD_MODIFIER* 

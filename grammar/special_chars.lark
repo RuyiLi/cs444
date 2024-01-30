@@ -1,25 +1,9 @@
-?separator:   "(" -> l_paren
-            | ")" -> r_paren
-            | "{" -> l_brace
-            | "}" -> r_brace
-            | "[" -> l_bracket
-            | "]" -> r_bracket
-            | ";" -> semi
-            | "," -> comma
-            | "." -> dot
+SQ_BRACKETS: "[]"
 
-?assign_op:   "=" -> equal
+EQ: "=="
+NOT_EQ: "!="
+LOGICAL_OR: "||"
+LOGICAL_AND: "&&"
 
-?infix_op:    ">" -> gt
-            | "<" -> lt
-            | "==" -> eq
-            | "<=" -> lt_eq
-            | ">=" -> gt_eq
-            | "!=" -> not_eq
-            | "&&" -> logical_and
-            | "||" -> logical_or
-            | "+" -> plus
-            | "-" -> minus
-            | "*" -> star
-            | "/" -> slash
-            | "%" -> percent
+LT_EQ: "<="
+GT_EQ: ">="

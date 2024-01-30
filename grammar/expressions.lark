@@ -1,21 +1,25 @@
 ?primary: primary_no_new_array
-        // | array_creation
+        | array_creation_expr
+
+array_creation_expr: NEW_KW (primitive_type | type_name) dim_exprs SQ_BRACKETS? // no multidimensional arrays or array initializers
+dim_exprs: ("[" expr "]")+
 
 ?primary_no_new_array: literal
-                    | (type | VOID_KW) "." CLASS_KW
                     | THIS_KW
                     | "(" expr ")"
-                    // | class_instance_creation
+                    | class_instance_creation
                     | field_access
-                    // | method_invocation
+                    | method_invocation
                     | array_access
 
 field_access: primary "." identifier
-            | SUPER_KW "." identifier
-            // | class_name "." SUPER_KW "." identifier
+
+method_invocation: method_name "(" argument_list? ")"
+                | primary "." identifier "(" argument_list? ")"
+
+class_instance_creation: NEW_KW type_name "(" argument_list? ")" class_body?
 
 array_access: (expression_name | primary_no_new_array) "[" expr "]"
-expression_name: type_name
 
 ?postfix_expr: primary | expression_name
 
@@ -26,7 +30,7 @@ expression_name: type_name
                         | "!" unary_expr
                         | cast_expr
 
-?cast_expr: "(" primitive_type ("[]")* ")" unary_expr
+?cast_expr: "(" primitive_type (SQ_BRACKETS)* ")" unary_expr
         | "(" reference_type ")" unary_expr_not_plus_minus
 
 ?mult_expr: unary_expr
@@ -36,17 +40,17 @@ expression_name: type_name
         | add_expr ("+" | "-") mult_expr
 
 ?rel_expr: add_expr
-        | rel_expr ("<" | ">" | "<=" | ">=") add_expr
+        | rel_expr ("<" | ">" | LT_EQ | GT_EQ) add_expr
         | rel_expr INSTANCEOF_KW reference_type
 
 ?eq_expr: rel_expr
-        | eq_expr ("==" | "!=") rel_expr
+        | eq_expr (EQ | NOT_EQ) rel_expr
 
 ?and_expr: eq_expr
-        | and_expr "&&" eq_expr
+        | and_expr LOGICAL_AND eq_expr
 
 ?or_expr: and_expr
-        | or_expr "||" or_expr
+        | or_expr LOGICAL_OR or_expr
 
 ?assign_expr: or_expr
         | assignment
@@ -58,5 +62,3 @@ lhs: expression_name
     | array_access
 
 ?expr: assign_expr
-
-const_expr: expr

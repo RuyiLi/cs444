@@ -1,0 +1,11 @@
+compilation_unit: package_decl? import_decl? type_decl*
+
+package_decl: PACKAGE_KW package_name ";"
+
+import_decl: single_type_import_decl | type_import_on_demand_decl
+single_type_import_decl: IMPORT_KW type_name ";"
+type_import_on_demand_decl: IMPORT_KW package_or_type_name "." "*" ";"
+
+type_decl: class_declaration
+		// | interface_declaration
+		| SEMICOLON

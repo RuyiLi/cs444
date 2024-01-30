@@ -2,7 +2,7 @@
         | boolean_l
         | char_l
         | string_l
-        | null_l
+        | NULL
 
 integer_l: INT
 
@@ -14,29 +14,9 @@ escape_seq: "\\" (/[btnfr\"\'\\]/ | INT)
 
 string_l: "\"" (LETTER | escape_seq)* "\""
 
-null_l: "null"
+NULL: "null"
 
-// ?java_letter: LETTER | "$" | "_"
-// ?java_letter_or_digit: java_letter | DIGIT
-// identifier: java_letter java_letter_or_digit*
-//      using regex instead so we can get a single string instead of a bunch
-//      of characters in the parse tree. just easier for reading test output
-//      unfortunately idk how to use LETTER and DIGIT in the regex
-identifier: /[a-zA-Z$_][a-zA-Z0-9$_]*/
-
-// expr: literal
-//     | binary_expr
-//     | grouped_expr
-    // | unary_expr
-
-// binary_expr: literal operator expr
-// grouped_expr: "(" expr ")"
-
-// ?expr: keyword
-//      | literal
-//      | literal operator expr
-//      | import_statement expr          //temp
-//      | import_statement               //temp
+identifier: /(?!\b(abstract|default|if|private|this|boolean|do|implements|protected|throw|break|double|import|public|throws|byte|else|instanceof|return|transient|case|extends|int|short|try|catch|final|interface|static|void|char|finally|long|strictfp|volatile|class|float|native|super|while|const|for|new|switch|continue|goto|package|synchronized)\b)\b[a-zA-Z$_][a-zA-Z0-9$_]*\b/ -> id
 
 %import common.DIGIT
 %import common.INT

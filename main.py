@@ -1,9 +1,12 @@
 from typing import List
+import logging
 import glob
 import os
 import sys
 
-from lark import Lark
+from lark import Lark, logger
+
+logger.setLevel(logging.DEBUG)
 
 grammar = ""
 files = glob.glob(r"./grammar/**/*.lark", recursive=True)
@@ -12,7 +15,7 @@ for file in files:
     with open(file) as f:
         grammar += "\n" + f.read()
 
-l = Lark(grammar, start="block", parser="lalr")
+l = Lark(grammar, start="compilation_unit", parser="lalr", debug=True)
 
 
 def should_error(file_name: str):
