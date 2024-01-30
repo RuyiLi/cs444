@@ -86,3 +86,6 @@ if __name__ == "__main__":
 
     if args.t is not None:
         load_custom_testcases(args.t)
+
+    if args.p is not None:
+        load_path_testcase(args.p)
