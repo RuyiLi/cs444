@@ -1,14 +1,3 @@
-// ?keyword: "abstract"   | "default" | "if"         | "private"    | "this"
-//         | "boolean"    | "do"      | "implements" | "protected"  | "throw"
-//         | "break"      | "double"  | "import"     | "public"     | "throws"
-//         | "byte"       | "else"    | "instanceof" | "return"     | "transient"
-//         | "case"       | "extends" | "int"        | "short"      | "try"
-//         | "catch"      | "final"   | "interface"  | "static"     | "void"
-//         | "char"       | "finally" | "long"       | "strictfp"   | "volatile"
-//         | "class"      | "float"   | "native"     | "super"      | "while"
-//         | "const"      | "for"     | "new"        | "switch"     | "continue"
-//         | "goto"       | "package" | "synchronized"
-
 ?separator:   "(" -> l_paren
             | ")" -> r_paren
             | "{" -> l_brace
@@ -20,17 +9,6 @@
             | "." -> dot
 
 ?assign_op:   "=" -> equal
-                | "+=" -> add_assign
-                | "-=" -> sub_assign
-                | "*=" -> mult_assign
-                | "/=" -> div_assign
-                | "&=" -> and_assign
-                | "|=" -> or_assign
-                | "^=" -> xor_assign
-                | "%=" -> mod_assign
-                | "<<=" -> l_shift_assign
-                | ">>=" -> r_shift_assign
-                | ">>>=" -> ur_shift_assign
 
 ?infix_op:    ">" -> gt
             | "<" -> lt
@@ -44,20 +22,4 @@
             | "-" -> minus
             | "*" -> star
             | "/" -> slash
-            | "&" -> ampersand
-            | "|" -> pipe
-            | "^" -> caret
             | "%" -> percent
-            | "<<" -> l_shift
-            | ">>" -> r_shift
-            | ">>>" -> ur_shift
-
-?prefix_op:   "++" -> pre_inc
-            | "--" -> pre_dec
-            | "!" -> excl
-            | "~" -> tilde
-            | "+" -> pos
-            | "-" -> neg
-
-?postfix_op:  "++" -> post_inc
-            | "--" -> post_dec

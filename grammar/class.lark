@@ -3,12 +3,8 @@
 CLASS_OR_INTERFACE_MODIFIER: PUBLIC_KW | ABSTRACT_KW | FINAL_KW
 MODIFIER: PUBLIC_KW | PROTECTED_KW | ABSTRACT_KW | FINAL_KW
 
-// TODO move some of these to shared files (like most of these shouldnt be here)
-basic_type: INT_KW | BOOLEAN_KW | "String"
-reference_type: identifier ("." identifier)*
 type_list: reference_type ("," reference_type)*
 // ! this assumes we don't need to support default arguments
-type: basic_type | reference_type
 argument: type identifier 
 argument_list: argument ("," argument)*
 

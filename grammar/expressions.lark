@@ -1,12 +1,62 @@
-expr: expr_1 (assign_op expr_1)?
+primary: primary_no_new_array
+        // | array_creation
 
-expr_1: expr_2 expr_1_rest?
-expr_1_rest: ("?" expr ":" expr_1)?
+primary_no_new_array: literal
+                    | (type | VOID_KW) "." CLASS_KW
+                    | THIS_KW
+                    | "(" expr ")"
+                    // | class_instance_creation
+                    | field_access
+                    // | method_invocation
+                    | array_access
 
-expr_2: expr_3 expr_2_rest?
-expr_2_rest:  (infix_op expr_3)*
-            | expr_3 INSTANCEOF_KW type
+field_access: primary "." identifier
+            | SUPER_KW "." identifier
+            // | class_name "." SUPER_KW "." identifier
 
-expr_3:   prefix_op expr_3
-        | "(" (expr | type) ")" expr_3
-        // | primary selector* postfix_op*
+array_access: (expression_name | primary_no_new_array) "[" expr "]"
+expression_name: type_name
+
+postfix_expr: primary | expression_name
+
+unary_expr: "-" unary_expr
+        | unary_expr_not_plus_minus
+
+unary_expr_not_plus_minus: postfix_expr
+                        | "!" unary_expr
+                        | cast_expr
+
+cast_expr: "(" primitive_type ("[]")* ")" unary_expr
+        | "(" reference_type ")" unary_expr_not_plus_minus
+
+mult_expr: unary_expr
+        | mult_expr ("*" | "/" | "%") unary_expr
+
+add_expr: mult_expr
+        | add_expr ("+" | "-") mult_expr
+
+rel_expr: add_expr
+        | rel_expr ("<" | ">" | "<=" | ">=") add_expr
+        | rel_expr INSTANCEOF_KW reference_type
+
+eq_expr: rel_expr
+        | eq_expr ("==" | "!=") rel_expr
+
+and_expr: eq_expr
+        | and_expr "&&" eq_expr
+
+or_expr: and_expr
+        | or_expr "||" or_expr
+
+assign_expr: or_expr
+        | assignment
+
+assignment: lhs "=" assign_expr
+
+lhs: expression_name
+    | field_access
+    | array_access
+
+expr: assign_expr
+
+const_expr: expr
