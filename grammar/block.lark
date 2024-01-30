@@ -5,7 +5,7 @@ block: "{" block_statement* "}"
 
 local_var_declaration: FINAL_KW? type var_declarator
 var_declarator: var_declarator_id ("=" var_initializer)?
-var_declarator_id: identifier
+var_declarator_id: IDENTIFIER
 				| var_declarator_id SQ_BRACKETS
 var_initializer: expr
 

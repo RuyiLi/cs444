@@ -2,17 +2,15 @@
 
 SEMICOLON: ";"
 
-CLASS_MODIFIER: PUBLIC_KW | ABSTRACT_KW | FINAL_KW
-CONSTRUCTOR_MODIFIER: PUBLIC_KW | PROTECTED_KW
-FIELD_MODIFIER: PUBLIC_KW | PROTECTED_KW | STATIC_KW
-METHOD_MODIFIER: PUBLIC_KW | PROTECTED_KW | STATIC_KW | FINAL_KW
+// CLASS_MODIFIER: PUBLIC_KW | ABSTRACT_KW | FINAL_KW
+// CONSTRUCTOR_MODIFIER: PUBLIC_KW | PROTECTED_KW
+// FIELD_MODIFIER: PUBLIC_KW | PROTECTED_KW | STATIC_KW
+// METHOD_MODIFIER: PUBLIC_KW | PROTECTED_KW | STATIC_KW | FINAL_KW
 
-class_declaration: CLASS_MODIFIER* CLASS_KW identifier (EXTENDS_KW class_type)? (IMPLEMENTS_KW interface_type_list)? class_body
+MODIFIER: PUBLIC_KW | PROTECTED_KW | STATIC_KW | FINAL_KW | ABSTRACT_KW
+
+class_declaration: MODIFIER* CLASS_KW IDENTIFIER (EXTENDS_KW class_type)? (IMPLEMENTS_KW interface_type_list)? class_body
 interface_type_list: interface_type ("," interface_type)*
-
-// ! this assumes we don't need to support default arguments
-argument: type identifier 
-argument_list: argument ("," argument)*
 
 class_body: "{" class_body_declaration* "}"
 
@@ -25,20 +23,21 @@ member_declaration: SEMICOLON
                   | class_declaration
                   // | interface_declaration
 
-method_declaration: METHOD_MODIFIER* (type | VOID_KW) method_declarator method_body
+method_declaration: MODIFIER* (type | VOID_KW) method_declarator method_body
 
-field_declaration: FIELD_MODIFIER* type var_declarators SEMICOLON
+field_declaration: MODIFIER* type var_declarators SEMICOLON
 var_declarators: var_declarator ("," var_declarator)*
 
-method_declarator: identifier "(" (formal_param ("," formal_param)*)? ")"
+method_declarator: IDENTIFIER "(" formal_param_list? ")"
+formal_param_list: formal_param ("," formal_param)*
 formal_param: type var_declarator_id
 
 method_body: block | SEMICOLON
 
-constructor_declaration: CONSTRUCTOR_MODIFIER* type_name "(" argument_list ")" block
+constructor_declaration: MODIFIER* type_name "(" formal_param_list? ")" block
 
-// interface_declaration: INTERFACE_KW identifier (EXTENDS_KW type_list)? interface_body
+// interface_declaration: INTERFACE_KW IDENTIFIER (EXTENDS_KW type_list)? interface_body
 // interface_body: "{" interface_body_declaration* "}"
 // interface_body_declaration: "interface_body_declaration"
                         //   | interface_member
-// interface_member: FIELD_MODIFIER* 
+// interface_member: MODIFIER*

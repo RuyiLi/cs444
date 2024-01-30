@@ -12,10 +12,12 @@ dim_exprs: ("[" expr "]")+
                     | method_invocation
                     | array_access
 
-field_access: primary "." identifier
+field_access: primary "." IDENTIFIER
 
 method_invocation: method_name "(" argument_list? ")"
-                | primary "." identifier "(" argument_list? ")"
+                | primary "." IDENTIFIER "(" argument_list? ")"
+
+argument_list: expr ("," expr)*
 
 class_instance_creation: NEW_KW type_name "(" argument_list? ")" class_body?
 
