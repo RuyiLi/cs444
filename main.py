@@ -22,7 +22,7 @@ def should_error(file_name: str):
     return file_name[:2] == "Je"
 
 
-def load_assignment_testcases(assignment: int):
+def load_assignment_testcases(assignment: int, quiet: bool):
     test_directory = os.path.join(os.getcwd(), f"assignment_testcases/a{assignment}")
     test_files = os.listdir(test_directory)
     passed = 0
@@ -31,7 +31,7 @@ def load_assignment_testcases(assignment: int):
         with open(os.path.join(test_directory, test_file), "r") as f:
             test_file_contents = f.read()
             try:
-                print(l.parse(test_file_contents).pretty())
+                if not quiet: print(l.parse(test_file_contents).pretty())
                 if should_error(test_file):
                     print(f"Failed {test_file} (should have thrown an error):")
                 else:
@@ -47,23 +47,23 @@ def load_assignment_testcases(assignment: int):
     print(f"Total passed: {passed}/{len(test_files)}")
 
 
-def load_custom_testcases(test_names: List[str]):
+def load_custom_testcases(test_names: List[str], quiet: bool):
     for test_name in test_names:
         print(f"Testing {test_name}")
         try:
             f = open(f"./custom_testcases/{test_name}.java", "r")
         except FileNotFoundError:
-            print(f"Could not find test with name {test_name}, skipping...")
+            print(f"Could not find test with name {test_name}.java, skipping...")
         else:
             with f:
                 test_file_contents = f.read()
                 try:
-                    print(l.parse(test_file_contents).pretty())
+                    if not quiet: print(l.parse(test_file_contents).pretty())
                 except Exception as e:
                     print(f"Failed {test_name}:", e)
 
 
-def load_path_testcase(path: str):
+def load_path_testcase(path: str, quiet: bool):
     print(f"Testing {path}")
     try:
         f = open(f"./{path}", "r")
@@ -73,7 +73,7 @@ def load_path_testcase(path: str):
         with f:
             test_file_contents = f.read()
             try:
-                print(l.parse(test_file_contents).pretty())
+                if not quiet: print(l.parse(test_file_contents).pretty())
             except Exception as e:
                 print(f"Failed {path}:", e)
 
@@ -85,14 +85,15 @@ if __name__ == "__main__":
     parser.add_argument("-a", type=int, help="Load assignment testcases")
     parser.add_argument("-t", type=str, nargs="+", help="Load custom testcases")
     parser.add_argument("-p", type=str, help="Load testcases from path")
+    parser.add_argument("-q", action='store_true', default=False, help="Don't print parse tree")
 
     args = parser.parse_args()
 
     if args.a is not None:
-        load_assignment_testcases(args.a)
+        load_assignment_testcases(args.a, quiet=args.q)
 
     if args.t is not None:
-        load_custom_testcases(args.t)
+        load_custom_testcases(args.t, quiet=args.q)
 
     if args.p is not None:
-        load_path_testcase(args.p)
+        load_path_testcase(args.p, quiet=args.q)
