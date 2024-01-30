@@ -12,7 +12,7 @@ for file in files:
     with open(file) as f:
         grammar += "\n" + f.read()
 
-l = Lark(grammar, start="expr", parser="lalr")
+l = Lark(grammar, start="block", parser="lalr")
 
 
 def should_error(file_name: str):

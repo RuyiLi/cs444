@@ -1,3 +1,52 @@
-block: block_statements*
-block_statements: block_statement*
-block_statement: class_or_interface_declaration // | variable_declaration | statement
+block: "{" block_statements* "}"
+?block_statements: block_statement*
+?block_statement: local_var_declaration ";"
+			// | class_or_interface_declaration
+			| statement
+
+local_var_declaration: FINAL_KW? type var_declarator
+var_declarator: var_declarator_id ("=" var_initializer)?
+var_declarator_id: identifier
+				| var_declarator_id "[]"
+var_initializer: expr
+			// | array_initializer
+
+statement: statement_wo_trail
+		| if_st
+		| if_else_st
+		| while_st
+		| for_st
+
+?statement_wo_trail: block
+	| empty_st
+	| expr_st
+	| return_st
+
+statement_no_short_if: statement_wo_trail
+					| if_else_st_no_short_if
+					| while_st_no_short_if
+					| for_st_no_short_if
+
+if_st: IF_KW "(" expr ")" statement
+if_else_st: IF_KW "(" expr ")" statement_no_short_if ELSE_KW statement
+if_else_st_no_short_if: IF_KW "(" expr ")" statement_no_short_if ELSE_KW statement_no_short_if
+
+empty_st: ";"
+
+expr_st: st_expr ";"
+
+?st_expr: assignment
+	// | method_invocation
+	// | class_instance_creation
+
+while_st: WHILE_KW "(" expr ")" statement
+while_st_no_short_if: WHILE_KW "(" expr ")" statement_no_short_if
+
+for_st: FOR_KW "(" for_init? ";" expr? ";" for_update? ")" statement
+for_st_no_short_if: FOR_KW "(" for_init? ";" expr? ";" for_update? ")" statement_no_short_if
+
+for_init: st_expr | local_var_declaration
+
+for_update: st_expr
+
+return_st: RETURN_KW expr?

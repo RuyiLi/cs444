@@ -22,7 +22,7 @@ null_l: "null"
 //      using regex instead so we can get a single string instead of a bunch
 //      of characters in the parse tree. just easier for reading test output
 //      unfortunately idk how to use LETTER and DIGIT in the regex
-identifier: /[a-zA-Z$_][a-zA-Z0-9$_]+/
+identifier: /[a-zA-Z$_][a-zA-Z0-9$_]*/
 
 // expr: literal
 //     | binary_expr

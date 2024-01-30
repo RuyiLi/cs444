@@ -1,7 +1,7 @@
-primary: primary_no_new_array
+?primary: primary_no_new_array
         // | array_creation
 
-primary_no_new_array: literal
+?primary_no_new_array: literal
                     | (type | VOID_KW) "." CLASS_KW
                     | THIS_KW
                     | "(" expr ")"
@@ -17,38 +17,38 @@ field_access: primary "." identifier
 array_access: (expression_name | primary_no_new_array) "[" expr "]"
 expression_name: type_name
 
-postfix_expr: primary | expression_name
+?postfix_expr: primary | expression_name
 
-unary_expr: "-" unary_expr
+?unary_expr: "-" unary_expr
         | unary_expr_not_plus_minus
 
-unary_expr_not_plus_minus: postfix_expr
+?unary_expr_not_plus_minus: postfix_expr
                         | "!" unary_expr
                         | cast_expr
 
-cast_expr: "(" primitive_type ("[]")* ")" unary_expr
+?cast_expr: "(" primitive_type ("[]")* ")" unary_expr
         | "(" reference_type ")" unary_expr_not_plus_minus
 
-mult_expr: unary_expr
+?mult_expr: unary_expr
         | mult_expr ("*" | "/" | "%") unary_expr
 
-add_expr: mult_expr
+?add_expr: mult_expr
         | add_expr ("+" | "-") mult_expr
 
-rel_expr: add_expr
+?rel_expr: add_expr
         | rel_expr ("<" | ">" | "<=" | ">=") add_expr
         | rel_expr INSTANCEOF_KW reference_type
 
-eq_expr: rel_expr
+?eq_expr: rel_expr
         | eq_expr ("==" | "!=") rel_expr
 
-and_expr: eq_expr
+?and_expr: eq_expr
         | and_expr "&&" eq_expr
 
-or_expr: and_expr
+?or_expr: and_expr
         | or_expr "||" or_expr
 
-assign_expr: or_expr
+?assign_expr: or_expr
         | assignment
 
 assignment: lhs "=" assign_expr
@@ -57,6 +57,6 @@ lhs: expression_name
     | field_access
     | array_access
 
-expr: assign_expr
+?expr: assign_expr
 
 const_expr: expr
