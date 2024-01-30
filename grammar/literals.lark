@@ -16,11 +16,7 @@ string_l: "\"" (LETTER | escape_seq)* "\""
 
 NULL: "null"
 
-IDENTIFIER: /(?!\b(abstract|default|if|private|this|boolean|do|implements|protected|throw|break|double|import|public|throws|byte|else|instanceof|return|transient|case|extends|int|short|try|catch|final|interface|static|void|char|finally|long|strictfp|volatile|class|float|native|super|while|const|for|new|switch|continue|goto|package|synchronized)\b)\b[a-zA-Z$_][a-zA-Z0-9$_]*\b/
+IDENTIFIER: /(?!\b(abstract|default|if|private|this|boolean|do|implements|protected|throw|break|double|import|public|throws|byte|else|instanceof|return|transient|case|extends|int|short|try|catch|final|interface|static|void|char|finally|long|strictfp|volatile|class|float|native|super|while|const|for|new|switch|continue|goto|package|synchronized|true|false|null)\b)\b[a-zA-Z$_][a-zA-Z0-9$_]*\b/
 
-%import common.DIGIT
 %import common.INT
 %import common.LETTER
-%import common.WS
-%ignore WS
-// not sure if we can actually do this because of // comments

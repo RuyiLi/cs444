@@ -25,6 +25,7 @@ def should_error(file_name: str):
 def load_assignment_testcases(assignment: int):
     test_directory = os.path.join(os.getcwd(), f"assignment_testcases/a{assignment}")
     test_files = os.listdir(test_directory)
+    passed = 0
     for test_file in test_files:
         print(f"Testing {test_file}")
         with open(os.path.join(test_directory, test_file), "r") as f:
@@ -35,12 +36,15 @@ def load_assignment_testcases(assignment: int):
                     print(f"Failed {test_file} (should have thrown an error):")
                 else:
                     print(f"Passed {test_file} (correctly did not throw an error):")
+                    passed += 1
 
             except Exception as e:
                 if should_error(test_file):
                     print(f"Passed {test_file} (correctly threw an error):", e)
+                    passed += 1
                 else:
                     print(f"Failed {test_file} (should not have thrown an error):", e)
+    print(f"Total passed: {passed}/{len(test_files)}")
 
 
 def load_custom_testcases(test_names: List[str]):
