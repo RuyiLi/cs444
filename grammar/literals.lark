@@ -9,10 +9,10 @@ integer_l: INT
 boolean_l: "true" -> true
          | "false" -> false
 
-char_l: "'" (LETTER | escape_seq) "'"
+char_l: "'" ( /(?!['\\])[\x00-\x7F]/ | escape_seq) "'"
 escape_seq: "\\" (/[btnfr\"\'\\]/ | INT)
 
-string_l: "\"" (LETTER | escape_seq)* "\""
+string_l: "\"" ( /(?!["\\])[\x00-\x7F]/ | escape_seq)* "\""
 
 NULL: "null"
 
