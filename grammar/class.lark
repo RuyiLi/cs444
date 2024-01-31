@@ -8,10 +8,9 @@ SEMICOLON: ";"
 // METHOD_MODIFIER: PUBLIC_KW | PROTECTED_KW | STATIC_KW | FINAL_KW
 
 MODIFIER: PUBLIC_KW | PROTECTED_KW | STATIC_KW | FINAL_KW | ABSTRACT_KW
-INTERFACE_MODIFIER: PUBLIC_KW
 
 
-class_declaration: MODIFIER* CLASS_KW IDENTIFIER (EXTENDS_KW class_type)? (IMPLEMENTS_KW interface_type_list)? class_body
+class_declaration.1: MODIFIER* CLASS_KW IDENTIFIER (EXTENDS_KW class_type)? (IMPLEMENTS_KW interface_type_list)? class_body
 interface_type_list: interface_type ("," interface_type)*
 
 class_body: "{" class_body_declaration* "}"
@@ -24,7 +23,7 @@ member_declaration: SEMICOLON
                   | method_declaration
                   | field_declaration
                   | class_declaration
-                   | interface_declaration
+                   // | interface_declaration
 
 method_declaration: MODIFIER* (type | VOID_KW) method_declarator method_body
 
@@ -39,6 +38,6 @@ method_body: block | SEMICOLON
 
 constructor_declaration: MODIFIER* type_name "(" formal_param_list? ")" block
 
-interface_declaration: INTERFACE_MODIFIER? INTERFACE_KW IDENTIFIER (EXTENDS_KW interface_type_list)? interface_body
+interface_declaration: MODIFIER* INTERFACE_KW IDENTIFIER (EXTENDS_KW interface_type_list)? interface_body
 interface_body: "{" interface_body_declaration* "}"
 interface_body_declaration: class_declaration | ABSTRACT_KW method_declaration | interface_declaration | SEMICOLON
