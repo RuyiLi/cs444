@@ -78,20 +78,19 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
 
 
 def load_path_testcase(path: str, quiet: bool):
-    print(f"Testing {path}")
     try:
-        f = open(f"./{path}", "r")
+        f = open(path, "r")
     except FileNotFoundError:
         print(f"Could not find test with name {path}, skipping...")
     else:
         with f:
             test_file_contents = f.read()
             try:
-                res = l.parse(test_file_contents)
-                if not quiet:
-                    print(res.pretty())
-            except Exception as e:
-                print(f"Failed {path}:", e)
+                l.parse(test_file_contents).pretty()
+                exit(0)
+
+            except Exception:
+                exit(42)
 
 
 if __name__ == "__main__":
@@ -101,7 +100,9 @@ if __name__ == "__main__":
     parser.add_argument("-a", type=int, help="Load assignment testcases")
     parser.add_argument("-t", type=str, nargs="+", help="Load custom testcases")
     parser.add_argument("-p", type=str, help="Load testcases from path")
-    parser.add_argument("-q", action='store_true', default=False, help="Don't print parse tree")
+    parser.add_argument(
+        "-q", action="store_true", default=False, help="Don't print parse tree"
+    )
 
     args = parser.parse_args()
 

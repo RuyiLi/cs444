@@ -19,7 +19,7 @@ if [ ! -f "$$filename" ]; then
 fi
 
 # Call the Python script with the input filename
-python main.py -p [$$filename]
+python main.py -p $$filename
 
 # Check the exit status of the Python script
 case $$? in
