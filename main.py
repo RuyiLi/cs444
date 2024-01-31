@@ -31,7 +31,9 @@ def load_assignment_testcases(assignment: int, quiet: bool):
         with open(os.path.join(test_directory, test_file), "r") as f:
             test_file_contents = f.read()
             try:
-                if not quiet: print(l.parse(test_file_contents).pretty())
+                res = l.parse(test_file_contents).pretty()
+                if not quiet:
+                    print(res)
                 if should_error(test_file):
                     print(f"Failed {test_file} (should have thrown an error):")
                 else:
@@ -58,7 +60,10 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
             with f:
                 test_file_contents = f.read()
                 try:
-                    if not quiet: print(l.parse(test_file_contents).pretty())
+                    res = l.parse(test_file_contents).pretty()
+                    if not quiet:
+                        print(res)
+                    print(f"Passed {test_name}")
                 except Exception as e:
                     print(f"Failed {test_name}:", e)
 
@@ -73,7 +78,9 @@ def load_path_testcase(path: str, quiet: bool):
         with f:
             test_file_contents = f.read()
             try:
-                if not quiet: print(l.parse(test_file_contents).pretty())
+                res = l.parse(test_file_contents).pretty()
+                if not quiet:
+                    print(res)
             except Exception as e:
                 print(f"Failed {path}:", e)
 
