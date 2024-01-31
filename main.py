@@ -28,23 +28,26 @@ def load_assignment_testcases(assignment: int, quiet: bool):
     passed = 0
     failed_tests = []
     for test_file in test_files:
-        print(f"Testing {test_file}")
+        if not quiet:
+            print(f"Testing {test_file}")
         with open(os.path.join(test_directory, test_file), "r") as f:
             test_file_contents = f.read()
             try:
-                res = l.parse(test_file_contents).pretty()
+                res = l.parse(test_file_contents)
                 if not quiet:
-                    print(res)
+                    print(res.pretty())
                 if should_error(test_file):
                     print(f"Failed {test_file} (should have thrown an error):")
                     failed_tests.append(test_file)
                 else:
-                    print(f"Passed {test_file} (correctly did not throw an error):")
+                    if not quiet:
+                        print(f"Passed {test_file} (correctly did not throw an error):")
                     passed += 1
 
             except Exception as e:
                 if should_error(test_file):
-                    print(f"Passed {test_file} (correctly threw an error):", e)
+                    if not quiet:
+                        print(f"Passed {test_file} (correctly threw an error):")
                     passed += 1
                 else:
                     print(f"Failed {test_file} (should not have thrown an error):", e)
@@ -66,9 +69,9 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
             with f:
                 test_file_contents = f.read()
                 try:
-                    res = l.parse(test_file_contents).pretty()
+                    res = l.parse(test_file_contents)
                     if not quiet:
-                        print(res)
+                        print(res.pretty())
                     print(f"Passed {test_name}")
                 except Exception as e:
                     print(f"Failed {test_name}:", e)
@@ -84,9 +87,9 @@ def load_path_testcase(path: str, quiet: bool):
         with f:
             test_file_contents = f.read()
             try:
-                res = l.parse(test_file_contents).pretty()
+                res = l.parse(test_file_contents)
                 if not quiet:
-                    print(res)
+                    print(res.pretty())
             except Exception as e:
                 print(f"Failed {path}:", e)
 
