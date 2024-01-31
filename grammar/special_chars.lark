@@ -4,6 +4,8 @@ EQ: "=="
 NOT_EQ: "!="
 LOGICAL_OR: "||"
 LOGICAL_AND: "&&"
+EAGER_OR: "|"
+EAGER_AND: "&"
 
 LT_EQ: "<="
 GT_EQ: ">="

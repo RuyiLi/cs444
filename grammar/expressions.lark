@@ -1,3 +1,5 @@
+// https://introcs.cs.princeton.edu/java/11precedence/
+
 ?primary: primary_no_new_array
         | array_creation_expr
 
@@ -5,17 +7,17 @@ array_creation_expr: NEW_KW (primitive_type | type_name) dim_exprs SQ_BRACKETS? 
 dim_exprs: ("[" expr "]")+
 
 ?primary_no_new_array: literal
-                    | THIS_KW
-                    | "(" expr ")"
-                    | class_instance_creation
-                    | field_access
-                    | method_invocation
-                    | array_access
+                     | THIS_KW
+                     | "(" expr ")"
+                     | class_instance_creation
+                     | field_access
+                     | method_invocation
+                     | array_access
 
 field_access: primary "." IDENTIFIER
 
 method_invocation: method_name "(" argument_list? ")"
-                | primary "." IDENTIFIER "(" argument_list? ")"
+                 | primary "." IDENTIFIER "(" argument_list? ")"
 
 argument_list: expr ("," expr)*
 
@@ -25,42 +27,51 @@ array_access: (expression_name | primary_no_new_array) "[" expr "]"
 
 ?postfix_expr: primary | expression_name
 
-?unary_expr: "-" unary_expr
-        | unary_expr_not_plus_minus
+unary_negative_expr: "-" unary_expr
+unary_positive_expr: "+" unary_expr
+
+?unary_expr: unary_negative_expr
+           | unary_positive_expr
+           | unary_expr_not_plus_minus
 
 ?unary_expr_not_plus_minus: postfix_expr
-                        | "!" unary_expr
-                        | cast_expr
+                          | "!" unary_expr
+                          | cast_expr
 
 ?cast_expr: "(" primitive_type (SQ_BRACKETS)* ")" unary_expr
-        | "(" reference_type ")" unary_expr_not_plus_minus
+          | "(" reference_type ")" unary_expr
 
 ?mult_expr: unary_expr
-        | mult_expr ("*" | "/" | "%") unary_expr
+          | mult_expr ("*" | "/" | "%") unary_expr
 
 ?add_expr: mult_expr
-        | add_expr ("+" | "-") mult_expr
+         | add_expr ("+" | "-") mult_expr
 
 ?rel_expr: add_expr
-        | rel_expr ("<" | ">" | LT_EQ | GT_EQ) add_expr
-        | rel_expr INSTANCEOF_KW reference_type
+         | rel_expr ("<" | ">" | LT_EQ | GT_EQ) add_expr
+         | rel_expr INSTANCEOF_KW reference_type
 
 ?eq_expr: rel_expr
         | eq_expr (EQ | NOT_EQ) rel_expr
 
-?and_expr: eq_expr
-        | and_expr LOGICAL_AND eq_expr
+?eager_and_expr: eq_expr
+               | eager_and_expr EAGER_AND eq_expr
+
+?eager_or_expr: eager_and_expr
+              | eager_or_expr EAGER_OR eager_and_expr
+
+?and_expr: eager_or_expr
+         | and_expr LOGICAL_AND eager_or_expr
 
 ?or_expr: and_expr
         | or_expr LOGICAL_OR or_expr
 
-?assign_expr: or_expr
-        | assignment
-
-assignment: lhs "=" assign_expr
+assignment: lhs "=" expr
 
 lhs: expression_name
-    | field_access
-    | array_access
+   | field_access
+   | array_access
 
-?expr: assign_expr
+?expr: assignment
+     | or_expr
+
