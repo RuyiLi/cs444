@@ -26,6 +26,7 @@ def load_assignment_testcases(assignment: int, quiet: bool):
     test_directory = os.path.join(os.getcwd(), f"assignment_testcases/a{assignment}")
     test_files = os.listdir(test_directory)
     passed = 0
+    failed_tests = []
     for test_file in test_files:
         print(f"Testing {test_file}")
         with open(os.path.join(test_directory, test_file), "r") as f:
@@ -36,6 +37,7 @@ def load_assignment_testcases(assignment: int, quiet: bool):
                     print(res)
                 if should_error(test_file):
                     print(f"Failed {test_file} (should have thrown an error):")
+                    failed_tests.append(test_file)
                 else:
                     print(f"Passed {test_file} (correctly did not throw an error):")
                     passed += 1
@@ -46,7 +48,11 @@ def load_assignment_testcases(assignment: int, quiet: bool):
                     passed += 1
                 else:
                     print(f"Failed {test_file} (should not have thrown an error):", e)
+                    failed_tests.append(test_file)
+
     print(f"Total passed: {passed}/{len(test_files)}")
+    if len(failed_tests) > 0:
+        print(f"Failed tests: {', '.join(failed_tests)}")
 
 
 def load_custom_testcases(test_names: List[str], quiet: bool):
