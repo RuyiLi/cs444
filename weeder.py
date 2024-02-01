@@ -16,6 +16,16 @@ class Weeder(Visitor):
         file_name = os.path.basename(file_name)
         self.file_name = os.path.splitext(file_name)[0]
 
+    def interface_declaration(self, tree: ParseTree):
+        modifiers = get_modifiers(tree.children)
+
+        # shouldn't raise stopiteration, grammar should catch anonymous classes
+        interface_name = next(filter(lambda c: c.type == "IDENTIFIER", tree.children))
+        if "public" in modifiers and interface_name != self.file_name:
+            raise WeedError(
+                f"interface {interface_name} is public, should be declared in a file named {interface_name}.java"
+            )
+
     def class_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
 
@@ -46,15 +56,26 @@ class Weeder(Visitor):
         if "native" in modifiers and "static" not in modifiers:
             raise WeedError("A native method must be static.")
 
-        if "abstract" in modifiers and ("static" in modifiers or "final" in modifiers):
-            raise WeedError(
-                "Illegal combination of modifiers: abstract and final/static"
-            )
+        if "abstract" in modifiers:
+            if "static" in modifiers or "final" in modifiers:
+                raise WeedError(
+                    "Illegal combination of modifiers: abstract and final/static."
+                )
+            if tree.scan_values(lambda x: x.value == "method_body"):
+                raise WeedError("An abstract method must not have a body.")
+
+    def interface_method_declaration(self, tree: ParseTree):
+        method_decl = tree.children[0]
+        modifers = get_modifiers(method_decl.children)
+
+        if "final" in modifers or "static" in modifers:
+            raise WeedError("An interface method cannot be static or final.")
 
     def integer_l(self, tree: ParseTree):
         MAX_INT = 2**31 - 1
         MIN_INT = -(2**31)
 
+        # doesnt work for -/*comment*/MAX_INT
         val = int(tree.children[0].value)
         if val > MAX_INT:
             raise WeedError("Integer number too large")
@@ -66,7 +87,6 @@ class Weeder(Visitor):
 
         if "final" in modifiers:
             raise WeedError("No field can be final.")
-
 
     # def __default__(self, tree: ParseTree):
     # print(tree.data, tree.children)

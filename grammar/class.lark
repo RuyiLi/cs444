@@ -40,4 +40,7 @@ constructor_declaration: MODIFIER+ type_name "(" formal_param_list? ")" block
 
 interface_declaration: MODIFIER+ INTERFACE_KW IDENTIFIER (EXTENDS_KW interface_type_list)? interface_body
 interface_body: "{" interface_body_declaration* "}"
-interface_body_declaration: class_declaration | method_declaration | interface_declaration | SEMICOLON
+interface_body_declaration: class_declaration
+                          | method_declaration -> interface_method_declaration 
+                          | interface_declaration
+                          | SEMICOLON
