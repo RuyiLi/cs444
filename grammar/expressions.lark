@@ -28,10 +28,8 @@ array_access: (expression_name | primary_no_new_array) "[" expr "]"
 ?postfix_expr: primary | expression_name
 
 unary_negative_expr: "-" unary_expr
-unary_positive_expr: "+" unary_expr
 
 ?unary_expr: unary_negative_expr
-           | unary_positive_expr
            | unary_expr_not_plus_minus
 
 ?unary_expr_not_plus_minus: postfix_expr

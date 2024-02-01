@@ -45,6 +45,16 @@ class Weeder(Visitor):
                 "Illegal combination of modifiers: abstract and final/static"
             )
 
+    def integer_l(self, tree: ParseTree):
+        MAX_INT = 2**31 - 1
+        MIN_INT = -(2**31)
+
+        val = int(tree.children[0].value)
+        if val > MAX_INT:
+            raise WeedError("Integer number too large")
+        if val < MIN_INT:
+            raise WeedError("Integer number too large")
+
     def field_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
 
