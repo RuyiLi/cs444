@@ -1,9 +1,14 @@
-from lark import Visitor, Token, ParseTree
+from lark import Visitor, Token, ParseTree, Tree
+from typing import List, Union
 import os
 
 
 class WeedError(Exception):
     pass
+
+
+def get_modifiers(trees_or_tokens: List[Union[Token, Tree[Token]]]):
+    return [c for c in trees_or_tokens if isinstance(c, Token) and c.type == "MODIFIER"]
 
 
 class Weeder(Visitor):
@@ -12,9 +17,7 @@ class Weeder(Visitor):
         self.file_name = os.path.splitext(file_name)[0]
 
     def class_declaration(self, tree: ParseTree):
-        modifiers = [
-            c for c in tree.children if isinstance(c, Token) and c.type == "MODIFIER"
-        ]
+        modifiers = get_modifiers(tree.children)
 
         # shouldn't raise stopiteration, grammar should catch anonymous classes
         class_name = next(filter(lambda c: c.type == "IDENTIFIER", tree.children))
@@ -31,17 +34,22 @@ class Weeder(Visitor):
                 "Class declaration cannot contain more than one of the same modifier."
             )
 
-        if any(x == "abstract" for x in modifiers) and any(
-            x == "final" for x in modifiers
-        ):
+        if "abstract" in modifiers and "final" in modifiers:
             raise WeedError("Class declaration cannot be both abstract and final.")
 
+    def method_declaration(self, tree: ParseTree):
+        modifiers = get_modifiers(tree.children)
+
+        if "abstract" in modifiers and ("static" in modifiers or "final" in modifiers):
+            raise WeedError(
+                "Illegal combination of modifiers: abstract and final/static"
+            )
+
     def field_declaration(self, tree: ParseTree):
-        modifiers = list(filter(lambda c: isinstance(c, Token) and c.type == "MODIFIER", tree.children))
+        modifiers = get_modifiers(tree.children)
 
-        if any(x == "final" for x in modifiers):
+        if "final" in modifiers:
             raise WeedError("No field can be final.")
-
 
     # def __default__(self, tree: ParseTree):
     # print(tree.data, tree.children)
