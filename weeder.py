@@ -16,5 +16,12 @@ class Weeder(Visitor):
         if any(x == "abstract" for x in modifiers) and any(x == "final" for x in modifiers):
             raise WeedError("Class declaration cannot be both abstract and final.")
 
+    def field_declaration(self, tree: ParseTree):
+        modifiers = list(filter(lambda c: isinstance(c, Token) and c.type == "MODIFIER", tree.children))
+
+        if any(x == "final" for x in modifiers):
+            raise WeedError("No field can be final.")
+
+
     # def __default__(self, tree: ParseTree):
         # print(tree.data, tree.children)
