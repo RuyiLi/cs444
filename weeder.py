@@ -24,7 +24,7 @@ class Weeder(Visitor):
         modifiers = get_modifiers(tree.children)
 
         # shouldn't raise stopiteration, grammar should catch anonymous classes
-        interface_name = next(filter(lambda c: c.type == "IDENTIFIER", tree.children))
+        interface_name = next(filter(lambda c: isinstance(c, Token) and c.type == "IDENTIFIER", tree.children))
         if "public" in modifiers and interface_name != self.file_name:
             raise WeedError(
                 f"interface {interface_name} is public, should be declared in a file named {interface_name}.java"
@@ -66,16 +66,8 @@ class Weeder(Visitor):
 
         # Non-abstract class
         if "abstract" not in modifiers:
-            class_body = next(
-                filter(
-                    lambda c: isinstance(c, Tree) and c.data == "class_body",
-                    tree.children,
-                )
-            )
-            assert isinstance(class_body, Tree)
-
             method_declarations = list(
-                class_body.find_pred(lambda c: c.data == "method_declaration")
+                tree.find_pred(lambda c: c.data == "method_declaration")
             )
 
             for md in method_declarations:
@@ -125,34 +117,29 @@ class Weeder(Visitor):
                     "Illegal combination of modifiers: abstract and final/static",
                     tree.meta.line,
                 )
-            if tree.scan_values(lambda x: x.value == "method_body"):
-                raise WeedError("An abstract method must not have a body.")
-
-    def interface_method_declaration(self, tree: ParseTree):
-        method_decl = tree.children[0]
-        modifiers = get_modifiers(method_decl.children)
-
-        if "final" in modifiers or "static" in modifiers:
-            raise WeedError("An interface method cannot be static or final.")
 
         if "abstract" in modifiers or "native" in modifiers:
-            method_body = next(
-                filter(
-                    lambda c: isinstance(c, Tree) and c.data == "method_body",
-                    tree.children,
-                )
-            )
-            assert isinstance(method_body, Tree)
+            block = next(tree.find_pred(lambda x: x.data == "block"), None)
 
-            if isinstance(method_body.children[0], Tree):
-                assert method_body.children[0].data == "block"
-                format_error(
-                    "Abstract/native method cannot have a body.", method_body.meta.line
-                )
+            if block is not None:
+                format_error("An abstract/native method must not have a body.", block.meta.line)
 
         # Two methods cannot have the same signature (name + param types).
         # Two methods cannot have the same identifier.
         # Final parameters cannot be assigned to.
+
+    def interface_method_declaration(self, tree: ParseTree):
+        method_decl = tree.children[0]
+        assert isinstance(method_decl, Tree)
+        modifiers = get_modifiers(method_decl.children)
+
+        if "final" in modifiers or "static" in modifiers or "native" in modifiers:
+            format_error("An interface method cannot be static/final/native.", method_decl.meta.line)
+
+        block = next(tree.find_pred(lambda x: x.data == "block"), None)
+
+        if block is not None:
+            format_error("An interface method must not have a body.", block.meta.line)
 
     def integer_l(self, tree: ParseTree):
         MAX_INT = 2**31 - 1
