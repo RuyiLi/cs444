@@ -36,7 +36,7 @@ def load_assignment_testcases(assignment: int, quiet: bool):
             test_file_contents = f.read()
             try:
                 res = l.parse(test_file_contents)
-                Weeder().visit(res)
+                Weeder(f.name).visit(res)
                 if not quiet:
                     print(res.pretty())
                 if should_error(test_file):
@@ -74,12 +74,13 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
                 test_file_contents = f.read()
                 try:
                     res = l.parse(test_file_contents)
-                    Weeder().visit(res)
+                    Weeder(f.name).visit(res)
                     if not quiet:
                         print(res.pretty())
                     print(f"Passed {test_name}")
                 except Exception as e:
                     print(f"Failed {test_name}:", e)
+
 
 def load_path_testcase(path: str, quiet: bool):
     try:
@@ -91,9 +92,10 @@ def load_path_testcase(path: str, quiet: bool):
             test_file_contents = f.read()
             try:
                 res = l.parse(test_file_contents)
-                Weeder().visit(res)
+                Weeder(f.name).visit(res)
+                if not quiet:
+                    print(res.pretty())
                 exit(0)
-
             except Exception:
                 exit(42)
 
