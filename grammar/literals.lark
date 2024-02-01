@@ -4,15 +4,15 @@
         | string_l
         | NULL
 
-integer_l: INT
+integer_l: /0|([1-9]\d*)/
 
 boolean_l: "true" -> true
          | "false" -> false
 
 char_l: "'" ( /(?!['\\])[\x00-\x7F]/ | escape_seq) "'"
-escape_seq: "\\" (/[btnfr\"\'\\]/ | INT)
+escape_seq: "\\" /[btnfr\"\'\\]|([0-3]?[0-7]?[0-7])/
 
-string_l: "\"" ( /(?!["\\])[\x00-\x7F]/ | escape_seq)* "\""
+string_l: "\"" ( /(?!["\\])[\x00-\x7F]/ | "'" | escape_seq)* "\""
 
 NULL: "null"
 
