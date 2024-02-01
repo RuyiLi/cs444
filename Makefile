@@ -47,6 +47,7 @@ all: joosc
 clean:
 	rm -f joosc
 	rm -f joos_submission.zip
+	rm -rf joos_submission
 	pip uninstall -r requirements.txt -y
 
 joosc:
@@ -56,5 +57,10 @@ joosc:
 
 zip:
 	git --no-pager log > $(CURR_ASSIGNMENT).log
-	zip -r joos_submission.zip custom_testcases grammar main.py requirements.txt Makefile $(CURR_ASSIGNMENT).log
+	zip -r joos_submission.zip custom_testcases grammar main.py weeder.py requirements.txt Makefile $(CURR_ASSIGNMENT).log
 	rm -f $(CURR_ASSIGNMENT).log
+
+unzip:
+	rm -rf joos_submission
+	mkdir joos_submission
+	unzip joos_submission.zip -d joos_submission
