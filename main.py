@@ -56,6 +56,8 @@ def load_assignment_testcases(assignment: int, quiet: bool):
                     print(f"Failed {test_file} (should not have thrown an error):", e)
                     failed_tests.append(test_file)
 
+    print()
+    print("=" * 50)
     print(f"Total passed: {passed}/{len(test_files)}")
     if len(failed_tests) > 0:
         print(f"Failed tests: {', '.join(failed_tests)}")
