@@ -3,7 +3,7 @@ block: "{" block_statement* "}"
 			| class_declaration
 			| statement
 
-local_var_declaration: FINAL_KW? type var_declarator
+local_var_declaration: type var_declarator
 var_declarator: var_declarator_id ("=" var_initializer)?
 var_declarator_id: IDENTIFIER
 				| var_declarator_id SQ_BRACKETS
