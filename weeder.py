@@ -40,6 +40,12 @@ class Weeder(Visitor):
     def method_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
 
+        if "final" in modifiers and "static" in modifiers:
+            raise WeedError("A static method cannot be final.")
+
+        if "native" in modifiers and "static" not in modifiers:
+            raise WeedError("A native method must be static.")
+
         if "abstract" in modifiers and ("static" in modifiers or "final" in modifiers):
             raise WeedError(
                 "Illegal combination of modifiers: abstract and final/static"
@@ -61,17 +67,6 @@ class Weeder(Visitor):
         if "final" in modifiers:
             raise WeedError("No field can be final.")
 
-    def method_declaration(self, tree: ParseTree):
-        modifiers = get_modifiers(tree.children)
-
-        if "final" in modifiers and "static" in modifiers:
-            raise WeedError("A static method cannot be final.")
-
-        if "native" in modifiers and "static" not in modifiers:
-            raise WeedError("A native method must be static.")
-
-        if "abstract" in modifiers and ("static" or "final" in modifiers):
-            raise WeedError("An abstract method cannot be static or final.")
 
     # def __default__(self, tree: ParseTree):
     # print(tree.data, tree.children)
