@@ -17,7 +17,7 @@ for file in files:
     with open(file) as f:
         grammar += "\n" + f.read()
 
-l = Lark(grammar, start="compilation_unit", parser="lalr", debug=True)
+l = Lark(grammar, start="compilation_unit", parser="lalr", debug=True, propagate_positions=True)
 
 
 def should_error(file_name: str):
