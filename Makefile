@@ -50,11 +50,11 @@ clean:
 	pip uninstall -r requirements.txt -y
 
 joosc:
-	pip install lark
+	pip install -r requirements.txt
 	echo "$$JOOSC_FILE_CONTENTS" > joosc
 	chmod +x joosc
 
 zip:
 	git --no-pager log > $(CURR_ASSIGNMENT).log
-	zip -r joos_submission.zip custom_testcases grammar main.py Makefile $(CURR_ASSIGNMENT).log
+	zip -r joos_submission.zip custom_testcases grammar main.py requirements.txt Makefile $(CURR_ASSIGNMENT).log
 	rm -f $(CURR_ASSIGNMENT).log
