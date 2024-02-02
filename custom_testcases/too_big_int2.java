@@ -1,7 +1,7 @@
 public class too_big_int2 {
 
     public too_big_int2(){}
-    
+
     public static int test() {
         int y = 9;
         String s = "Hello world!";

@@ -29,8 +29,11 @@ array_access: (expression_name | primary_no_new_array) "[" expr "]"
 
 unary_negative_expr: "-" unary_expr
 
-?unary_expr: unary_negative_expr
+?unary_expr: pre_dec_expr
+           | unary_negative_expr
            | unary_expr_not_plus_minus
+
+pre_dec_expr.1: "--" unary_expr
 
 ?unary_expr_not_plus_minus: postfix_expr
                           | "!" unary_expr

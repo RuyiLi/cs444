@@ -158,6 +158,9 @@ class Weeder(Visitor):
 
             if int_too_large is not None:
                 format_error("Integer number too large", int_too_large.meta.line)
+    
+    def pre_dec_expr(self, tree: ParseTree):
+        format_error("Pre-decrement operator not allowed", tree.meta.line)
 
     def field_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
