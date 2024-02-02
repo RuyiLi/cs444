@@ -14,7 +14,7 @@ public class Je_16_MultiArrayCreation_Assign_1{
 	// a = (Object) (Object)a;
 	a = (char)92+"1";
 	//int i = (ia[5]) ia;
-	int i = (int[]) ia;
+	int i = (Integer[5]) ia;
 	a = (Object)(Object)a;
 	// if (s.equals((Object)s2)) return 123;
     }

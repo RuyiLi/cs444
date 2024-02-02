@@ -176,11 +176,13 @@ class Weeder(Visitor):
 
     def cast_expr(self, tree: ParseTree):
         cast = tree.children[0]
-        # if it's not a primitive type (e.g. int or int[]), it's enforce that it is an object cast
+        # if it's not a primitive type (i.e. int or int[]), enforce that it is an object or object array cast
         if cast not in ['int', 'char', 'byte', 'short', 'boolean']:
             expr = cast.children[0]
-            if expr.data != 'expression_name':
-                format_error("Test", tree.meta.line)
+
+            # enforce that it is casting an object (if it is array_type, we skip since that is enforced in grammer)
+            if expr.data != 'expression_name' and cast.data == 'expr':
+                format_error("Expression casting invalid.", tree.meta.line)
 
     # def __default__(self, tree: ParseTree):
     # print(tree.data, tree.children)
