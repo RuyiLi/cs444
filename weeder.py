@@ -241,14 +241,30 @@ class Weeder(Visitor):
     def field_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
 
-        if "final" in modifiers:
-            format_error("No field can be final.", tree.meta.line)
+        invalid_modifier = next(filter(lambda c: c not in ["public", "protected", "static"], modifiers), None)
+        if invalid_modifier is not None:
+            format_error(
+                f'Invalid modifier "{invalid_modifier}" used in field declaration.',
+                invalid_modifier.line
+            )
+
+        if "public" in modifiers and "protected" in modifiers:
+            format_error("Field cannot be both public and protected.", tree.meta.line)
+
+        if len(set(modifiers)) < len(modifiers):
+            format_error(
+                "Field declaration cannot contain more than one of the same modifier.",
+                tree.meta.line,
+            )
 
     def class_body(self, tree: ParseTree):
         constructor = next(tree.find_pred(lambda x: x.data == "constructor_declaration"), None)
-
         if constructor is None:
             format_error("Class must contain an explicit constructor.", tree.meta.line)
+
+        nested_class = next(tree.find_pred(lambda x: x.data == "class_declaration"), None)
+        if nested_class is not None:
+            format_error("Nested classes are not allowed.", nested_class.meta.line)
 
     def cast_expr(self, tree: ParseTree):
         cast = tree.children[0]
