@@ -64,20 +64,30 @@ class Weeder(Visitor):
                 "Class declaration cannot be both abstract and final.", tree.meta.line
             )
 
-        # Non-abstract class
-        if "abstract" not in modifiers:
-            method_declarations = list(
-                tree.find_pred(lambda c: c.data == "method_declaration")
+        method_declarations = list(tree.find_pred(lambda c: c.data == "method_declaration"))
+        abstract_method = next(filter(lambda md: "abstract" in get_modifiers(md.children), method_declarations), None)
+
+        if "abstract" not in modifiers and abstract_method is not None:
+            format_error(
+                "Non-abstract class cannot contain an abstract method.",
+                abstract_method.meta.line,
             )
 
-            for md in method_declarations:
-                abstract_method = "abstract" in get_modifiers(md.children)
+        def get_signature(md: Tree[Token]):
+            identifier = next(filter(lambda c: isinstance(c, Tree) and c.data == "method_declarator", md.children)).children[0]
+            formal_params = next(md.find_pred(lambda c: c.data == "formal_param_list")).children
+            formal_param_types = list(map(lambda fp:
+                next(map(lambda t: next(t.scan_values(lambda v: isinstance(v, Token))), fp.find_pred(lambda c: c.data == "type")))
+            , formal_params))
+            return (identifier, formal_param_types)
 
-                if abstract_method:
-                    format_error(
-                        "Non-abstract class cannot contain an abstract method.",
-                        md.meta.line,
-                    )
+        method_signatures = list(map(get_signature, method_declarations))
+
+        for i in range(len(method_signatures)):
+            for j in range(i+1, len(method_signatures)):
+                if method_signatures[i] == method_signatures[j]:
+                    [m1_l, m2_l] = [method_declarations[i].meta.line, method_declarations[j].meta.line]
+                    format_error(f"Two methods cannot have the same signature. (lines {m1_l} and {m2_l})")
 
     def method_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
@@ -114,7 +124,7 @@ class Weeder(Visitor):
         if "abstract" in modifiers:
             if "static" in modifiers or "final" in modifiers:
                 format_error(
-                    "Illegal combination of modifiers: abstract and final/static",
+                    "Illegal combination of modifiers: abstract and final/static.",
                     tree.meta.line,
                 )
 
@@ -124,9 +134,21 @@ class Weeder(Visitor):
             if block is not None:
                 format_error("An abstract/native method must not have a body.", block.meta.line)
 
-        # Two methods cannot have the same signature (name + param types).
-        # Two methods cannot have the same identifier.
+        if "public" not in modifiers:
+            format_error("Method must be declared public.", tree.meta.line)
+
+        child_fields = filter(lambda c: isinstance(c, Tree) and c.data == "field_declaration", tree.children)
+        for field in child_fields:
+            if "public" not in get_modifiers(field.children):
+                format_error("Field must be declared public.", field.meta.line)
+
         # Final parameters cannot be assigned to.
+
+    def formal_param_list(self, tree: ParseTree):
+        identifiers = list(map(lambda v: v.children[0], tree.find_pred(lambda c: c.data == "var_declarator_id")))
+
+        if len(set(identifiers)) < len(identifiers):
+            format_error("Formal parameters must have unique identifiers.", tree.meta.line)
 
     def interface_method_declaration(self, tree: ParseTree):
         method_decl = tree.children[0]
@@ -140,6 +162,9 @@ class Weeder(Visitor):
 
         if block is not None:
             format_error("An interface method must not have a body.", block.meta.line)
+    
+        if "public" not in modifiers:
+            format_error("Method must be declared public.", tree.meta.line)
 
     def expr(self, tree: ParseTree):
         MAX_INT = 2**31 - 1
@@ -157,10 +182,10 @@ class Weeder(Visitor):
             ), None)
 
             if int_too_large is not None:
-                format_error("Integer number too large", int_too_large.meta.line)
+                format_error("Integer number too large.", int_too_large.meta.line)
 
     def pre_dec_expr(self, tree: ParseTree):
-        format_error("Pre-decrement operator not allowed", tree.meta.line)
+        format_error("Pre-decrement operator not allowed.", tree.meta.line)
 
     def field_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
@@ -172,7 +197,7 @@ class Weeder(Visitor):
         constructor = next(tree.find_pred(lambda x: x.data == "constructor_declaration"), None)
 
         if constructor is None:
-            format_error("Class must contain an explicit constructor", tree.meta.line)
+            format_error("Class must contain an explicit constructor.", tree.meta.line)
 
     def cast_expr(self, tree: ParseTree):
         cast = tree.children[0]
