@@ -174,5 +174,13 @@ class Weeder(Visitor):
         if constructor is None:
             format_error("Class must contain an explicit constructor", tree.meta.line)
 
+    def cast_expr(self, tree: ParseTree):
+        cast = tree.children[0]
+        # if it's not a primitive type (e.g. int or int[]), it's enforce that it is an object cast
+        if cast not in ['int', 'char', 'byte', 'short', 'boolean']:
+            expr = cast.children[0]
+            if expr.data != 'expression_name':
+                format_error("Test", tree.meta.line)
+
     # def __default__(self, tree: ParseTree):
     # print(tree.data, tree.children)

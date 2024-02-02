@@ -4,7 +4,7 @@
         | array_creation_expr
 
 array_creation_expr: NEW_KW (primitive_type | type_name) dim_exprs SQ_BRACKETS? // no multidimensional arrays or array initializers
-dim_exprs: ("[" expr "]")+
+dim_exprs: ("[" expr "]")
 
 ?primary_no_new_array: literal
                      | THIS_KW
@@ -40,8 +40,10 @@ pre_dec_expr.1: "--" unary_expr     // prioritize over unary_neg
                           | cast_expr
 
 ?cast_expr: "(" primitive_type SQ_BRACKETS? ")" unary_expr
-          | "(" array_type ")" unary_expr
+          | "(" array_type ")" unary_expr_not_plus_minus
           | "(" expr ")" unary_expr_not_plus_minus
+
+
 
 ?mult_expr: unary_expr
           | mult_expr ("*" | "/" | "%") unary_expr
