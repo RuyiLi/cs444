@@ -1,4 +1,4 @@
-compilation_unit: package_decl? import_decl? type_decl*
+compilation_unit: package_decl? import_decl? type_decl? // only one type declaration per file
 
 package_decl: PACKAGE_KW package_name ";"
 
@@ -10,6 +10,4 @@ type_import_on_demand_decl: IMPORT_KW IDENTIFIER "." id ";"
 
 id: "*" | (IDENTIFIER ".") id
 
-type_decl: class_declaration
-		 | interface_declaration
-		| SEMICOLON
+type_decl: SEMICOLON* (class_declaration | interface_declaration) SEMICOLON*
