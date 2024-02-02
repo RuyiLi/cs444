@@ -1,22 +1,17 @@
-?literal: integer_l
-        | boolean_l
-        | char_l
-        | string_l
+?literal: INTEGER_L
+        | BOOLEAN_L
+        | CHAR_L
+        | STRING_L
         | NULL
 
-integer_l: /-?(0|([1-9]\d*))/
-
-boolean_l: "true" -> true
-         | "false" -> false
-
-char_l: "'" ( /(?!['\\])[\x00-\x7F]/ | escape_seq) "'"
-escape_seq: "\\" /[btnfr\"\'\\]|([0-3]?[0-7]?[0-7])/
-
-string_l: "\"" ( /(?!["\\])[\x00-\x7F]/ | "'" | escape_seq)* "\""
-
+INTEGER_L: /-?(0|([1-9]\d*))/
+BOOLEAN_L: "true" | "false"
+CHAR_L: /'((?!['\\])[\x00-\x7F]|(\\([btnfr\"\'\\]|([0-3]?[0-7]?[0-7]))))'/
+STRING_L: /"((?!["\\])[\x00-\x7F]|(\\([btnfr\"\'\\]|([0-3]?[0-7]?[0-7]))))*"/
 NULL: "null"
 
-IDENTIFIER: /(?!\b(abstract|default|if|private|this|boolean|do|implements|protected|throw|break|double|import|public|throws|byte|else|instanceof|return|transient|case|extends|int|short|try|catch|final|interface|static|void|char|finally|long|strictfp|volatile|class|float|native|super|while|const|for|new|switch|continue|goto|package|synchronized|true|false|null)\b)\b[a-zA-Z$_][a-zA-Z0-9$_]*\b/
+// char_l: "'" ( /(?!['\\])[\x00-\x7F]/ | escape_seq) "'"
+// escape_seq: "\\" /[btnfr\"\'\\]|([0-3]?[0-7]?[0-7])/
+// string_l: "\"" ( /(?!["\\])[\x00-\x7F]/ | "'" | escape_seq)* "\""
 
-%import common.INT
-%import common.LETTER
+IDENTIFIER: /(?!\b(abstract|default|if|private|this|boolean|do|implements|protected|throw|break|double|import|public|throws|byte|else|instanceof|return|transient|case|extends|int|short|try|catch|final|interface|static|void|char|finally|long|strictfp|volatile|class|float|native|super|while|const|for|new|switch|continue|goto|package|synchronized|true|false|null)\b)\b[a-zA-Z$_][a-zA-Z0-9$_]*\b/
