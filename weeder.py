@@ -49,7 +49,7 @@ class Weeder(Visitor):
         )
         if invalid_modifier is not None:
             format_error(
-                'Invalid modifier "{invalid_modifier}" used in class declaration.',
+                f'Invalid modifier "{invalid_modifier}" used in class declaration.',
                 invalid_modifier.line,
             )
 
@@ -91,6 +91,8 @@ class Weeder(Visitor):
 
     def method_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
+        return_type = "void" if any(isinstance(x, Token) and x.type == "VOID_KW" for x in tree.children) else next(
+            filter(lambda c: isinstance(c, Tree) and c.data == "type", tree.children)).children[0]
 
         invalid_modifier = next(
             filter(
@@ -128,11 +130,28 @@ class Weeder(Visitor):
                     tree.meta.line,
                 )
 
+        block = next(tree.find_pred(lambda x: x.data == "block"), None)
         if "abstract" in modifiers or "native" in modifiers:
-            block = next(tree.find_pred(lambda x: x.data == "block"), None)
-
             if block is not None:
                 format_error("An abstract/native method must not have a body.", block.meta.line)
+        else:
+            if block is None:
+                format_error("A non-abstract/native method must have a body.", tree.meta.line)
+
+        if "native" in modifiers:
+            if return_type != "int":
+                format_error(f"Native methods are restricted to int return type, found '{return_type}'", tree.meta.line)
+
+            formal_params = next(tree.find_pred(lambda c: c.data == "formal_param_list"), None)
+            if formal_params is None:
+                format_error("Native methods must have exactly one int parameter.", tree.meta.line)
+
+            formal_param_types = list(map(lambda fp:
+                next(map(lambda t: next(t.scan_values(lambda v: isinstance(v, Token))), fp.find_pred(lambda c: c.data == "type")))
+            , formal_params.children))
+
+            if len(formal_param_types) > 1 or formal_param_types[0] != "int":
+                format_error("Native methods must have exactly one int parameter.", tree.meta.line)
 
         if "public" not in modifiers:
             format_error("Method must be declared public.", tree.meta.line)
@@ -140,7 +159,17 @@ class Weeder(Visitor):
         child_fields = filter(lambda c: isinstance(c, Tree) and c.data == "field_declaration", tree.children)
         for field in child_fields:
             if "public" not in get_modifiers(field.children):
-                format_error("Field must be declared public.", field.meta.line)
+                format_error("Package field must be declared public.", field.meta.line)
+
+        return_exprs = list(tree.find_pred(lambda c: c.data == "return_st"))
+        if return_type == 'void':
+            expr_return = next(filter(lambda r: next(r.find_pred(lambda d: d.data == "expr"), None) is not None, return_exprs), None)
+            if expr_return is not None:
+                format_error("Void function cannot contain an expression in a return statement.", expr_return.meta.line)
+        else:
+            noexpr_return = next(filter(lambda r: next(r.find_pred(lambda d: d.data == "expr"), None) is None, return_exprs), None)
+            if noexpr_return is not None:
+                format_error("Non-void function must contain an expression in a return statement.", noexpr_return.meta.line)
 
         # Final parameters cannot be assigned to.
 
@@ -165,6 +194,28 @@ class Weeder(Visitor):
     
         if "public" not in modifiers:
             format_error("Method must be declared public.", tree.meta.line)
+
+    def constructor_declaration(self, tree: ParseTree):
+        modifiers = get_modifiers(tree.children)
+
+        invalid_modifier = next(filter(lambda c: c not in ["public", "protected"], modifiers), None)
+        if invalid_modifier is not None:
+            format_error(
+                f'Invalid modifier "{invalid_modifier}" used in constructor declaration.',
+                invalid_modifier.line,
+            )
+
+        if len(set(modifiers)) < len(modifiers):
+            format_error(
+                "Constructor declaration cannot contain more than one of the same modifier.",
+                tree.meta.line,
+            )
+
+        if "public" in modifiers and "protected" in modifiers:
+            format_error("Constructor cannot be both public and protected.", tree.meta.line)
+
+        if "public" not in modifiers and "protected" not in modifiers:
+             format_error("Package private constructors are not allowed.", tree.meta.line)
 
     def expr(self, tree: ParseTree):
         MAX_INT = 2**31 - 1

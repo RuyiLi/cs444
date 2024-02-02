@@ -13,13 +13,10 @@ GT_EQ: ">="
 LINE_TERMINATOR: "\r" | "\n" | "\r\n"
 WHITESPACE: " " | "\f" | "\t"
 
-INPUT_CHAR: /(?!(\r|\n))[\x00-\x7F]/
+// INPUT_CHAR: /(?!(\r|\n))[\x00-\x7F]/
 
-TRADITIONAL_COMMENT: "/" "*" COMMENT_TAIL
-
-END_OF_LINE_COMMENT: "/" "/" INPUT_CHAR* LINE_TERMINATOR
-
-COMMENT_TAIL: /[\x00-\x7F]*?(\*\/)/
+TRADITIONAL_COMMENT: /\/\*[\x00-\x7F]*?(\*\/)/
+END_OF_LINE_COMMENT: /\/\/((?!(\r|\n))[\x00-\x7F])*(\r|\n|\r\n)/
 
 %ignore TRADITIONAL_COMMENT
 %ignore END_OF_LINE_COMMENT
