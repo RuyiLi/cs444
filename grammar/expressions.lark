@@ -70,6 +70,6 @@ lhs: expression_name
    | field_access
    | array_access
 
-?expr: assignment
+expr: assignment
      | or_expr
 

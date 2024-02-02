@@ -141,16 +141,23 @@ class Weeder(Visitor):
         if block is not None:
             format_error("An interface method must not have a body.", block.meta.line)
 
-    def integer_l(self, tree: ParseTree):
+    def expr(self, tree: ParseTree):
         MAX_INT = 2**31 - 1
-        MIN_INT = -(2**31)
 
-        # doesnt work for -/*comment*/MAX_INT
-        val = int(tree.children[0].value)
-        if val > MAX_INT:
-            format_error("Integer number too large", tree.meta.line)
-        if val < MIN_INT:
-            format_error("Integer number too large", tree.meta.line)
+        child = tree.children[0]
+        if isinstance(child, Token):
+            if child.type == "INTEGER_L" and int(child.value) > MAX_INT:
+                format_error("Integer number too large", child.line)
+        else:
+            # Error if a parent has a child with a numeric value that is too large (depends on whether parent is unary_neg)
+            int_too_large = next(child.find_pred(lambda p:
+                any(isinstance(c, Token) and c.value.isnumeric() and
+                     int(c.value) > (MAX_INT + (1 if p.data == "unary_negative_expr" else 0))
+                for c in p.children)
+            ), None)
+
+            if int_too_large is not None:
+                format_error("Integer number too large", int_too_large.meta.line)
 
     def field_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
