@@ -33,14 +33,15 @@ unary_negative_expr: "-" unary_expr
            | unary_negative_expr
            | unary_expr_not_plus_minus
 
-pre_dec_expr.1: "--" unary_expr
+pre_dec_expr.1: "--" unary_expr     // prioritize over unary_neg
 
 ?unary_expr_not_plus_minus: postfix_expr
                           | "!" unary_expr
                           | cast_expr
 
-?cast_expr: "(" primitive_type (SQ_BRACKETS)* ")" unary_expr
-          | "(" reference_type ")" unary_expr
+?cast_expr: "(" primitive_type SQ_BRACKETS? ")" unary_expr
+          | "(" array_type ")" unary_expr
+          | "(" expr ")" unary_expr_not_plus_minus
 
 ?mult_expr: unary_expr
           | mult_expr ("*" | "/" | "%") unary_expr

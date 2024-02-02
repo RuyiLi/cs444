@@ -5,8 +5,7 @@ block: "{" block_statement* "}"
 
 local_var_declaration: type var_declarator
 var_declarator: var_declarator_id ("=" var_initializer)?
-var_declarator_id: IDENTIFIER
-				| var_declarator_id SQ_BRACKETS
+var_declarator_id: IDENTIFIER		// cannot have array brackets in var declarator id
 var_initializer: expr
 
 statement: statement_wo_trail

@@ -158,7 +158,7 @@ class Weeder(Visitor):
 
             if int_too_large is not None:
                 format_error("Integer number too large", int_too_large.meta.line)
-    
+
     def pre_dec_expr(self, tree: ParseTree):
         format_error("Pre-decrement operator not allowed", tree.meta.line)
 
@@ -167,6 +167,12 @@ class Weeder(Visitor):
 
         if "final" in modifiers:
             format_error("No field can be final.", tree.meta.line)
+
+    def class_body(self, tree: ParseTree):
+        constructor = next(tree.find_pred(lambda x: x.data == "constructor_declaration"), None)
+
+        if constructor is None:
+            format_error("Class must contain an explicit constructor", tree.meta.line)
 
     # def __default__(self, tree: ParseTree):
     # print(tree.data, tree.children)

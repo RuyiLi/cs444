@@ -21,8 +21,7 @@ member_declaration: SEMICOLON
 
 method_declaration: MODIFIER+ (type | VOID_KW) method_declarator method_body
 
-field_declaration: MODIFIER+ type var_declarators SEMICOLON
-var_declarators: var_declarator ("," var_declarator)*
+field_declaration: MODIFIER+ type var_declarator SEMICOLON
 
 method_declarator: IDENTIFIER "(" formal_param_list? ")"
 formal_param_list: formal_param ("," formal_param)*

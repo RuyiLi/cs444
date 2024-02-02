@@ -3,7 +3,8 @@ type: primitive_type | reference_type
 ?primitive_type: numeric_type | BOOLEAN_KW
 ?numeric_type: BYTE_KW | SHORT_KW | INT_KW | CHAR_KW // no long or floats
 
-reference_type.1: type_name | type SQ_BRACKETS
+reference_type.1: type_name | array_type
+array_type: type_name SQ_BRACKETS | primitive_type SQ_BRACKETS
 
 type_name: IDENTIFIER ("." IDENTIFIER)*
 
