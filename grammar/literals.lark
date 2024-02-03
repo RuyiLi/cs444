@@ -1,13 +1,15 @@
 ?literal: INTEGER_L
         | BOOLEAN_L
-        | CHAR_L
-        | STRING_L
+        | char_l
+        | string_l
         | NULL
 
+octal: /\\[0-3]?[0-7]?[0-7]/
 INTEGER_L: /(0|([1-9]\d*))/
 BOOLEAN_L: "true" | "false"
-CHAR_L: /'((?!['\\])[\x00-\x7F]|(\\([btnfr\"\'\\]|([0-3]?[0-7]?[0-7]))))'/
-STRING_L: /"((?!["\\])[\x00-\x7F]|(\\([btnfr\"\'\\]|([0-3]?[0-7]?[0-7]))))*"/
+// CHAR_L: /'((?!['\\])[\x00-\x7F]|(\\([btnfr\"\'\\]|([0-3]?[0-7]?[0-7]))))'/
+char_l: /'((?!['\\])[\x00-\x7F]|(\\([btnfr\"\'\\])))'/ | ("'" octal "'")
+string_l: "\"" (/((?!["\\])[\x00-\x7F]|(\\([btnfr\"\'\\])))/ | octal)* "\""
 NULL: "null"
 
 // char_l: "'" ( /(?!['\\])[\x00-\x7F]/ | escape_seq) "'"

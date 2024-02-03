@@ -173,6 +173,10 @@ class Weeder(Visitor):
 
         # Final parameters cannot be assigned to.
 
+    def octal(self, tree: ParseTree):
+        octal_seq = tree.children[0][1:]
+        tree.children[0] = chr(int(octal_seq, 8))
+
     def formal_param_list(self, tree: ParseTree):
         identifiers = list(map(lambda v: v.children[0], tree.find_pred(lambda c: c.data == "var_declarator_id")))
 
