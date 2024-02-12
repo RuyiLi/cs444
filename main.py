@@ -3,6 +3,7 @@ import logging
 import glob
 import os
 import sys
+from hierarchy_check import hierarchy_check
 
 from weeder import Weeder
 
@@ -77,11 +78,13 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
                 try:
                     res = l.parse(test_file_contents)
                     Weeder(f.name).visit(res)
+                    hierarchy_check(res)
                     if not quiet:
                         print(res.pretty())
                     print(f"Passed {test_name}")
                 except Exception as e:
                     print(f"Failed {test_name}:", e)
+                    raise e
 
 
 def load_path_testcase(path: str, quiet: bool):

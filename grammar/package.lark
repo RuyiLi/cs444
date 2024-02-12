@@ -10,4 +10,4 @@ type_import_on_demand_decl: IMPORT_KW IDENTIFIER "." id ";"
 
 id: "*" | (IDENTIFIER ".") id
 
-type_decl: SEMICOLON* (class_declaration | interface_declaration) SEMICOLON*
+?type_decl: SEMICOLON* (class_declaration | interface_declaration) SEMICOLON*
