@@ -7,10 +7,10 @@ class Context:
 		self.symbol_map = {}
 
 	def declare(self, symbol):
-		if (existing_symbol := self.resolve(symbol.id)) is not None:
+		if (existing_symbol := self.resolve(symbol.id())) is not None:
 			symbol.check_clash(existing_symbol)
 		else:
-			self.symbol_map[symbol.id] = symbol
+			self.symbol_map[symbol.id()] = symbol
 
 	def resolve(self, id_hash):
 		if id_hash in self.symbol_map:
@@ -76,6 +76,16 @@ class MethodDecl(SymbolWithParams):
 	def check_clash(self, existing_symbol):
 		if existing_symbol.name == self.name:
 			raise SemanticError(f"Cannot redeclare method named {self.name} in scope.")
+
+
+class LocalVarDecl(Symbol):
+	def __init__(self, context, name, var_type):
+		super().__init__(context, name)
+		self.type = var_type;
+
+	def check_clash(self, existing_symbol):
+		if existing_symbol.name == self.name:
+			raise SemanticError(f"Cannot redeclare local variable named {self.name} in scope.")
 
 
 class IfStmt(Symbol):

@@ -1,7 +1,7 @@
 from lark import Token, Tree, ParseTree
 
 from weeder import get_modifiers
-from context import Context, ClassDecl
+from context import Context, ClassDecl, LocalVarDecl
 
 def hierarchy_check(tree: ParseTree, context: Context = Context()):
     for child in tree.children:
@@ -20,16 +20,18 @@ def parse_node(tree: ParseTree, context: Context):
 
             extends = list(
                 map(lambda e: next(e.scan_values(lambda v: isinstance(v, Token) and v.type == "IDENTIFIER")).value,
-                    filter(lambda c:
-                        isinstance(c, Tree) and c.data == "class_type",
+                    filter(lambda c: isinstance(c, Tree) and c.data == "class_type",
                     tree.children)))
 
             implements = list(
                 map(lambda e: next(e.scan_values(lambda v: isinstance(v, Token) and v.type == "IDENTIFIER")).value,
-                    filter(lambda c:
-                        isinstance(c, Tree) and c.data == "interface_type_list",
+                    filter(lambda c: isinstance(c, Tree) and c.data == "interface_type_list",
                     tree.children)))
 
             return ClassDecl(context, class_name, modifiers, extends, implements)
+        case "local_var_declaration":
+            var_type = next(filter(lambda c: isinstance(c, Tree) and c.data == "type", tree.children)).children[0]
+            var_name = next(tree.scan_values(lambda v: isinstance(v, Token) and v.type == "IDENTIFIER")).value
+            return LocalVarDecl(context, var_name, var_type)
         case _:
             pass
