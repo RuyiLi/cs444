@@ -85,7 +85,7 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
 
                     Weeder(f.name).visit(res)
 
-                    global_context = Context()
+                    global_context = Context(None, None)
 
                     # TODO: Go through all files and put them in global context
                     build_environment(res, global_context)

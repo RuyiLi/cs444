@@ -1,20 +1,12 @@
 from lark import Token, Tree, ParseTree
 
 from weeder import get_modifiers
-from context import Context, ClassDecl, FieldDecl, InterfaceDecl, LocalVarDecl
+from context import Context, ClassDecl, FieldDecl, InterfaceDecl, LocalVarDecl, MethodDecl
 
 def build_environment(tree: ParseTree, context: Context):
     for child in tree.children:
         if isinstance(child, Tree):
-            if (symbol := parse_node(child, context)):
-                context.declare(symbol)
-            
-            if child.data in ['class_body', 'block']:
-                nested_context = Context(context)
-                context.children.append(nested_context)
-                build_environment(child, nested_context)
-            else:
-                build_environment(child, context)
+            parse_node(child, context)
 
 def get_tree_first_child(tree: ParseTree, name: str):
     return next(tree.find_pred(lambda c: c.data == name)).children[0]
@@ -39,7 +31,13 @@ def parse_node(tree: ParseTree, context: Context):
                 map(lambda e: get_nested_token(e, "IDENTIFIER").value,
                     tree.find_pred(lambda c: c.data == "interface_type_list")))
 
-            return ClassDecl(context, class_name, modifiers, extends, implements)
+            symbol = ClassDecl(context, class_name, modifiers, extends, implements)
+            context.declare(symbol)
+
+            nested_context = Context(context, symbol)
+            context.children.append(nested_context)
+            build_environment(next(tree.find_pred(lambda c: c.data == "class_body")), nested_context)
+
         case "interface_declaration":
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
             class_name = get_nested_token(tree, "IDENTIFIER")
@@ -48,18 +46,49 @@ def parse_node(tree: ParseTree, context: Context):
                 map(lambda e: get_nested_token(e, "IDENTIFIER").value,
                     tree.find_pred(lambda c: c.data == "class_type")))
 
-            return InterfaceDecl(context, class_name, modifiers, extends)
+            symbol = InterfaceDecl(context, class_name, modifiers, extends)
+            context.declare(symbol)
+
+            nested_context = Context(context, symbol)
+            context.children.append(nested_context)
+            build_environment(next(tree.find_pred(lambda c: c.data == "interface_body")), nested_context)
+
+        case "method_declaration":
+            modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
+            method_name = get_nested_token(tree, "IDENTIFIER")
+
+            formal_params = next(tree.find_pred(lambda c: c.data == "formal_param_list"), None)
+            if formal_params is not None:
+                formal_param_types = list(map(lambda fp:
+                    next(map(lambda t: next(t.scan_values(lambda v: isinstance(v, Token))), fp.find_pred(lambda c: c.data == "type")))
+                , formal_params.children))
+            else:
+                formal_param_types = []
+
+            symbol = MethodDecl(context, method_name, formal_param_types, modifiers)
+            print("method_declaration", method_name, formal_param_types, modifiers)
+            context.declare(symbol)
+
+            nested_context = Context(context, symbol)
+            context.children.append(nested_context)
+            build_environment(next(tree.find_pred(lambda c: c.data == "method_body")), nested_context)
+
         case "field_declaration":
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
             field_type = get_tree_first_child(tree, "type")
             field_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
 
-            return FieldDecl(context, field_name, modifiers, field_type)
+            print("field_declaration", field_name, modifiers, field_type)
+
+            context.declare(FieldDecl(context, field_name, modifiers, field_type))
+
         case "local_var_declaration":
-            print(tree.children)
             var_type = get_tree_first_child(tree, "type")
             var_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
 
-            return LocalVarDecl(context, var_name, var_type)
+            print("local_var_declaration", var_name, var_type)
+
+            context.declare(LocalVarDecl(context, var_name, var_type))
+
         case _:
-            pass
+            build_environment(tree, context)

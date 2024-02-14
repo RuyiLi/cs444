@@ -9,11 +9,11 @@ interface_type_list: interface_type ("," interface_type)*
 
 class_body: "{" class_body_declaration* "}"
 
-class_body_declaration: member_declaration
+?class_body_declaration: member_declaration
                        // | STATIC_KW? block (No initializer block in Joos 1W)
                       | constructor_declaration
 
-member_declaration: SEMICOLON
+?member_declaration: SEMICOLON
                   | method_declaration
                   | field_declaration
                   | class_declaration
