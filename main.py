@@ -3,9 +3,11 @@ import logging
 import glob
 import os
 import sys
-from hierarchy_check import hierarchy_check
 
 from weeder import Weeder
+from context import Context
+from build_environment import build_environment
+from hierarchy_check import hierarchy_check
 
 from lark import Lark, logger
 
@@ -27,7 +29,8 @@ def should_error(file_name: str):
 
 def load_assignment_testcases(assignment: int, quiet: bool):
     test_directory = os.path.join(os.getcwd(), f"assignment_testcases/a{assignment}")
-    test_files = os.listdir(test_directory)
+    # FIX: Just run single-file tests for now
+    test_files = list(file for file in os.listdir(test_directory) if os.path.isfile(os.path.join(test_directory, file)))
     passed = 0
     failed_tests = []
     for test_file in test_files:
@@ -77,10 +80,19 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
                 test_file_contents = f.read()
                 try:
                     res = l.parse(test_file_contents)
-                    Weeder(f.name).visit(res)
-                    hierarchy_check(res)
                     if not quiet:
                         print(res.pretty())
+
+                    Weeder(f.name).visit(res)
+
+                    global_context = Context()
+
+                    # TODO: Go through all files and put them in global context
+                    build_environment(res, global_context)
+                    hierarchy_check(global_context)
+
+                    print(list(map(lambda c: (c.symbol_map, c.children), global_context.children)))
+
                     print(f"Passed {test_name}")
                 except Exception as e:
                     print(f"Failed {test_name}:", e)

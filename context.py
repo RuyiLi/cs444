@@ -4,13 +4,14 @@ class SemanticError(Exception):
 class Context:
 	def __init__(self, parent = None):
 		self.parent = parent
+		self.children = []
 		self.symbol_map = {}
 
 	def declare(self, symbol):
-		if (existing_symbol := self.resolve(symbol.id())) is not None:
-			symbol.check_clash(existing_symbol)
-		else:
-			self.symbol_map[symbol.id()] = symbol
+		if self.resolve(symbol.sym_id()) is not None:
+			raise SemanticError(f"Overlapping {symbol.node_type} in scope.")
+
+		self.symbol_map[symbol.sym_id()] = symbol
 
 	def resolve(self, id_hash):
 		if id_hash in self.symbol_map:
@@ -22,71 +23,58 @@ class Context:
 
 		return None
 
-
 class Symbol:
 	def __init__(self, context, name):
 		self.context = context
 		self.name = name
+		self.node_type = ""
 
-	def id(self):
-		return id_hash(self.name)
-
-	def check_clash(self, existing_symbol):
-		pass
-
-
-class SymbolWithParams(Symbol):
-	def __init__(self, context, name, params):
-		super().__init__(context, name)
-		self.params = params
-
-	def id(self):
-		return id_hash(self.name, self.params)
-
+	def sym_id(self):
+		return self.node_type + "^" + self.name
 
 class ClassDecl(Symbol):
 	def __init__(self, context, name, modifiers, extends, implements):
 		super().__init__(context, name)
+		self.node_type = "class_decl"
 		self.modifiers = modifiers
-		self.extends = extends;
-		self.implements = implements;
+		self.extends = extends
+		self.implements = implements
 
-	def check_clash(self, existing_symbol):
-		if existing_symbol.name == self.name:
-			raise SemanticError(f"Cannot redeclare class named {self.name} in scope.")
-
+	def sym_id(self):
+		return "class_interface^" + self.name
 
 class InterfaceDecl(Symbol):
-	def __init__(self, context, name, modifiers, extends, implements):
+	def __init__(self, context, name, modifiers, extends):
 		super().__init__(context, name)
+		self.node_type = "interface_decl"
 		self.modifiers = modifiers
-		self.extends = extends;
-		self.implements = implements;
+		self.extends = extends
 
-	def check_clash(self, existing_symbol):
-		if existing_symbol.name == self.name:
-			raise SemanticError(f"Cannot redeclare interface named {self.name} in scope.")
+	def sym_id(self):
+		return "class_interface^" + self.name
 
+class FieldDecl(Symbol):
+	def __init__(self, context, name, modifiers, field_type):
+		super().__init__(context, name)
+		self.node_type = "field_decl"
+		self.modifiers = modifiers
+		self.sym_type = field_type
 
-class MethodDecl(SymbolWithParams):
+class MethodDecl(Symbol):
 	def __init__(self, context, name, params, modifiers):
-		super().__init__(context, name, params)
+		super().__init__(context, name)
+		self.node_type = "method_decl"
+		self.params = params
 		self.modifiers = modifiers
 
-	def check_clash(self, existing_symbol):
-		if existing_symbol.name == self.name:
-			raise SemanticError(f"Cannot redeclare method named {self.name} in scope.")
-
+	def sym_id(self):
+		return self.name + "^" + ",".join(self.params) if self.params is not None else self.name
 
 class LocalVarDecl(Symbol):
 	def __init__(self, context, name, var_type):
 		super().__init__(context, name)
-		self.type = var_type;
-
-	def check_clash(self, existing_symbol):
-		if existing_symbol.name == self.name:
-			raise SemanticError(f"Cannot redeclare local variable named {self.name} in scope.")
-
+		self.node_type = "local_var_decl"
+		self.sym_type = var_type
 
 class IfStmt(Symbol):
 	def __init__(self, context, name):
@@ -96,11 +84,6 @@ class IfStmt(Symbol):
 class WhileStmt(Symbol):
 	def __init__(self, context, name):
 		super().__init__(context, name)
-
-
-def id_hash(name, params = None):
-	return name + "^" + ",".join(params) if params is not None else name
-
 
 node_dict = {
 	"class_decl": ClassDecl,
