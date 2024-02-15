@@ -20,7 +20,13 @@ for file in files:
     with open(file) as f:
         grammar += "\n" + f.read()
 
-l = Lark(grammar, start="compilation_unit", parser="lalr", debug=True, propagate_positions=True)
+l = Lark(
+    grammar,
+    start="compilation_unit",
+    parser="lalr",
+    debug=True,
+    propagate_positions=True,
+)
 
 
 def should_error(file_name: str):
@@ -30,7 +36,11 @@ def should_error(file_name: str):
 def load_assignment_testcases(assignment: int, quiet: bool):
     test_directory = os.path.join(os.getcwd(), f"assignment_testcases/a{assignment}")
     # FIX: Just run single-file tests for now
-    test_files = list(file for file in os.listdir(test_directory) if os.path.isfile(os.path.join(test_directory, file)))
+    test_files = list(
+        file
+        for file in os.listdir(test_directory)
+        if os.path.isfile(os.path.join(test_directory, file))
+    )
     passed = 0
     failed_tests = []
     for test_file in test_files:
@@ -91,7 +101,14 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
                     build_environment(res, global_context)
                     hierarchy_check(global_context)
 
-                    print(list(map(lambda c: (c.symbol_map, c.children), global_context.children)))
+                    print(
+                        list(
+                            map(
+                                lambda c: (c.symbol_map, c.children),
+                                global_context.children,
+                            )
+                        )
+                    )
 
                     print(f"Passed {test_name}")
                 except Exception as e:
