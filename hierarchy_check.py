@@ -24,7 +24,7 @@ def check_cyclic(symbol: Symbol):
 
             for next_sym_name in curr_sym.extends + (curr_sym.implements or []):
                 if next_sym_name in path:
-                    raise SemanticError(f"Cyclic dependency found, path {"->".join(path.append(next_sym_name))}")
+                    raise SemanticError(f"Cyclic dependency found, path {'->'.join(path + [next_sym_name])}")
                 next_visit.append(path.copy().append(next_sym_name))
 
         to_visit = next_visit
