@@ -1,7 +1,7 @@
 from lark import Token, Tree, ParseTree
 
 from weeder import get_modifiers
-from context import Context, ClassDecl, FieldDecl, InterfaceDecl, LocalVarDecl, MethodDecl
+from context import Context, ClassDecl, ConstructorDecl, FieldDecl, InterfaceDecl, LocalVarDecl, MethodDecl
 
 def build_environment(tree: ParseTree, context: Context):
     for child in tree.children:
@@ -53,6 +53,26 @@ def parse_node(tree: ParseTree, context: Context):
             context.children.append(nested_context)
             build_environment(next(tree.find_pred(lambda c: c.data == "interface_body")), nested_context)
 
+        case "constructor_declaration":
+            modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
+
+            formal_params = next(tree.find_pred(lambda c: c.data == "formal_param_list"), None)
+            if formal_params is not None:
+                formal_param_types = list(map(lambda fp:
+                    next(map(lambda t: next(t.scan_values(lambda v: isinstance(v, Token))), fp.find_pred(lambda c: c.data == "type")))
+                , formal_params.children))
+            else:
+                formal_param_types = []
+
+            symbol = ConstructorDecl(context, formal_param_types, modifiers)
+            print("constructor_declaration", formal_param_types, modifiers)
+            context.declare(symbol)
+
+            if (nested_tree := next(tree.find_pred(lambda c: c.data == "block"), None)) is not None:
+                nested_context = Context(context, symbol)
+                context.children.append(nested_context)
+                build_environment(nested_tree, nested_context)
+
         case "method_declaration":
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
             method_name = get_nested_token(tree, "IDENTIFIER")
@@ -65,13 +85,17 @@ def parse_node(tree: ParseTree, context: Context):
             else:
                 formal_param_types = []
 
-            symbol = MethodDecl(context, method_name, formal_param_types, modifiers)
-            print("method_declaration", method_name, formal_param_types, modifiers)
+            return_type = "void" if any(isinstance(x, Token) and x.type == "VOID_KW" for x in tree.children) else next(
+                filter(lambda c: isinstance(c, Tree) and c.data == "type", tree.children)).children[0]
+
+            symbol = MethodDecl(context, method_name, formal_param_types, modifiers, return_type)
+            print("method_declaration", method_name, formal_param_types, modifiers, return_type)
             context.declare(symbol)
 
-            nested_context = Context(context, symbol)
-            context.children.append(nested_context)
-            build_environment(next(tree.find_pred(lambda c: c.data == "method_body")), nested_context)
+            if (nested_tree := next(tree.find_pred(lambda c: c.data == "block"), None)) is not None:
+                nested_context = Context(context, symbol)
+                context.children.append(nested_context)
+                build_environment(nested_tree, nested_context)
 
         case "field_declaration":
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
