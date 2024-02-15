@@ -41,7 +41,7 @@ endef
 export JOOSC_FILE_CONTENTS
 
 TEST_DIR := test
-CURR_ASSIGNMENT = a1
+CURR_ASSIGNMENT = a2
 all: joosc
 
 clean:
