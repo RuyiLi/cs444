@@ -2,7 +2,6 @@ from typing import List
 import logging
 import glob
 import os
-import sys
 
 from weeder import Weeder
 from context import Context
