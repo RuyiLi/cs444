@@ -24,11 +24,11 @@ def parse_node(tree: ParseTree, context: Context):
             class_name = get_nested_token(tree, "IDENTIFIER")
 
             extends = list(
-                map(lambda e: get_nested_token(e, "IDENTIFIER").value,
+                map(lambda e: get_nested_token(e, "IDENTIFIER"),
                     tree.find_pred(lambda c: c.data == "class_type")))
 
             implements = list(
-                map(lambda e: get_nested_token(e, "IDENTIFIER").value,
+                map(lambda e: get_nested_token(e, "IDENTIFIER"),
                     tree.find_pred(lambda c: c.data == "interface_type_list")))
 
             symbol = ClassDecl(context, class_name, modifiers, extends, implements)
@@ -43,8 +43,7 @@ def parse_node(tree: ParseTree, context: Context):
             class_name = get_nested_token(tree, "IDENTIFIER")
 
             extends = list(
-                map(lambda e: get_nested_token(e, "IDENTIFIER").value,
-                    tree.find_pred(lambda c: c.data == "class_type")))
+                map(lambda e: get_nested_token(e, "IDENTIFIER"), tree.find_pred(lambda c: c.data == "class_type")))
 
             symbol = InterfaceDecl(context, class_name, modifiers, extends)
             context.declare(symbol)

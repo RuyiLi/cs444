@@ -10,7 +10,7 @@
 import java.util.*;
 import local;
 
-public class idk2 {
+public class idk2 extends idk3 {
 
     public idk2() {}
 

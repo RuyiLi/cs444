@@ -44,7 +44,7 @@ def inherit_methods(symbol: Symbol, methods):
             if replacing.return_type != method.return_type:
                 raise SemanticError(f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing return types.")
 
-            if "static" in replacing.modifiers != "static" in method.modifiers:
+            if ("static" in replacing.modifiers) != ("static" in method.modifiers):
                 raise SemanticError(f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing static-ness.")
 
             if "protected" in replacing.modifiers and "public" in method.modifiers:
@@ -57,6 +57,8 @@ def inherit_methods(symbol: Symbol, methods):
                 raise SemanticError(f"Non-abstract class {symbol.name} cannot inherit abstract method with signature {method.signature} without implementing it.")
 
             inherited_methods.append(method)
+
+    return inherited_methods
 
 def check_declare_same_signature(symbol: Symbol):
     for i in range(len(symbol.methods)):
@@ -94,7 +96,7 @@ class ClassDecl(Symbol):
             if "final" in exist_sym.modifiers:
                 raise SemanticError(f"Class {self.name} cannot extend a final class ({extend}).")
 
-            contained_methods = contained_methods + inherit_methods(self, extend.methods)
+            contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in extends for class {self.name}")
@@ -108,7 +110,7 @@ class ClassDecl(Symbol):
             if exist_sym.node_type == "class_decl":
                 raise SemanticError(f"Class {self.name} cannot implement a class ({implement}).")
 
-            contained_methods = contained_methods + inherit_methods(self, implement.methods)
+            contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in implements for class {self.name}")
@@ -141,7 +143,7 @@ class InterfaceDecl(Symbol):
             if exist_sym.node_type == "class_decl":
                 raise SemanticError(f"Interface {self.name} cannot extend a class ({extend}).")
 
-            contained_methods = contained_methods + inherit_methods(self, extend.methods)
+            contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in extends for interface {self.name}")
