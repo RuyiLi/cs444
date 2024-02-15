@@ -6,7 +6,7 @@ type: primitive_type | reference_type
 reference_type.1: type_name | array_type
 array_type: type_name SQ_BRACKETS | primitive_type SQ_BRACKETS
 
-type_name: IDENTIFIER ("." IDENTIFIER)*
+type_name: IDENTIFIER ("." type_name)*
 
 class_type: type_name
 interface_type: type_name
