@@ -1,14 +1,14 @@
-from typing import List
-import logging
 import glob
+import logging
 import os
-
-from weeder import Weeder
-from context import Context
-from build_environment import build_environment
-from hierarchy_check import hierarchy_check
+from typing import List
 
 from lark import Lark, logger
+
+from build_environment import build_environment
+from context import Context
+from hierarchy_check import hierarchy_check
+from weeder import Weeder
 
 logger.setLevel(logging.DEBUG)
 
@@ -19,7 +19,7 @@ for file in files:
     with open(file) as f:
         grammar += "\n" + f.read()
 
-l = Lark(
+lark = Lark(
     grammar,
     start="compilation_unit",
     parser="lalr",
@@ -28,50 +28,75 @@ l = Lark(
 )
 
 
-def should_error(file_name: str):
-    return file_name[:2] == "Je"
+def should_error(path_name: str):
+    return path_name[:2] == "Je"
 
 
 def load_assignment_testcases(assignment: int, quiet: bool):
     test_directory = os.path.join(os.getcwd(), f"assignment_testcases/a{assignment}")
-    # FIX: Just run single-file tests for now
-    test_files = list(
-        file
-        for file in os.listdir(test_directory)
-        if os.path.isfile(os.path.join(test_directory, file))
-    )
+    test_files_lists = []
+
+    for entry in sorted(os.listdir(test_directory)):
+        entry_path = os.path.join(test_directory, entry)
+        if os.path.isfile(entry_path):
+            test_files_lists.append([entry])
+    
+    for entry in sorted(os.listdir(test_directory)):
+        entry_path = os.path.join(test_directory, entry)
+        if os.path.isdir(entry_path):
+            test_files_list = []
+            for root, _, files in os.walk(entry_path):
+                for file in sorted(files):
+                    test_file = os.path.relpath(
+                        os.path.join(root, file), test_directory
+                    )
+                    test_files_list.append(test_file)
+            if test_files_list:
+                test_files_lists.append(test_files_list)
+
     passed = 0
     failed_tests = []
-    for test_file in test_files:
-        if not quiet:
-            print(f"Testing {test_file}")
-        with open(os.path.join(test_directory, test_file), "r") as f:
-            test_file_contents = f.read()
-            try:
-                res = l.parse(test_file_contents)
-                Weeder(f.name).visit(res)
+    for test_files_list in test_files_lists:
+        global_context = Context(None, None)
+        try:
+            for test_file in test_files_list:
                 if not quiet:
-                    print(res.pretty())
-                if should_error(test_file):
-                    print(f"Failed {test_file} (should have thrown an error):")
-                    failed_tests.append(test_file)
-                else:
-                    if not quiet:
-                        print(f"Passed {test_file} (correctly did not throw an error):")
-                    passed += 1
-
-            except Exception as e:
-                if should_error(test_file):
-                    if not quiet:
-                        print(f"Passed {test_file} (correctly threw an error):")
-                    passed += 1
-                else:
-                    print(f"Failed {test_file} (should not have thrown an error):", e)
-                    failed_tests.append(test_file)
+                    print(f"Testing {test_file}")
+                with open(os.path.join(test_directory, test_file), "r") as f:
+                    test_file_contents = f.read()
+                    res = lark.parse(test_file_contents)
+                    Weeder(f.name).visit(res)
+                    build_environment(res, global_context)
+    
+            if not quiet:
+                print(res.pretty())
+            if should_error(test_files_list[0]):
+                print(
+                    f"Failed {str(test_files_list)} (should have thrown an error):"
+                )
+                failed_tests.append(str(test_files_list))
+            else:
+                if not quiet:
+                    print(
+                        f"Passed {str(test_files_list)} (correctly did not throw an error):"
+                    )
+                passed += 1
+    
+        except Exception as e:
+            if should_error(test_files_list[0]):
+                if not quiet:
+                    print(f"Passed {str(test_files_list)} (correctly threw an error):")
+                passed += 1
+            else:
+                print(
+                    f"Failed {str(test_files_list)} (should not have thrown an error):",
+                    e,
+                )
+                failed_tests.append(str(test_files_list))
 
     print()
     print("=" * 50)
-    print(f"Total passed: {passed}/{len(test_files)}")
+    print(f"Total passed: {passed}/{len(test_files_lists)}")
     if len(failed_tests) > 0:
         print(f"Failed tests: {', '.join(failed_tests)}")
 
@@ -90,7 +115,7 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
             with f:
                 test_file_contents = f.read()
                 try:
-                    res = l.parse(test_file_contents)
+                    res = lark.parse(test_file_contents)
                     if not quiet:
                         print(res.pretty())
 
@@ -130,7 +155,7 @@ def load_path_testcase(paths: List[str], quiet: bool):
             with f:
                 test_file_contents = f.read()
                 try:
-                    res = l.parse(test_file_contents)
+                    res = lark.parse(test_file_contents)
 
                     if not quiet:
                         print(res.pretty())
