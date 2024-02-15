@@ -85,15 +85,12 @@ def inherit_methods(symbol: Symbol, methods):
             inherited_methods.append(method)
 
 
-def check_overlapping_methods(symbol: Symbol, methods):
-    for i in range(len(methods)):
-        for j in range(i + 1, len(methods)):
-            if (
-                methods[i].signature() == methods[j].signature()
-                and methods[i].return_type != methods[j].return_type
-            ):
+def check_declare_same_signature(symbol: Symbol):
+    for i in range(len(symbol.methods)):
+        for j in range(i + 1, len(symbol.methods)):
+            if symbol.methods[i].signature() == symbol.methods[j].signature():
                 raise SemanticError(
-                    f"Class/interface {symbol.name} cannot contain two methods with signature {methods[i].signature} but different return types."
+                    f"Class/interface {symbol.name} cannot declare two methods with the same signature {symbol.methods[i].signature}."
                 )
 
 
@@ -164,7 +161,7 @@ class ClassDecl(Symbol):
                 f"Duplicate class/interface in implements for class {self.name}"
             )
 
-        check_overlapping_methods(self, contained_methods)
+        check_declare_same_signature(self)
         print(list(map(lambda m: m.name, self.methods)))
 
 
@@ -206,7 +203,7 @@ class InterfaceDecl(Symbol):
                 f"Duplicate class/interface in extends for interface {self.name}"
             )
 
-        check_overlapping_methods(self, contained_methods)
+        check_declare_same_signature(self)
 
 
 class ConstructorDecl(Symbol):
@@ -272,6 +269,3 @@ class IfStmt(Symbol):
 class WhileStmt(Symbol):
     def __init__(self, context, name):
         super().__init__(context, name)
-
-
-node_dict = {"class_decl": ClassDecl, "if_stmt": IfStmt, "while_stmt": WhileStmt}
