@@ -1,4 +1,4 @@
-compilation_unit: package_decl? import_decl? type_decl? // only one type declaration per file
+compilation_unit: package_decl? import_decl* type_decl? // only one type declaration per file
 
 package_decl: PACKAGE_KW package_name ";"
 

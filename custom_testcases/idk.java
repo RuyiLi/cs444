@@ -7,6 +7,9 @@
  * - Check that no two local variables with overlapping scope have the
  * same name.
  */
+import java.util.*;
+import local;
+
 public class idk {
 
     public idk() {}
