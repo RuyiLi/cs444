@@ -36,6 +36,35 @@ class Symbol:
     def hierarchy_check(self):
         pass
 
+def inherit_methods(symbol: Symbol, methods):
+    inherited_methods = []
+    for method in methods:
+        # in Replace()?
+        if (replacing := next(filter(lambda m: m.signature() == method.signature(), methods), None)) is not None:
+            if replacing.return_type != method.return_type:
+                raise SemanticError(f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing return types.")
+
+            if "static" in replacing.modifiers != "static" in method.modifiers:
+                raise SemanticError(f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing static-ness.")
+
+            if "protected" in replacing.modifiers and "public" in method.modifiers:
+                raise SemanticError(f"Class/interface {symbol.name} cannot replace public method with signature {method.signature()} with a protected method.")
+
+            if "final" in method.modifiers:
+                raise SemanticError(f"Class/interface {symbol.name} cannot replace final method with signature {method.signature()}.")
+        else:
+            if symbol.node_type == "class_decl" and "abstract" in method.modifiers and "abstract" not in symbol.modifiers:
+                raise SemanticError(f"Non-abstract class {symbol.name} cannot inherit abstract method with signature {method.signature} without implementing it.")
+
+            inherited_methods.append(method)
+
+def check_overlapping_methods(symbol: Symbol, methods):
+    for i in range(len(methods)):
+        for j in range(i+1, len(methods)):
+            if (methods[i].signature() == methods[j].signature() and
+                methods[i].return_type != methods[j].return_type):
+                raise SemanticError(f"Class/interface {symbol.name} cannot contain two methods with signature {methods[i].signature} but different return types.")
+
 class ClassDecl(Symbol):
     def __init__(self, context, name, modifiers, extends, implements):
         super().__init__(context, name)
@@ -66,16 +95,7 @@ class ClassDecl(Symbol):
             if "final" in exist_sym.modifiers:
                 raise SemanticError(f"Class {self.name} cannot extend a final class ({extend}).")
 
-            for method in extend.methods:
-                # in Replace()?
-                if (replacing := next(filter(lambda m: m.signature() == method.signature(), self.methods), None)) is not None:
-                    if replacing.return_type != method.return_type:
-                        raise SemanticError(f"Class {self.name} cannot replace method with signature {method.signature()} with differing return types.")
-                else:
-                    if "abstract" in method.modifiers and "abstract" not in self.modifiers:
-                        raise SemanticError(f"Non-abstract class {self.name} cannot inherit abstract method with signature {method.signature} without implementing it.")
-
-                    contained_methods.append(method)
+            contained_methods = contained_methods + inherit_methods(self, extend.methods)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in extends for class {self.name}")
@@ -89,26 +109,12 @@ class ClassDecl(Symbol):
             if exist_sym.node_type == "class_decl":
                 raise SemanticError(f"Class {self.name} cannot implement a class ({implement}).")
 
-            for method in implement.methods:
-                # in Replace()?
-                if (replacing := next(filter(lambda m: m.signature() == method.signature(), self.methods), None)) is not None:
-                    if replacing.return_type != method.return_type:
-                        raise SemanticError(f"Class {self.name} cannot replace method with signature {replacing.signature()} with differing return types.")
-                else:
-                    if "abstract" in method.modifiers and "abstract" not in self.modifiers:
-                        raise SemanticError(f"Non-abstract class {self.name} cannot inherit abstract method with signature {method.signature} without implementing it.")
-
-                    contained_methods.append(method)
+            contained_methods = contained_methods + inherit_methods(self, implement.methods)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in implements for class {self.name}")
 
-        for i in range(len(contained_methods)):
-            for j in range(i+1, len(contained_methods)):
-                if (contained_methods[i].signature() == contained_methods[j].signature() and
-                    contained_methods[i].return_type != contained_methods[j].return_type):
-                    raise SemanticError(f"Class {self.name} cannot contain two methods with signature {contained_methods[i].signature} but different return types.")
-
+        check_overlapping_methods(self, contained_methods)
         print(list(map(lambda m: m.name, self.methods)))
 
 class InterfaceDecl(Symbol):
@@ -136,25 +142,12 @@ class InterfaceDecl(Symbol):
             if exist_sym.node_type == "class_decl":
                 raise SemanticError(f"Interface {self.name} cannot extend a class ({extend}).")
 
+            contained_methods = contained_methods + inherit_methods(self, extend.methods)
+
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in extends for interface {self.name}")
 
-        for method in extend.methods:
-            # in Replace()?
-            if (replacing := next(filter(lambda m: m.signature() == method.signature(), self.methods), None)) is not None:
-                if replacing.return_type != method.return_type:
-                    raise SemanticError(f"Interface {self.name} cannot replace method with signature {method.signature()} with differing return types.")
-            else:
-                if "abstract" in method.modifiers and "abstract" not in self.modifiers:
-                    raise SemanticError(f"Non-abstract interface {self.name} cannot inherit abstract method with signature {method.signature} without implementing it.")
-
-                contained_methods.append(method)
-
-        for i in range(len(contained_methods)):
-            for j in range(i+1, len(contained_methods)):
-                if (contained_methods[i].signature() == contained_methods[j].signature() and
-                    contained_methods[i].return_type != contained_methods[j].return_type):
-                    raise SemanticError(f"Interface {self.name} cannot contain two methods with signature {contained_methods[i].signature} but different return types.")
+        check_overlapping_methods(self, contained_methods)
 
 class ConstructorDecl(Symbol):
     def __init__(self, context, param_types, modifiers):
