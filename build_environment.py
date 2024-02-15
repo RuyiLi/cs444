@@ -9,6 +9,8 @@ from context import (
     InterfaceDecl,
     LocalVarDecl,
     MethodDecl,
+    DemandImport,
+    SingleImport,
 )
 
 
@@ -42,14 +44,14 @@ def parse_node(tree: ParseTree, context: Context):
 
             extends = list(
                 map(
-                    lambda e: get_nested_token(e, "IDENTIFIER").value,
+                    lambda e: get_nested_token(e, "IDENTIFIER"),
                     tree.find_pred(lambda c: c.data == "class_type"),
                 )
             )
 
             implements = list(
                 map(
-                    lambda e: get_nested_token(e, "IDENTIFIER").value,
+                    lambda e: get_nested_token(e, "IDENTIFIER"),
                     tree.find_pred(lambda c: c.data == "interface_type_list"),
                 )
             )
@@ -69,7 +71,7 @@ def parse_node(tree: ParseTree, context: Context):
 
             extends = list(
                 map(
-                    lambda e: get_nested_token(e, "IDENTIFIER").value,
+                    lambda e: get_nested_token(e, "IDENTIFIER"),
                     tree.find_pred(lambda c: c.data == "class_type"),
                 )
             )
@@ -191,5 +193,15 @@ def parse_node(tree: ParseTree, context: Context):
 
             context.declare(LocalVarDecl(context, var_name, var_type))
 
+        case "single_type_import_decl":
+            var_name = get_nested_token(tree, "IDENTIFIER")
+            context.declare(SingleImport(context, var_name))
+            print("single_type_import_decl", var_name)
+            pass
+        case "type_import_on_demand_decl":
+            var_name = get_nested_token(tree, "IDENTIFIER")
+            context.declare(DemandImport(context, var_name))
+            print("type_import_on_demand_decl", var_name)
+            pass
         case _:
             build_environment(tree, context)

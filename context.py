@@ -58,7 +58,7 @@ def inherit_methods(symbol: Symbol, methods):
                     f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing return types."
                 )
 
-            if "static" in replacing.modifiers != "static" in method.modifiers:
+            if ("static" in replacing.modifiers) != ("static" in method.modifiers):
                 raise SemanticError(
                     f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing static-ness."
                 )
@@ -83,6 +83,8 @@ def inherit_methods(symbol: Symbol, methods):
                 )
 
             inherited_methods.append(method)
+
+    return inherited_methods
 
 
 def check_declare_same_signature(symbol: Symbol):
@@ -143,7 +145,7 @@ class ClassDecl(ClassInterfaceDecl):
                 )
 
             contained_methods = contained_methods + inherit_methods(
-                self, extend.methods
+                self, exist_sym.methods
             )
 
         if len(set(self.extends)) < len(self.extends):
@@ -165,7 +167,7 @@ class ClassDecl(ClassInterfaceDecl):
                 )
 
             contained_methods = contained_methods + inherit_methods(
-                self, implement.methods
+                self, exist_sym.methods
             )
 
         if len(set(self.extends)) < len(self.extends):
@@ -200,7 +202,7 @@ class InterfaceDecl(ClassInterfaceDecl):
                 )
 
             contained_methods = contained_methods + inherit_methods(
-                self, extend.methods
+                self, exist_sym.methods
             )
 
         if len(set(self.extends)) < len(self.extends):
@@ -274,3 +276,15 @@ class IfStmt(Symbol):
 class WhileStmt(Symbol):
     def __init__(self, context, name):
         super().__init__(context, name)
+
+
+class DemandImport(Symbol):
+    def __init__(self, context, name):
+        super().__init__(context, name)
+        self.node_type = "type_import_on_demand_decl"
+
+
+class SingleImport(Symbol):
+    def __init__(self, context, name):
+        super().__init__(context, name)
+        self.node_type = "single_type_import_decl"

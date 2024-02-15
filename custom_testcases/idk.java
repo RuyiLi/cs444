@@ -8,7 +8,7 @@
  * same name.
  */
 import java.util.*;
-import local;
+import local.bruh.bruh;
 
 public class idk {
 
