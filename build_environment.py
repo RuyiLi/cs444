@@ -115,7 +115,9 @@ def parse_node(tree: ParseTree, context: Context):
             context.declare(LocalVarDecl(context, var_name, var_type))
 
         case "single_type_import_decl":
-            var_name = get_nested_token(tree, "IDENTIFIER")
+            identifier = list(tree.scan_values(lambda v: isinstance(v, Token)))
+            # ignore pathing, get the name that it resolves to
+            var_name = identifier[-1]
             context.declare(SingleImport(context, var_name))
             print("single_type_import_decl", var_name)
             pass
