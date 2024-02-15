@@ -1,7 +1,8 @@
 from lark import Token, Tree, ParseTree
 
 from weeder import get_modifiers
-from context import Context, ClassDecl, ConstructorDecl, FieldDecl, InterfaceDecl, LocalVarDecl, MethodDecl
+from context import Context, ClassDecl, ConstructorDecl, FieldDecl, InterfaceDecl, LocalVarDecl, MethodDecl, \
+    DemandImport, SingleImport
 
 def build_environment(tree: ParseTree, context: Context):
     for child in tree.children:
@@ -113,5 +114,15 @@ def parse_node(tree: ParseTree, context: Context):
 
             context.declare(LocalVarDecl(context, var_name, var_type))
 
+        case "single_type_import_decl":
+            var_name = get_nested_token(tree, "IDENTIFIER")
+            context.declare(SingleImport(context, var_name))
+            print("single_type_import_decl", var_name)
+            pass
+        case "type_import_on_demand_decl":
+            var_name = get_nested_token(tree, "IDENTIFIER")
+            context.declare(DemandImport(context, var_name))
+            print("type_import_on_demand_decl", var_name)
+            pass
         case _:
             build_environment(tree, context)
