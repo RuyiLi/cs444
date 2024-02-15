@@ -111,8 +111,11 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
                 except Exception as e:
                     print(f"Failed {test_name}:", e)
                     raise e
-
-    hierarchy_check(global_context)
+    try:
+        hierarchy_check(global_context)
+    except Exception as e:
+        print("Failed hierarchy_check")
+        raise e
 
 
 def load_path_testcase(paths: List[str], quiet: bool):
@@ -136,11 +139,14 @@ def load_path_testcase(paths: List[str], quiet: bool):
 
                     build_environment(res, global_context)
 
-                    exit(0)
                 except Exception:
                     exit(42)
 
-    hierarchy_check(global_context)
+    try:
+        hierarchy_check(global_context)
+    except Exception:
+        exit(42)
+    exit(0)
 
 
 if __name__ == "__main__":
