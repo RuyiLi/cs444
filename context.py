@@ -44,7 +44,7 @@ def inherit_methods(symbol: Symbol, methods):
             if replacing.return_type != method.return_type:
                 raise SemanticError(f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing return types.")
 
-            if "static" in replacing.modifiers != "static" in method.modifiers:
+            if ("static" in replacing.modifiers) != ("static" in method.modifiers):
                 raise SemanticError(f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing static-ness.")
 
             if "protected" in replacing.modifiers and "public" in method.modifiers:
@@ -58,12 +58,13 @@ def inherit_methods(symbol: Symbol, methods):
 
             inherited_methods.append(method)
 
-def check_overlapping_methods(symbol: Symbol, methods):
-    for i in range(len(methods)):
-        for j in range(i+1, len(methods)):
-            if (methods[i].signature() == methods[j].signature() and
-                methods[i].return_type != methods[j].return_type):
-                raise SemanticError(f"Class/interface {symbol.name} cannot contain two methods with signature {methods[i].signature} but different return types.")
+    return inherited_methods
+
+def check_declare_same_signature(symbol: Symbol):
+    for i in range(len(symbol.methods)):
+        for j in range(i+1, len(symbol.methods)):
+            if (symbol.methods[i].signature() == symbol.methods[j].signature()):
+                raise SemanticError(f"Class/interface {symbol.name} cannot declare two methods with the same signature {symbol.methods[i].signature}.")
 
 class ClassDecl(Symbol):
     def __init__(self, context, name, modifiers, extends, implements):
@@ -95,7 +96,7 @@ class ClassDecl(Symbol):
             if "final" in exist_sym.modifiers:
                 raise SemanticError(f"Class {self.name} cannot extend a final class ({extend}).")
 
-            contained_methods = contained_methods + inherit_methods(self, extend.methods)
+            contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in extends for class {self.name}")
@@ -109,12 +110,12 @@ class ClassDecl(Symbol):
             if exist_sym.node_type == "class_decl":
                 raise SemanticError(f"Class {self.name} cannot implement a class ({implement}).")
 
-            contained_methods = contained_methods + inherit_methods(self, implement.methods)
+            contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in implements for class {self.name}")
 
-        check_overlapping_methods(self, contained_methods)
+        check_declare_same_signature(self)
         print(list(map(lambda m: m.name, self.methods)))
 
 class InterfaceDecl(Symbol):
@@ -142,12 +143,12 @@ class InterfaceDecl(Symbol):
             if exist_sym.node_type == "class_decl":
                 raise SemanticError(f"Interface {self.name} cannot extend a class ({extend}).")
 
-            contained_methods = contained_methods + inherit_methods(self, extend.methods)
+            contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in extends for interface {self.name}")
 
-        check_overlapping_methods(self, contained_methods)
+        check_declare_same_signature(self)
 
 class ConstructorDecl(Symbol):
     def __init__(self, context, param_types, modifiers):
@@ -200,9 +201,3 @@ class IfStmt(Symbol):
 class WhileStmt(Symbol):
     def __init__(self, context, name):
         super().__init__(context, name)
-
-node_dict = {
-    "class_decl": ClassDecl,
-    "if_stmt": IfStmt,
-    "while_stmt": WhileStmt
-}

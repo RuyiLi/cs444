@@ -4,38 +4,39 @@ define JOOSC_FILE_CONTENTS
 #!/bin/bash
 
 # Check if filename argument is provided
-if [ $$# -ne 1 ]; then
-    echo "Usage: $$0 <filename>"
+if [ "$$#" -eq 0 ]; then
+    echo "Usage: $$0 <filename> [<filename> ...]"
     exit 1
 fi
 
-# Assign the filename argument to a variable
-filename=$$1
+# Loop through each filename provided
+for filename in "$$@"; do
+    # Check if the input file exists
+    if [ ! -f "$$filename" ]; then
+        echo "Error: File '$$filename' not found."
+        exit 1
+    fi
+done
 
-# Check if the input file exists
-if [ ! -f "$$filename" ]; then
-    echo "Error: File '$$filename' not found."
-    exit 1
-fi
-
-# Call the Python script with the input filename
-python main.py -p $$filename
+# Call the Python script with all input filenames
+python main.py -p "$$@"
 
 # Check the exit status of the Python script
 case $$? in
     0)
-        echo "The input file is lexically and syntactically valid Joos 1W."
-        exit 0
+        echo "All input files are lexically and syntactically valid Joos 1W."
         ;;
     42)
-        echo "Error: The input file is not lexically or syntactically valid Joos 1W."
+        echo "Error: One or more input files are not lexically or syntactically valid Joos 1W."
         exit 42
         ;;
     *)
-        echo "Error: Your compiler crashed."
-        exit 1
+        echo "Error: Your compiler crashed while processing the input files."
+        exit 2
         ;;
 esac
+
+exit 0
 endef
 
 export JOOSC_FILE_CONTENTS

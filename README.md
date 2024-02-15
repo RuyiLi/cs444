@@ -4,7 +4,7 @@ A Python3 compiler for the Joos 1W language.
 
 ## Running Locally
 
-### Get `Python 3.10` or greater
+### Get `Python 3.10.12` or greater
 
 #### Install `Python` Requirements
 

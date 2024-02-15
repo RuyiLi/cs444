@@ -77,6 +77,8 @@ def load_assignment_testcases(assignment: int, quiet: bool):
 
 
 def load_custom_testcases(test_names: List[str], quiet: bool):
+    global_context = Context(None, None)
+
     for test_name in test_names:
         if not quiet:
             print(f"Testing {test_name}")
@@ -94,11 +96,8 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
 
                     Weeder(f.name).visit(res)
 
-                    global_context = Context(None, None)
-
                     # TODO: Go through all files and put them in global context
                     build_environment(res, global_context)
-                    hierarchy_check(global_context)
 
                     print(
                         list(
@@ -108,29 +107,46 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
                             )
                         )
                     )
-
                     print(f"Passed {test_name}")
                 except Exception as e:
                     print(f"Failed {test_name}:", e)
                     raise e
-
-
-def load_path_testcase(path: str, quiet: bool):
     try:
-        f = open(path, "r")
-    except FileNotFoundError:
-        print(f"Could not find test with name {path}, skipping...")
-    else:
-        with f:
-            test_file_contents = f.read()
-            try:
-                res = l.parse(test_file_contents)
-                Weeder(f.name).visit(res)
-                if not quiet:
-                    print(res.pretty())
-                exit(0)
-            except Exception:
-                exit(42)
+        hierarchy_check(global_context)
+    except Exception as e:
+        print("Failed hierarchy_check")
+        raise e
+
+
+def load_path_testcase(paths: List[str], quiet: bool):
+    global_context = Context(None, None)
+
+    for path in paths:
+        try:
+            f = open(path, "r")
+        except FileNotFoundError:
+            print(f"Could not find test with name {path}, skipping...")
+        else:
+            with f:
+                test_file_contents = f.read()
+                try:
+                    res = l.parse(test_file_contents)
+
+                    if not quiet:
+                        print(res.pretty())
+
+                    Weeder(f.name).visit(res)
+
+                    build_environment(res, global_context)
+
+                except Exception:
+                    exit(42)
+
+    try:
+        hierarchy_check(global_context)
+    except Exception:
+        exit(42)
+    exit(0)
 
 
 if __name__ == "__main__":
@@ -139,7 +155,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Joos test suite utilities.")
     parser.add_argument("-a", type=int, help="Load assignment testcases")
     parser.add_argument("-t", type=str, nargs="+", help="Load custom testcases")
-    parser.add_argument("-p", type=str, help="Load testcases from path")
+    parser.add_argument("-p", type=str, nargs="+", help="Load testcases from path")
     parser.add_argument(
         "-q", action="store_true", default=False, help="Don't print parse tree"
     )
