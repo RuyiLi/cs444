@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List, Literal
 
 
 class SemanticError(Exception):
@@ -94,20 +94,32 @@ def check_declare_same_signature(symbol: Symbol):
                 )
 
 
-class ClassDecl(Symbol):
-    def __init__(self, context, name, modifiers, extends, implements):
+class ClassInterfaceDecl(Symbol):
+    def __init__(
+        self,
+        context: Context,
+        name: str,
+        modifiers: List[str],
+        extends: List[str],
+        node_type: Literal["class_decl"] | Literal["interface_decl"],
+    ):
         super().__init__(context, name)
-        self.node_type = "class_decl"
+        self.node_type = node_type
         self.modifiers = modifiers
         self.extends = extends
-        self.implements = implements
 
         self.fields = []
         self.methods = []
-        self.constructors = []
 
     def sym_id(self):
-        return "class_interface^" + self.name
+        return f"class_interface^{self.name}"
+
+
+class ClassDecl(ClassInterfaceDecl):
+    def __init__(self, context, name, modifiers, extends, implements):
+        super().__init__(context, name, modifiers, extends, "class_decl")
+        self.implements = implements
+        self.constructors = []
 
     def hierarchy_check(self):
         contained_methods = self.methods
@@ -165,18 +177,11 @@ class ClassDecl(Symbol):
         print(list(map(lambda m: m.name, self.methods)))
 
 
-class InterfaceDecl(Symbol):
-    def __init__(self, context, name, modifiers, extends):
-        super().__init__(context, name)
-        self.node_type = "interface_decl"
-        self.modifiers = modifiers
-        self.extends = extends
-
-        self.fields = []
-        self.methods = []
-
-    def sym_id(self):
-        return "class_interface^" + self.name
+class InterfaceDecl(ClassInterfaceDecl):
+    def __init__(
+        self, context: Context, name: str, modifiers: List[str], extends: List[str]
+    ):
+        super().__init__(context, name, modifiers, extends, "interface_decl")
 
     def hierarchy_check(self):
         contained_methods = self.methods
