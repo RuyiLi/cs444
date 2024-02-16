@@ -4,7 +4,7 @@ A Python3 compiler for the Joos 1W language.
 
 ## Running Locally
 
-### Get `Python 3.10.12` or greater
+### Get `Python 3.10` or greater
 
 #### Install `Python` Requirements
 
@@ -30,18 +30,18 @@ printf "%s\n" '' 'export PATH="$HOME/.pyenv/bin:$PATH"' 'eval "$(pyenv init -)"'
 source ~/.bashrc
 ```
 
-#### Install `Python 3.10.12`
+#### Install `Python 3.10`
 
 ```bash
-pyenv install 3.10.12
+pyenv install 3.10
 ```
 
 ### Create a Virtual Environment
 
-#### Use `Python 3.10.12`
+#### Use `Python 3.10`
 
 ```bash
-pyenv local 3.10.12
+pyenv local 3.10
 ```
 
 #### Make the Virtual Environment Folder
