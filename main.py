@@ -63,8 +63,8 @@ def load_assignment_testcases(assignment: int, quiet: bool):
                     Weeder(f.name).visit(res)
                     build_environment(res, global_context)
 
-            if not quiet:
-                print(res.pretty())
+                    if not quiet:
+                        print(res.pretty())
             if should_error(test_files_list[0]):
                 print(f"Failed {test_files_list} (should have thrown an error):")
                 failed_tests.append(str(test_files_list))
@@ -79,10 +79,7 @@ def load_assignment_testcases(assignment: int, quiet: bool):
                     print(f"Passed {test_files_list} (correctly threw an error):")
                 passed += 1
             else:
-                print(
-                    f"Failed {test_files_list} (should not have thrown an error):",
-                    e,
-                )
+                print(f"Failed {test_files_list} (should not have thrown an error):", e)
                 failed_tests.append(str(test_files_list))
 
     print()

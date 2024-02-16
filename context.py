@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Dict, List, Optional
 
 
@@ -6,13 +8,13 @@ class SemanticError(Exception):
 
 
 class Symbol:
-    context: "Context"
+    context: Context
     name: str
 
     # node types are at class level ("static") so we can access them with smth like ClassDecl.node_type
     node_type: str
 
-    def __init__(self, context: "Context", name: str):
+    def __init__(self, context: Context, name: str):
         self.context = context
         self.name = name
 
@@ -25,11 +27,11 @@ class Symbol:
 
 
 class Context:
-    parent: "Context"
+    parent: Context
     parent_node: Symbol
     symbol_map: Dict[str, Symbol]
 
-    def __init__(self, parent, parent_node):
+    def __init__(self, parent: Context, parent_node: Symbol):
         self.parent = parent
         self.parent_node = parent_node
         self.children = []
@@ -53,13 +55,13 @@ class Context:
         return None
 
 
-def inherit_methods(symbol: Symbol, methods):
+def inherit_methods(symbol: ClassInterfaceDecl, methods: List[MethodDecl]):
     inherited_methods = []
     for method in methods:
+        replacing = next(filter(lambda m: m.signature() == method.signature(), methods), None)
+
         # in Replace()?
-        if (
-            replacing := next(filter(lambda m: m.signature() == method.signature(), methods), None)
-        ) is not None:
+        if replacing is not None:
             if replacing.return_type != method.return_type:
                 raise SemanticError(
                     f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing return types."
@@ -94,12 +96,12 @@ def inherit_methods(symbol: Symbol, methods):
     return inherited_methods
 
 
-def check_declare_same_signature(symbol: Symbol):
+def check_declare_same_signature(symbol: ClassInterfaceDecl):
     for i in range(len(symbol.methods)):
         for j in range(i + 1, len(symbol.methods)):
             if symbol.methods[i].signature() == symbol.methods[j].signature():
                 raise SemanticError(
-                    f"Class/interface {symbol.name} cannot declare two methods with the same signature {symbol.methods[i].signature}."
+                    f"Class/interface {symbol.name} cannot declare two methods with the same signature: {symbol.methods[i].signature}."
                 )
 
 
@@ -154,6 +156,8 @@ class ClassDecl(ClassInterfaceDecl):
             if exist_sym.node_type == "interface_decl":
                 raise SemanticError(f"Class {self.name} cannot extend an interface ({extend}).")
 
+            assert isinstance(exist_sym, ClassDecl)
+
             if "final" in exist_sym.modifiers:
                 raise SemanticError(f"Class {self.name} cannot extend a final class ({extend}).")
 
@@ -171,13 +175,14 @@ class ClassDecl(ClassInterfaceDecl):
             if exist_sym.node_type == "class_decl":
                 raise SemanticError(f"Class {self.name} cannot implement a class ({implement}).")
 
+            assert isinstance(exist_sym, InterfaceDecl)
+
             contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in implements for class {self.name}")
 
         check_declare_same_signature(self)
-        print(list(map(lambda m: m.name, self.methods)))
 
 
 class InterfaceDecl(ClassInterfaceDecl):
@@ -207,6 +212,7 @@ class InterfaceDecl(ClassInterfaceDecl):
             if exist_sym.node_type == "class_decl":
                 raise SemanticError(f"Interface {self.name} cannot extend a class ({extend}).")
 
+            assert isinstance(exist_sym, InterfaceDecl)
             contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
 
         if len(set(self.extends)) < len(self.extends):
@@ -223,6 +229,7 @@ class ConstructorDecl(Symbol):
         self.param_types = param_types
         self.modifiers = modifiers
 
+        assert isinstance(self.context.parent_node, ClassDecl)
         self.context.parent_node.constructors.append(self)
 
     def sym_id(self):
@@ -237,6 +244,7 @@ class FieldDecl(Symbol):
         self.modifiers = modifiers
         self.sym_type = field_type
 
+        assert isinstance(self.context.parent_node, ClassInterfaceDecl)
         self.context.parent_node.fields.append(self)
 
 
@@ -249,6 +257,7 @@ class MethodDecl(Symbol):
         self.modifiers = modifiers
         self.return_type = return_type
 
+        assert isinstance(self.context.parent_node, ClassInterfaceDecl)
         self.context.parent_node.methods.append(self)
 
     def signature(self):

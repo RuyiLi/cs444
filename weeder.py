@@ -153,8 +153,8 @@ class Weeder(Visitor):
             if len(formal_param_types) > 1 or formal_param_types[0] != "int":
                 format_error("Native methods must have exactly one int parameter.", tree.meta.line)
 
-        if "public" not in modifiers:
-            format_error("Method must be declared public.", tree.meta.line)
+        if "public" not in modifiers and "protected" not in modifiers:
+            format_error("Method must be declared public or protected.", tree.meta.line)
 
         child_fields = filter(lambda c: isinstance(c, Tree) and c.data == "field_declaration", tree.children)
         for field in child_fields:
