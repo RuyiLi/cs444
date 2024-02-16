@@ -28,6 +28,8 @@ class Symbol:
     def hierarchy_check(self):
         pass
 
+    # TODO __repr__
+
 
 class Context:
     parent: Context
@@ -63,7 +65,7 @@ class Context:
 def inherit_methods(symbol: ClassInterfaceDecl, methods: List[MethodDecl]):
     inherited_methods = []
     for method in methods:
-        replacing = next(filter(lambda m: m.signature() == method.signature(), methods), None)
+        replacing = next(filter(lambda m: m.signature() == method.signature(), symbol.methods), None)
 
         # in Replace()?
         if replacing is not None:
@@ -133,6 +135,9 @@ class ClassInterfaceDecl(Symbol):
     def sym_id(self):
         return f"class_interface^{self.name}"
 
+    def resolve_name(self, type_name: str) -> Optional[Symbol]:
+        return self.type_names.get(type_name)
+
 
 class ClassDecl(ClassInterfaceDecl):
     node_type = "class_decl"
@@ -154,7 +159,7 @@ class ClassDecl(ClassInterfaceDecl):
         contained_methods = self.methods
 
         for extend in self.extends:
-            exist_sym = self.context.resolve(f"class_interface^{extend}")
+            exist_sym = self.resolve_name(extend)
 
             if exist_sym is None:
                 raise SemanticError(f"Class {self.name} cannot extend class {extend} that does not exist.")
@@ -173,7 +178,7 @@ class ClassDecl(ClassInterfaceDecl):
             raise SemanticError(f"Duplicate class/interface in extends for class {self.name}")
 
         for implement in self.implements:
-            exist_sym = self.context.resolve(f"class_interface^{implement}")
+            exist_sym = self.resolve_name(implement)
 
             if exist_sym is None:
                 raise SemanticError(f"Class {self.name} cannot extend class {implement} that does not exist.")
@@ -208,7 +213,7 @@ class InterfaceDecl(ClassInterfaceDecl):
         contained_methods = self.methods
 
         for extend in self.extends:
-            exist_sym = self.context.resolve(f"class_interface^{extend}")
+            exist_sym = self.resolve_name(extend)
 
             if exist_sym is None:
                 raise SemanticError(
