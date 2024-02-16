@@ -10,8 +10,6 @@ from context import Context
 from hierarchy_check import hierarchy_check
 from weeder import Weeder
 
-logger.setLevel(logging.DEBUG)
-
 grammar = ""
 files = glob.glob(r"./grammar/**/*.lark", recursive=True)
 for file in files:
@@ -23,7 +21,6 @@ lark = Lark(
     grammar,
     start="compilation_unit",
     parser="lalr",
-    debug=True,
     propagate_positions=True,
 )
 
@@ -116,7 +113,9 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
                     Weeder(f.name).visit(res)
 
                     # TODO: Go through all files and put them in global context
-                    build_environment(res, global_context)
+                    context = Context(global_context, None)
+                    build_environment(res, context)
+                    global_context.children.append(context)
 
                     print(
                         list(
@@ -130,6 +129,7 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
                 except Exception as e:
                     print(f"Failed {test_name}:", e)
                     raise e
+
     try:
         hierarchy_check(global_context)
     except Exception as e:
@@ -185,8 +185,9 @@ if __name__ == "__main__":
     if args.q:
         log_level = logging.ERROR
     elif args.v:
-        log_level = args.DEBUG
+        log_level = logging.DEBUG
     logging.basicConfig(level=log_level)
+    logger.setLevel(log_level)
 
     if args.a is not None:
         load_assignment_testcases(args.a, quiet=args.q)
