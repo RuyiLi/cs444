@@ -2,12 +2,9 @@ compilation_unit: package_decl? import_decl* type_decl? // only one type declara
 
 package_decl: PACKAGE_KW package_name ";"
 
-import_decl: single_type_import_decl | type_import_on_demand_decl
+import_decl: type_import_on_demand_decl | single_type_import_decl
 
 single_type_import_decl: IMPORT_KW type_name ";"
-
-type_import_on_demand_decl: IMPORT_KW IDENTIFIER "." id ";"
-
-id: "*" | (IDENTIFIER ".") id
+type_import_on_demand_decl: IMPORT_KW type_name /\s*\.\s*\*\s*;/
 
 ?type_decl: SEMICOLON* (class_declaration | interface_declaration) SEMICOLON*
