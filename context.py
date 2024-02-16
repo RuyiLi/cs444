@@ -247,6 +247,20 @@ class InterfaceDecl(ClassInterfaceDecl):
             assert isinstance(exist_sym, InterfaceDecl)
             contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
 
+        # Interfaces do not actually extend from Object but rather implicitly
+        # declare many of the same methods as Object, so we check if "inherit
+        # metods" would pass
+
+        extend = "Object"
+        exist_sym = self.resolve_name(extend)
+
+        if exist_sym is None:
+            raise SemanticError(
+                f"Interface {self.name} cannot extend interface {extend} that does not exist."
+            )
+
+        inherit_methods(self, exist_sym.methods)
+
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in extends for interface {self.name}")
 
