@@ -40,16 +40,14 @@ def load_assignment_testcases(assignment: int, quiet: bool):
         entry_path = os.path.join(test_directory, entry)
         if os.path.isfile(entry_path):
             test_files_lists.append([entry])
-    
+
     for entry in sorted(os.listdir(test_directory)):
         entry_path = os.path.join(test_directory, entry)
         if os.path.isdir(entry_path):
             test_files_list = []
             for root, _, files in os.walk(entry_path):
                 for file in sorted(files):
-                    test_file = os.path.relpath(
-                        os.path.join(root, file), test_directory
-                    )
+                    test_file = os.path.relpath(os.path.join(root, file), test_directory)
                     test_files_list.append(test_file)
             if test_files_list:
                 test_files_lists.append(test_files_list)
@@ -67,21 +65,17 @@ def load_assignment_testcases(assignment: int, quiet: bool):
                     res = lark.parse(test_file_contents)
                     Weeder(f.name).visit(res)
                     build_environment(res, global_context)
-    
+
             if not quiet:
                 print(res.pretty())
             if should_error(test_files_list[0]):
-                print(
-                    f"Failed {str(test_files_list)} (should have thrown an error):"
-                )
+                print(f"Failed {str(test_files_list)} (should have thrown an error):")
                 failed_tests.append(str(test_files_list))
             else:
                 if not quiet:
-                    print(
-                        f"Passed {str(test_files_list)} (correctly did not throw an error):"
-                    )
+                    print(f"Passed {str(test_files_list)} (correctly did not throw an error):")
                 passed += 1
-    
+
         except Exception as e:
             if should_error(test_files_list[0]):
                 if not quiet:
@@ -181,11 +175,18 @@ if __name__ == "__main__":
     parser.add_argument("-a", type=int, help="Load assignment testcases")
     parser.add_argument("-t", type=str, nargs="+", help="Load custom testcases")
     parser.add_argument("-p", type=str, nargs="+", help="Load testcases from path")
-    parser.add_argument(
-        "-q", action="store_true", default=False, help="Don't print parse tree"
-    )
+    parser.add_argument("-q", action="store_true", default=False, help="Only log errors")
+    parser.add_argument("-v", action="store_true", default=False, help="Log everything")
 
     args = parser.parse_args()
+
+    # default to INFO
+    log_level = logging.INFO
+    if args.q:
+        log_level = logging.ERROR
+    elif args.v:
+        log_level = args.DEBUG
+    logging.basicConfig(level=log_level)
 
     if args.a is not None:
         load_assignment_testcases(args.a, quiet=args.q)

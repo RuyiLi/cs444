@@ -278,13 +278,13 @@ class WhileStmt(Symbol):
         super().__init__(context, name)
 
 
-class DemandImport(Symbol):
+class OnDemandImport(Symbol):
     def __init__(self, context, name):
         super().__init__(context, name)
         self.node_type = "type_import_on_demand_decl"
 
 
 class SingleImport(Symbol):
-    def __init__(self, context, name):
+    def __init__(self, context, name, type_path):
         super().__init__(context, name)
         self.node_type = "single_type_import_decl"
