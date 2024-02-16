@@ -197,7 +197,9 @@ class ClassDecl(ClassInterfaceDecl):
             exist_sym = self.resolve_name(implement)
 
             if exist_sym is None:
-                raise SemanticError(f"Class {self.name} cannot extend class {implement} that does not exist.")
+                raise SemanticError(
+                    f"Class {self.name} cannot implement class {implement} that does not exist."
+                )
 
             if exist_sym.node_type == "class_decl":
                 raise SemanticError(f"Class {self.name} cannot implement a class ({implement}).")
