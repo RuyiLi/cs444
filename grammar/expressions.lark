@@ -75,5 +75,5 @@ lhs: expression_name
    | array_access
 
 expr: assignment
-     | or_expr
+    | or_expr
 
