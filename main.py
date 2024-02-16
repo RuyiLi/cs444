@@ -113,9 +113,7 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
                     Weeder(f.name).visit(res)
 
                     # TODO: Go through all files and put them in global context
-                    context = Context(global_context, None)
-                    build_environment(res, context)
-                    global_context.children.append(context)
+                    build_environment(res, global_context)
 
                     print(
                         list(
