@@ -100,6 +100,8 @@ def build_class_interface_decl(
     class_name = package_prefix + get_nested_token(tree, "IDENTIFIER")
     modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
     extends = list(map(resolve_name, tree.find_data("class_type")))
+    if not extends and class_name != "java.lang.Object":
+        extends = ["Object"]
     inherited_interfaces = next(tree.find_data("interface_type_list"), [])
     if inherited_interfaces:
         inherited_interfaces = list(map(resolve_name, inherited_interfaces.find_data("interface_type")))
