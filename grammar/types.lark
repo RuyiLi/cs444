@@ -6,12 +6,13 @@ type: primitive_type | reference_type
 reference_type.1: type_name | array_type
 array_type: type_name SQ_BRACKETS | primitive_type SQ_BRACKETS
 
-type_name: IDENTIFIER ("." type_name)*
+NAME: IDENTIFIER ("." IDENTIFIER)*
 
-class_type: type_name
-interface_type: type_name
+type_name: NAME
+class_type: NAME
+interface_type: NAME
 
-package_name: type_name
-package_or_type_name: type_name
-method_name: type_name
-expression_name: type_name
+package_name: NAME
+package_or_type_name: NAME
+method_name: NAME
+expression_name: NAME

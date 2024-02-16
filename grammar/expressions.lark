@@ -43,8 +43,6 @@ pre_dec_expr.1: "--" unary_expr     // prioritize over unary_neg
           | "(" array_type ")" unary_expr_not_plus_minus
           | "(" expr ")" unary_expr_not_plus_minus
 
-
-
 ?mult_expr: unary_expr
           | mult_expr ("*" | "/" | "%") unary_expr
 
