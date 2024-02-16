@@ -45,13 +45,13 @@ def static_check(context: Context):
     try:
         type_link(context)
     except Exception as e:
-        print("Failed type_link")
+        logging.error("Failed type_link")
         raise e
 
     try:
         hierarchy_check(context)
     except Exception as e:
-        print("Failed hierarchy_check")
+        logging.error("Failed hierarchy_check")
         raise e
 
 
@@ -123,12 +123,11 @@ def load_assignment_testcases(assignment: int, quiet: bool):
         print(f"Failed tests: {', '.join(failed_tests)}")
 
 
-def load_custom_testcases(test_names: List[str], quiet: bool):
+def load_custom_testcases(test_names: List[str]):
     global_context = deepcopy(global_context_with_stdlib)
 
     for test_name in test_names:
-        if not quiet:
-            print(f"Testing {test_name}")
+        logging.info(f"Testing {test_name}")
         try:
             f = open(f"./custom_testcases/{test_name}.java", "r")
         except FileNotFoundError:
@@ -138,9 +137,7 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
                 test_file_contents = f.read()
                 try:
                     res = lark.parse(test_file_contents)
-                    if not quiet:
-                        print(res.pretty())
-
+                    logging.debug(res.pretty())
                     Weeder(f.name).visit(res)
 
                     # TODO: Go through all files and put them in global context
@@ -175,7 +172,11 @@ def load_path_testcases(paths: List[str]):
                     logging.error(e)
                     exit(42)
 
-    static_check(global_context)
+    try:
+        static_check(global_context)
+    except Exception as e:
+        logging.error(e)
+        exit(42)
 
 
 if __name__ == "__main__":
@@ -204,7 +205,7 @@ if __name__ == "__main__":
         load_assignment_testcases(args.a, quiet=args.q)
 
     if args.t is not None:
-        load_custom_testcases(args.t, quiet=args.q)
+        load_custom_testcases(args.t)
 
     if args.p is not None:
         load_path_testcases(args.p)
