@@ -69,21 +69,21 @@ def load_assignment_testcases(assignment: int, quiet: bool):
             if not quiet:
                 print(res.pretty())
             if should_error(test_files_list[0]):
-                print(f"Failed {str(test_files_list)} (should have thrown an error):")
+                print(f"Failed {test_files_list} (should have thrown an error):")
                 failed_tests.append(str(test_files_list))
             else:
                 if not quiet:
-                    print(f"Passed {str(test_files_list)} (correctly did not throw an error):")
+                    print(f"Passed {test_files_list} (correctly did not throw an error):")
                 passed += 1
 
         except Exception as e:
             if should_error(test_files_list[0]):
                 if not quiet:
-                    print(f"Passed {str(test_files_list)} (correctly threw an error):")
+                    print(f"Passed {test_files_list} (correctly threw an error):")
                 passed += 1
             else:
                 print(
-                    f"Failed {str(test_files_list)} (should not have thrown an error):",
+                    f"Failed {test_files_list} (should not have thrown an error):",
                     e,
                 )
                 failed_tests.append(str(test_files_list))

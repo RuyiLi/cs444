@@ -57,8 +57,9 @@ joosc:
 	chmod +x joosc
 
 zip:
+	rm -rf joos_submission.zip
 	git --no-pager log > $(CURR_ASSIGNMENT).log
-	zip -r joos_submission.zip custom_testcases grammar main.py weeder.py requirements.txt Makefile $(CURR_ASSIGNMENT).log
+	find . -type f -name "*.py" -not -path "./env/*" | grep -v "__pycache__" | xargs zip -r joos_submission.zip custom_testcases grammar requirements.txt Makefile $(CURR_ASSIGNMENT).log
 	rm -f $(CURR_ASSIGNMENT).log
 
 unzip:
