@@ -46,7 +46,9 @@ def get_tree_child_token(tree: ParseTree, tree_name: str, token_name: str):
 
 
 def get_identifiers(tree: ParseTree):
-    return (token.value for token in tree.scan_values(lambda v: isinstance(v, Token) and v.type == "IDENTIFIER"))
+    tokens = tree.scan_values(lambda v: isinstance(v, Token) and v.type == "IDENTIFIER")
+    return (token.value for token in tokens)
+
 
 def get_formal_params(tree: ParseTree):
     formal_params = next(tree.find_data("formal_param_list"), None)
@@ -65,8 +67,11 @@ def get_formal_params(tree: ParseTree):
     return (formal_param_types, formal_param_names)
 
 
-def build_class_interface_declaration(
-    tree: ParseTree, context: Context, package_prefix: str, imports: List[ImportDeclaration]
+def build_class_interface_decl(
+    tree: ParseTree,
+    context: Context,
+    package_prefix: str,
+    imports: List[ImportDeclaration],
 ):
     assert tree.data == "interface_declaration" or tree.data == "class_declaration"
 
@@ -91,12 +96,14 @@ def build_class_interface_declaration(
     else:
         symbol = InterfaceDecl(context, package_prefix + class_name, modifiers, extends, imports)
 
-    context.declare(symbol)
     nested_context = Context(context, symbol)
+    context.declare(symbol)
     context.children.append(nested_context)
 
     target_node_type = "class_body" if tree.data == "class_declaration" else "interface_body"
     build_environment(next(tree.find_data(target_node_type)), nested_context)
+
+    return symbol
 
 
 def parse_node(tree: ParseTree, context: Context):
@@ -107,7 +114,7 @@ def parse_node(tree: ParseTree, context: Context):
             package_name = ""
             try:
                 package_decl = next(tree.find_data("package_decl"))
-                package_name = ".".join(get_identifiers(package_decl)) + "."
+                package_name = ".".join(get_identifiers(package_decl))
             except StopIteration:
                 pass
 
@@ -123,11 +130,10 @@ def parse_node(tree: ParseTree, context: Context):
             # attempt to build class or interface declaration
             try:
                 class_decl = next(
-                    tree.find_pred(
-                        lambda v: v.data == "class_declaration" or v.data == "interface_declaration"
-                    )
+                    tree.find_pred(lambda v: v.data in ["class_declaration", "interface_declaration"])
                 )
-                build_class_interface_declaration(class_decl, context, package_name, imports)
+                type_decl = build_class_interface_decl(class_decl, context, package_name + ".", imports)
+                context.packages[package_name].append(type_decl)
             except StopIteration:
                 pass
 
@@ -203,23 +209,13 @@ def parse_node(tree: ParseTree, context: Context):
 
             context.declare(LocalVarDecl(context, var_name, var_type))
 
-        # case "single_type_import_decl":
-        #     identifiers = list(v.value for v in tree.scan_values(lambda v: isinstance(v, Token)))
-        #     # TODO maybe join type_path into a string so we don't have to pass two parameters?
-        #     type_name = identifiers[-1]
-        #     type_path = identifiers[1:]
-        #     context.declare(SingleImport(context, type_name, type_path))
-        #     logging.debug("single_type_import_decl", type_name, type_path)
-
-        # case "type_import_on_demand_decl":
-        #     identifiers = list(tree.scan_values(lambda v: isinstance(v, Token)))
-        #     import_path = ".".join(identifiers[1:])
-        #     context.declare(OnDemandImport(context, import_path))
-        #     logging.debug("type_import_on_demand_decl", import_path)
-
         case "statement":
             scope_stmts = ["block", "if_st", "if_else_st", "for_st", "while_st"]
-            if (nested_block := next(filter(lambda c: isinstance(c, Tree) and c.data in scope_stmts, tree.children), None)) is not None:
+            if (
+                nested_block := next(
+                    filter(lambda c: isinstance(c, Tree) and c.data in scope_stmts, tree.children), None
+                )
+            ) is not None:
                 # Blocks inside blocks have the same parent node
                 nested_context = Context(context, context.parent_node)
                 context.children.append(nested_context)

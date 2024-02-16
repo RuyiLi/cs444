@@ -1,15 +1,32 @@
-from context import ClassInterfaceDecl, Context, SemanticError, Symbol
+from typing import List
+from type_link import check_type_decl
+
+from context import ClassInterfaceDecl, Context, SemanticError
+
+
+def type_link(context: Context):
+    # should only be run once on the global context
+    type_decls: List[ClassInterfaceDecl] = list(
+        filter(
+            lambda symbol: symbol.node_type == ClassInterfaceDecl.node_type,
+            context.symbol_map.items(),
+        )
+    )
+
+    for type_decl in type_decls:
+        check_type_decl(type_decl)
+
 
 def hierarchy_check(context: Context):
     for sym_id, symbol in context.symbol_map.items():
         # Check that the types of all symbols exist
-        
+
         # Check that every symbol meets its hierarchy criteria
         symbol.hierarchy_check()
-        pass
 
     for subcontext in context.children:
         hierarchy_check(subcontext)
+
 
 # BFS upwards through all superclasses/superinterfaces, maintaining path traveled so far for every possible path.
 # If a superclass/superinterface is already on the path, there is a cyclic dependency.

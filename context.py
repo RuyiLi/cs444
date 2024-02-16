@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from typing import Dict, List, Optional
+from collections import defaultdict
+
+from type_link import ImportDeclaration
 
 
 class SemanticError(Exception):
@@ -30,12 +33,14 @@ class Context:
     parent: Context
     parent_node: Symbol
     symbol_map: Dict[str, Symbol]
+    packages: Dict[str, ClassInterfaceDecl]
 
     def __init__(self, parent: Context, parent_node: Symbol):
         self.parent = parent
         self.parent_node = parent_node
         self.children = []
         self.symbol_map = {}
+        self.packages = defaultdict(list)
 
     def declare(self, symbol: Symbol):
         existing = self.resolve(symbol.sym_id())
@@ -114,7 +119,7 @@ class ClassInterfaceDecl(Symbol):
         name: str,
         modifiers: List[str],
         extends: List[str],
-        imports: List[str],
+        imports: List[ImportDeclaration],
     ):
         super().__init__(context, name)
         self.modifiers = modifiers
@@ -137,7 +142,7 @@ class ClassDecl(ClassInterfaceDecl):
         name: str,
         modifiers: List[str],
         extends: List[str],
-        imports: List[str],
+        imports: List[ImportDeclaration],
         implements: List[str],
     ):
         super().__init__(context, name, modifiers, extends, imports)
@@ -194,7 +199,7 @@ class InterfaceDecl(ClassInterfaceDecl):
         name: str,
         modifiers: List[str],
         extends: List[str],
-        imports: List[str],
+        imports: List[ImportDeclaration],
     ):
         super().__init__(context, name, modifiers, extends, imports)
 
