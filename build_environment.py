@@ -33,6 +33,10 @@ def get_child_token(tree: ParseTree, name: str) -> str:
     return next(filter(lambda c: isinstance(c, Token) and c.type == name, tree.children)).value
 
 
+def get_child_tree(tree: ParseTree, name: str):
+    return next(filter(lambda c: isinstance(c, Tree) and c.data == name, tree.children), None)
+
+
 def get_nested_token(tree: ParseTree, name: str) -> str:
     return next(tree.scan_values(lambda v: isinstance(v, Token) and v.type == name)).value
 
@@ -48,6 +52,15 @@ def get_tree_child_token(tree: ParseTree, tree_name: str, token_name: str):
 def get_identifiers(tree: ParseTree):
     return (token.value for token in tree.scan_values(lambda v: isinstance(v, Token) and v.type == "IDENTIFIER"))
 
+def resolve_name(tree: ParseTree):
+    return ".".join(get_identifiers(tree))
+
+def resolve_type(tree: ParseTree):
+    assert tree.data == "type"
+
+    child = tree.children[0]
+    return child.value if isinstance(child, Token) else resolve_name(child)
+
 def get_formal_params(tree: ParseTree):
     formal_params = next(tree.find_data("formal_param_list"), None)
 
@@ -59,7 +72,7 @@ def get_formal_params(tree: ParseTree):
             if isinstance(child, Token):
                 continue
 
-            formal_param_types.append(get_tree_first_child(child, "type"))
+            formal_param_types.append(resolve_type(next(child.find_data("type"))))
             formal_param_names.append(get_tree_token(child, "var_declarator_id", "IDENTIFIER"))
 
     return (formal_param_types, formal_param_names)
@@ -73,20 +86,10 @@ def build_class_interface_declaration(
     modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
     class_name = get_nested_token(tree, "IDENTIFIER")
 
-    extends = list(
-        map(
-            lambda e: get_nested_token(e, "NAME"),
-            tree.find_pred(lambda c: c.data == "class_type"),
-        )
-    )
+    extends = [resolve_name(e) for e in tree.find_data("class_type")]
 
     if tree.data == "class_declaration":
-        implements = list(
-            map(
-                lambda e: get_nested_token(e, "IDENTIFIER"),
-                tree.find_pred(lambda c: c.data == "interface_type_list"),
-            )
-        )
+        implements = [resolve_name(i) for i in tree.find_data("interface_type_list")]
         symbol = ClassDecl(context, package_prefix + class_name, modifiers, extends, imports, implements)
     else:
         symbol = InterfaceDecl(context, package_prefix + class_name, modifiers, extends, imports)
@@ -107,17 +110,17 @@ def parse_node(tree: ParseTree, context: Context):
             package_name = ""
             try:
                 package_decl = next(tree.find_data("package_decl"))
-                package_name = ".".join(get_identifiers(package_decl)) + "."
+                package_name = resolve_name(package_decl) + "."
             except StopIteration:
                 pass
 
             # run through imports
             imports = []
             for import_decl in tree.find_data("single_type_import_decl"):
-                type_name = ".".join(get_identifiers(import_decl))
+                type_name = resolve_name(import_decl)
                 imports.append(SingleTypeImport(type_name))
             for import_decl in tree.find_data("type_import_on_demand_decl"):
-                type_name = ".".join(get_identifiers(import_decl))
+                type_name = resolve_name(import_decl)
                 imports.append(OnDemandImport(type_name))
 
             # attempt to build class or interface declaration
@@ -140,11 +143,7 @@ def parse_node(tree: ParseTree, context: Context):
             logging.debug("constructor_declaration %s %s", formal_param_types, modifiers)
             context.declare(symbol)
 
-            if (
-                nested_tree := next(
-                    filter(lambda c: isinstance(c, Tree) and c.data == "block", tree.children), None
-                )
-            ) is not None:
+            if (nested_tree := get_child_tree(tree, "block")) is not None:
                 nested_context = Context(context, symbol)
                 context.children.append(nested_context)
 
@@ -162,9 +161,7 @@ def parse_node(tree: ParseTree, context: Context):
             return_type = (
                 "void"
                 if any(isinstance(x, Token) and x.type == "VOID_KW" for x in tree.children)
-                else next(filter(lambda c: isinstance(c, Tree) and c.data == "type", tree.children)).children[
-                    0
-                ]
+                else resolve_type(get_child_tree(tree, "type"))
             )
 
             symbol = MethodDecl(context, method_name, formal_param_types, modifiers, return_type)
@@ -188,7 +185,7 @@ def parse_node(tree: ParseTree, context: Context):
 
         case "field_declaration":
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
-            field_type = get_tree_first_child(tree, "type")
+            field_type = resolve_type(next(tree.find_data("type")))
             field_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
 
             logging.debug("field_declaration", field_name, modifiers, field_type)
@@ -196,7 +193,7 @@ def parse_node(tree: ParseTree, context: Context):
             context.declare(FieldDecl(context, field_name, modifiers, field_type))
 
         case "local_var_declaration":
-            var_type = get_tree_first_child(tree, "type")
+            var_type = resolve_type(next(tree.find_data("type")))
             var_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
 
             logging.debug("local_var_declaration", var_name, var_type)
