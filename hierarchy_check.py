@@ -1,20 +1,4 @@
-from typing import List
-from type_link import check_type_decl
-
 from context import ClassInterfaceDecl, Context, SemanticError
-
-
-def type_link(context: Context):
-    # should only be run once on the global context
-    type_decls: List[ClassInterfaceDecl] = list(
-        filter(
-            lambda symbol: symbol.node_type == ClassInterfaceDecl.node_type,
-            context.symbol_map.items(),
-        )
-    )
-
-    for type_decl in type_decls:
-        check_type_decl(type_decl)
 
 
 def hierarchy_check(context: Context):

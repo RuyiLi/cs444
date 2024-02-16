@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 from collections import defaultdict
 
-from type_link import ImportDeclaration
+import type_link
 
 
 class SemanticError(Exception):
@@ -33,7 +33,7 @@ class Context:
     parent: Context
     parent_node: Symbol
     symbol_map: Dict[str, Symbol]
-    packages: Dict[str, ClassInterfaceDecl]
+    packages: Dict[str, List[ClassInterfaceDecl]]
 
     def __init__(self, parent: Context, parent_node: Symbol):
         self.parent = parent
@@ -119,7 +119,7 @@ class ClassInterfaceDecl(Symbol):
         name: str,
         modifiers: List[str],
         extends: List[str],
-        imports: List[ImportDeclaration],
+        imports: List[type_link.ImportDeclaration],
     ):
         super().__init__(context, name)
         self.modifiers = modifiers
@@ -128,6 +128,7 @@ class ClassInterfaceDecl(Symbol):
 
         self.fields = []
         self.methods = []
+        self.type_names = {}
 
     def sym_id(self):
         return f"class_interface^{self.name}"
@@ -142,7 +143,7 @@ class ClassDecl(ClassInterfaceDecl):
         name: str,
         modifiers: List[str],
         extends: List[str],
-        imports: List[ImportDeclaration],
+        imports: List[type_link.ImportDeclaration],
         implements: List[str],
     ):
         super().__init__(context, name, modifiers, extends, imports)
@@ -199,7 +200,7 @@ class InterfaceDecl(ClassInterfaceDecl):
         name: str,
         modifiers: List[str],
         extends: List[str],
-        imports: List[ImportDeclaration],
+        imports: List[type_link.ImportDeclaration],
     ):
         super().__init__(context, name, modifiers, extends, imports)
 

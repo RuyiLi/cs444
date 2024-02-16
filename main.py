@@ -8,6 +8,7 @@ from lark import Lark, logger
 from build_environment import build_environment
 from context import Context
 from hierarchy_check import hierarchy_check
+from type_link import type_link
 from weeder import Weeder
 
 grammar = ""
@@ -23,6 +24,20 @@ lark = Lark(
     parser="lalr",
     propagate_positions=True,
 )
+
+
+def static_check(context: Context):
+    try:
+        type_link(context)
+    except Exception as e:
+        print("Failed type_link")
+        raise e
+
+    try:
+        hierarchy_check(context)
+    except Exception as e:
+        print("Failed hierarchy_check")
+        raise e
 
 
 def should_error(path_name: str):
@@ -52,8 +67,9 @@ def load_assignment_testcases(assignment: int, quiet: bool):
     passed = 0
     failed_tests = []
     for test_files_list in test_files_lists:
-        global_context = Context(None, None)
         try:
+            global_context = Context(None, None)
+
             for test_file in test_files_list:
                 if not quiet:
                     print(f"Testing {test_file}")
@@ -65,6 +81,9 @@ def load_assignment_testcases(assignment: int, quiet: bool):
 
                     if not quiet:
                         print(res.pretty())
+
+            static_check(global_context)
+
             if should_error(test_files_list[0]):
                 print(f"Failed {test_files_list} (should have thrown an error):")
                 failed_tests.append(str(test_files_list))
@@ -112,27 +131,16 @@ def load_custom_testcases(test_names: List[str], quiet: bool):
                     # TODO: Go through all files and put them in global context
                     build_environment(res, global_context)
 
-                    print(
-                        list(
-                            map(
-                                lambda c: (c.symbol_map, c.children),
-                                global_context.children,
-                            )
-                        )
-                    )
+                    # print([(c.symbol_map, c.children) for c in global_context.children])
                     print(f"Passed {test_name}")
                 except Exception as e:
                     print(f"Failed {test_name}:", e)
                     raise e
 
-    try:
-        hierarchy_check(global_context)
-    except Exception as e:
-        print("Failed hierarchy_check")
-        raise e
+    static_check(global_context)
 
 
-def load_path_testcase(paths: List[str], quiet: bool):
+def load_path_testcases(paths: List[str]):
     global_context = Context(None, None)
 
     for path in paths:
@@ -145,22 +153,14 @@ def load_path_testcase(paths: List[str], quiet: bool):
                 test_file_contents = f.read()
                 try:
                     res = lark.parse(test_file_contents)
-
-                    if not quiet:
-                        print(res.pretty())
-
+                    logging.debug(res.pretty())
                     Weeder(f.name).visit(res)
-
                     build_environment(res, global_context)
-
-                except Exception:
+                except Exception as e:
+                    logging.error(e)
                     exit(42)
 
-    try:
-        hierarchy_check(global_context)
-    except Exception:
-        exit(42)
-    exit(0)
+    static_check(global_context)
 
 
 if __name__ == "__main__":
@@ -172,6 +172,9 @@ if __name__ == "__main__":
     parser.add_argument("-p", type=str, nargs="+", help="Load testcases from path")
     parser.add_argument("-q", action="store_true", default=False, help="Only log errors")
     parser.add_argument("-v", action="store_true", default=False, help="Log everything")
+
+    # TODO implement
+    # parser.add_argument("-s", type=str, help="Auto import stdlib")
 
     args = parser.parse_args()
 
@@ -191,4 +194,4 @@ if __name__ == "__main__":
         load_custom_testcases(args.t, quiet=args.q)
 
     if args.p is not None:
-        load_path_testcase(args.p, quiet=args.q)
+        load_path_testcases(args.p)

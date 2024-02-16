@@ -96,10 +96,10 @@ def build_class_interface_decl(
 ):
     assert tree.data == "interface_declaration" or tree.data == "class_declaration"
 
+    extends = list(map(resolve_name, tree.find_data("class_type")))
     modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
-    class_name = get_nested_token(tree, "IDENTIFIER")
 
-    extends = [resolve_name(e) for e in tree.find_data("class_type")]
+    class_name = get_nested_token(tree, "IDENTIFIER")
 
     if tree.data == "class_declaration":
         implements = [resolve_name(i) for i in tree.find_data("interface_type_list")]
@@ -143,8 +143,18 @@ def parse_node(tree: ParseTree, context: Context):
                 class_decl = next(
                     tree.find_pred(lambda v: v.data in ["class_declaration", "interface_declaration"])
                 )
-                type_decl = build_class_interface_decl(class_decl, context, package_name + ".", imports)
+                type_decl = build_class_interface_decl(class_decl, context, package_name, imports)
+
+                # add to context package list
+                package_name = package_name[:-1]
                 context.packages[package_name].append(type_decl)
+
+                # enqueue type names to be resolved in type link step
+                # this is sus (e.g. doesnt work with methods foo.bar.A.B())
+                for type_name in class_decl.find_data("type_name"):
+                    type_name = resolve_name(type_name)
+                    type_decl.type_names[type_name] = None
+
             except StopIteration:
                 pass
 
