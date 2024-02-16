@@ -26,7 +26,7 @@ def build_environment(tree: ParseTree, context: Context):
 
 
 def get_tree_first_child(tree: ParseTree, name: str):
-    return next(tree.find_pred(lambda c: c.data == name)).children[0]
+    return next(tree.find_data(name)).children[0]
 
 
 def get_child_token(tree: ParseTree, name: str) -> str:
@@ -38,15 +38,31 @@ def get_nested_token(tree: ParseTree, name: str) -> str:
 
 
 def get_tree_token(tree: ParseTree, tree_name: str, token_name: str):
-    return get_nested_token(next(tree.find_pred(lambda c: c.data == tree_name)), token_name)
+    return get_nested_token(next(tree.find_data(tree_name)), token_name)
 
 
 def get_tree_child_token(tree: ParseTree, tree_name: str, token_name: str):
-    return get_child_token(next(tree.find_pred(lambda c: c.data == tree_name)), token_name)
+    return get_child_token(next(tree.find_data(tree_name)), token_name)
 
 
 def get_identifiers(tree: ParseTree):
-    return (token.value for token in tree.scan_values(lambda v: v.type == "IDENTIFIER"))
+    return (token.value for token in tree.scan_values(lambda v: isinstance(v, Token) and v.type == "IDENTIFIER"))
+
+def get_formal_params(tree: ParseTree):
+    formal_params = next(tree.find_data("formal_param_list"), None)
+
+    formal_param_types = []
+    formal_param_names = []
+
+    if formal_params is not None:
+        for child in formal_params.children:
+            if isinstance(child, Token):
+                continue
+
+            formal_param_types.append(get_tree_first_child(child, "type"))
+            formal_param_names.append(get_tree_token(child, "var_declarator_id", "IDENTIFIER"))
+
+    return (formal_param_types, formal_param_names)
 
 
 def build_class_interface_declaration(
@@ -118,28 +134,11 @@ def parse_node(tree: ParseTree, context: Context):
         case "constructor_declaration":
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
 
-            formal_params = next(tree.find_data("formal_param_list"), None)
-            formal_param_types = (
-                list(
-                    map(
-                        lambda fp: next(
-                            map(
-                                lambda t: next(t.scan_values(lambda v: isinstance(v, Token))),
-                                fp.find_data("type"),
-                            )
-                        ),
-                        formal_params.children,
-                    )
-                )
-                if formal_params is not None
-                else []
-            )
+            (formal_param_types, formal_param_names) = get_formal_params(tree)
 
             symbol = ConstructorDecl(context, formal_param_types, modifiers)
             logging.debug("constructor_declaration %s %s", formal_param_types, modifiers)
             context.declare(symbol)
-
-            # TODO: Declare parameter variables in nested context
 
             if (
                 nested_tree := next(
@@ -148,28 +147,17 @@ def parse_node(tree: ParseTree, context: Context):
             ) is not None:
                 nested_context = Context(context, symbol)
                 context.children.append(nested_context)
+
+                for p_type, p_name in zip(formal_param_types, formal_param_names):
+                    nested_context.declare(LocalVarDecl(nested_context, p_name, p_type))
+
                 build_environment(nested_tree, nested_context)
 
         case "method_declaration":
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
             method_name = get_nested_token(tree, "IDENTIFIER")
 
-            formal_params = next(tree.find_data("formal_param_list"), None)
-            formal_param_types = (
-                list(
-                    map(
-                        lambda fp: next(
-                            map(
-                                lambda t: next(t.scan_values(lambda v: isinstance(v, Token))),
-                                fp.find_data("type"),
-                            )
-                        ),
-                        formal_params.children,
-                    )
-                )
-                if formal_params is not None
-                else []
-            )
+            (formal_param_types, formal_param_names) = get_formal_params(tree)
 
             return_type = (
                 "void"
@@ -189,16 +177,13 @@ def parse_node(tree: ParseTree, context: Context):
             )
             context.declare(symbol)
 
-            # TODO: Declare parameter variables in nested context
-
             if (nested_tree := next(tree.find_data("method_body"), None)) is not None:
                 nested_context = Context(context, symbol)
                 context.children.append(nested_context)
-                print(nested_tree)
-                print()
-                for t in tree.find_data("method_body"):
-                    print(t)
-                    print()
+
+                for p_type, p_name in zip(formal_param_types, formal_param_names):
+                    nested_context.declare(LocalVarDecl(nested_context, p_name, p_type))
+
                 build_environment(nested_tree, nested_context)
 
         case "field_declaration":
@@ -231,6 +216,13 @@ def parse_node(tree: ParseTree, context: Context):
         #     import_path = ".".join(identifiers[1:])
         #     context.declare(OnDemandImport(context, import_path))
         #     logging.debug("type_import_on_demand_decl", import_path)
+
+        case "statement":
+            if (nested_block := next(filter(lambda c: isinstance(c, Tree) and c.data == "block", tree.children), None)) is not None:
+                # Blocks inside blocks have the same parent node
+                nested_context = Context(context, context.parent_node)
+                context.children.append(nested_context)
+                build_environment(nested_block, nested_context)
 
         case _:
             build_environment(tree, context)
