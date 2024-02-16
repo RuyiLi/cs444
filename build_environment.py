@@ -36,7 +36,7 @@ def get_child_token(tree: ParseTree, name: str) -> str:
     return next(filter(lambda c: isinstance(c, Token) and c.type == name, tree.children)).value
 
 
-def get_child_tree(tree: ParseTree, name: str):
+def get_child_tree(tree: ParseTree, name: str) -> Tree:
     return next(filter(lambda c: isinstance(c, Tree) and c.data == name, tree.children), None)
 
 
@@ -103,6 +103,7 @@ def build_class_interface_decl(
     if not extends and class_name != "java.lang.Object":
         extends = ["Object"]
     inherited_interfaces = next(tree.find_data("interface_type_list"), [])
+
     if inherited_interfaces:
         inherited_interfaces = list(map(resolve_name, inherited_interfaces.find_data("interface_type")))
 
@@ -142,7 +143,7 @@ def parse_node(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDe
                 pass
 
             # run thru imports, auto import java.lang.*
-            imports = [OnDemandImport("java.lang")]
+            imports: List[ImportDeclaration] = [OnDemandImport("java.lang")]
             for import_decl in tree.find_data("single_type_import_decl"):
                 type_name = resolve_name(import_decl)
                 imports.append(SingleTypeImport(type_name))

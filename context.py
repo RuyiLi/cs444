@@ -62,9 +62,9 @@ class Context:
         return None
 
 
-def inherit_methods(symbol: ClassInterfaceDecl, methods: List[MethodDecl]):
+def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl):
     inherited_methods = []
-    for method in methods:
+    for method in inherited_sym.methods:
         replacing = next(filter(lambda m: m.signature() == method.signature(), symbol.methods), None)
 
         # in Replace()?
@@ -91,11 +91,11 @@ def inherit_methods(symbol: ClassInterfaceDecl, methods: List[MethodDecl]):
         else:
             if (
                 symbol.node_type == "class_decl"
-                and "abstract" in method.modifiers
+                and ("abstract" in method.modifiers or isinstance(inherited_sym, InterfaceDecl))
                 and "abstract" not in symbol.modifiers
             ):
                 raise SemanticError(
-                    f"Non-abstract class {symbol.name} cannot inherit abstract method with signature {method.signature} without implementing it."
+                    f"Non-abstract class {symbol.name} cannot inherit abstract method with signature {method.signature()} without implementing it."
                 )
 
             inherited_methods.append(method)
@@ -110,7 +110,7 @@ def check_cycle(symbol: ClassInterfaceDecl, visited: Set[str]):
     visited |= {symbol.sym_id()}
     for type_name in symbol.extends + getattr(symbol, "implements", []):
         next_sym = symbol.resolve_name(type_name)
-        check_cycle(next_sym, visited)
+        check_cycle(next_sym, visited.copy())
 
 
 class ClassInterfaceDecl(Symbol):
@@ -188,7 +188,7 @@ class ClassDecl(ClassInterfaceDecl):
             if "final" in exist_sym.modifiers:
                 raise SemanticError(f"Class {self.name} cannot extend a final class ({extend}).")
 
-            contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
+            contained_methods = contained_methods + inherit_methods(self, exist_sym)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in extends for class {self.name}")
@@ -206,7 +206,7 @@ class ClassDecl(ClassInterfaceDecl):
 
             assert isinstance(exist_sym, InterfaceDecl)
 
-            contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
+            contained_methods = contained_methods + inherit_methods(self, exist_sym)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in implements for class {self.name}")
@@ -245,7 +245,7 @@ class InterfaceDecl(ClassInterfaceDecl):
                 raise SemanticError(f"Interface {self.name} cannot extend a class ({extend}).")
 
             assert isinstance(exist_sym, InterfaceDecl)
-            contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
+            contained_methods = contained_methods + inherit_methods(self, exist_sym)
 
         # Interfaces do not actually extend from Object but rather implicitly
         # declare many of the same methods as Object, so we check if "inherit
@@ -320,12 +320,3 @@ class LocalVarDecl(Symbol):
         super().__init__(context, name)
         self.sym_type = var_type
 
-
-class IfStmt(Symbol):
-    def __init__(self, context, name):
-        super().__init__(context, name)
-
-
-class WhileStmt(Symbol):
-    def __init__(self, context, name):
-        super().__init__(context, name)

@@ -102,7 +102,7 @@ def resolve_type(context: Context, type_name: str, type_decl: ClassInterfaceDecl
         # resolve fully qualified type name
         symbol = context.resolve(f"{ClassInterfaceDecl.node_type}^{type_name}")
         if symbol is None:
-            raise SemanticError(f"Full qualified type {type_name} does not resolve to any existing type")
+            raise SemanticError(f"Fully qualified type {type_name} does not resolve to any existing type.")
 
         type_decl.type_names[type_name] = symbol
 
