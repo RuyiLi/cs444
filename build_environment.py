@@ -16,6 +16,10 @@ from context import (
 
 
 def build_environment(tree: ParseTree, context: Context):
+    if tree.data == "compilation_unit":
+        parse_node(tree, context)
+        return
+
     for child in tree.children:
         if isinstance(child, Tree):
             parse_node(child, context)
@@ -33,55 +37,91 @@ def get_tree_token(tree: ParseTree, tree_name: str, token_name: str):
     return get_nested_token(next(tree.find_pred(lambda c: c.data == tree_name)), token_name)
 
 
+def get_identifiers(tree: ParseTree):
+    return (token.value for token in tree.scan_values(lambda v: v.type == "IDENTIFIER"))
+
+
+def build_interface_declaration(tree: ParseTree, context: Context, package_prefix: str):
+    assert tree.data == "interface_declaration"
+    modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
+    class_name = get_nested_token(tree, "IDENTIFIER")
+
+    extends = list(
+        map(
+            lambda e: get_nested_token(e, "IDENTIFIER"),
+            tree.find_pred(lambda c: c.data == "class_type"),
+        )
+    )
+
+    symbol = InterfaceDecl(context, package_prefix + class_name, modifiers, extends)
+    context.declare(symbol)
+
+    nested_context = Context(context, symbol)
+    context.children.append(nested_context)
+    build_environment(
+        next(tree.find_pred(lambda c: c.data == "interface_body")),
+        nested_context,
+    )
+
+
+def build_class_declaration(tree: ParseTree, context: Context, package_prefix: str):
+    assert tree.data == "class_declaration"
+
+    # class_declaration = get_tree_token(tree,)
+    modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
+    class_name = get_nested_token(tree, "IDENTIFIER")
+
+    extends = list(
+        map(
+            lambda e: get_nested_token(e, "IDENTIFIER"),
+            tree.find_pred(lambda c: c.data == "class_type"),
+        )
+    )
+
+    implements = list(
+        map(
+            lambda e: get_nested_token(e, "IDENTIFIER"),
+            tree.find_pred(lambda c: c.data == "interface_type_list"),
+        )
+    )
+
+    symbol = ClassDecl(context, package_prefix + class_name, modifiers, extends, implements)
+    context.declare(symbol)
+
+    nested_context = Context(context, symbol)
+    context.children.append(nested_context)
+    build_environment(next(tree.find_pred(lambda c: c.data == "class_body")), nested_context)
+
+
 def parse_node(tree: ParseTree, context: Context):
     match tree.data:
-        case "class_declaration":
-            modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
-            class_name = get_nested_token(tree, "IDENTIFIER")
+        case "compilation_unit":
+            # i dont like this but i dont know any clean way to pass the package name
+            # to the class/interface declaration
+            package_name = ""
+            try:
+                package_decl = next(tree.find_data("package_decl"))
+                package_name = ".".join(get_identifiers(package_decl)) + "."
+            except StopIteration:
+                pass
 
-            extends = list(
-                map(
-                    lambda e: get_nested_token(e, "IDENTIFIER"),
-                    tree.find_pred(lambda c: c.data == "class_type"),
-                )
-            )
+            # run through imports
+            for import_decl in tree.find_data("import_decl"):
+                parse_node(import_decl, context)
 
-            implements = list(
-                map(
-                    lambda e: get_nested_token(e, "IDENTIFIER"),
-                    tree.find_pred(lambda c: c.data == "interface_type_list"),
-                )
-            )
+            # attempt to build class declaration
+            try:
+                class_decl = next(tree.find_data("class_declaration"))
+                build_class_declaration(class_decl, context, package_name)
+            except StopIteration:
+                pass
 
-            symbol = ClassDecl(context, class_name, modifiers, extends, implements)
-            context.declare(symbol)
-
-            nested_context = Context(context, symbol)
-            context.children.append(nested_context)
-            build_environment(
-                next(tree.find_pred(lambda c: c.data == "class_body")), nested_context
-            )
-
-        case "interface_declaration":
-            modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
-            class_name = get_nested_token(tree, "IDENTIFIER")
-
-            extends = list(
-                map(
-                    lambda e: get_nested_token(e, "IDENTIFIER"),
-                    tree.find_pred(lambda c: c.data == "class_type"),
-                )
-            )
-
-            symbol = InterfaceDecl(context, class_name, modifiers, extends)
-            context.declare(symbol)
-
-            nested_context = Context(context, symbol)
-            context.children.append(nested_context)
-            build_environment(
-                next(tree.find_pred(lambda c: c.data == "interface_body")),
-                nested_context,
-            )
+            # attempt to build interface declaration
+            try:
+                class_decl = next(tree.find_data("interface_declaration"))
+                build_interface_declaration(class_decl, context, package_name)
+            except StopIteration:
+                pass
 
         case "constructor_declaration":
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
@@ -103,7 +143,7 @@ def parse_node(tree: ParseTree, context: Context):
                 formal_param_types = []
 
             symbol = ConstructorDecl(context, formal_param_types, modifiers)
-            logging.debug("constructor_declaration", formal_param_types, modifiers)
+            logging.debug("constructor_declaration %s %s", formal_param_types, modifiers)
             context.declare(symbol)
 
             if (nested_tree := next(tree.find_pred(lambda c: c.data == "block"), None)) is not None:
@@ -175,7 +215,7 @@ def parse_node(tree: ParseTree, context: Context):
             context.declare(LocalVarDecl(context, var_name, var_type))
 
         case "single_type_import_decl":
-            identifiers = list(tree.scan_values(lambda v: isinstance(v, Token)))
+            identifiers = list(v.value for v in tree.scan_values(lambda v: isinstance(v, Token)))
             # TODO maybe join type_path into a string so we don't have to pass two parameters?
             type_name = identifiers[-1]
             type_path = identifiers[1:]
