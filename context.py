@@ -159,6 +159,9 @@ class ClassDecl(ClassInterfaceDecl):
         contained_methods = self.methods
 
         for extend in self.extends:
+            if extend == type_link.resolve_simple_name(self.name):
+                raise SemanticError(f"Class {self.name} cannot extend itself.")
+
             exist_sym = self.resolve_name(extend)
 
             if exist_sym is None:
@@ -213,6 +216,9 @@ class InterfaceDecl(ClassInterfaceDecl):
         contained_methods = self.methods
 
         for extend in self.extends:
+            if extend == type_link.resolve_simple_name(self.name):
+                raise SemanticError(f"Interface {self.name} cannot extend itself.")
+
             exist_sym = self.resolve_name(extend)
 
             if exist_sym is None:
