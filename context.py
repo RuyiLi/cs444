@@ -190,6 +190,7 @@ class ClassDecl(ClassInterfaceDecl):
 
             contained_methods = contained_methods + inherit_methods(self, exist_sym)
 
+        # dont think this is actually needed
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in extends for class {self.name}")
 
@@ -208,8 +209,15 @@ class ClassDecl(ClassInterfaceDecl):
 
             contained_methods = contained_methods + inherit_methods(self, exist_sym)
 
+        qualified_implements = [self.resolve_name(implement).name for implement in self.implements]
+        if len(set(qualified_implements)) < len(qualified_implements):
+            raise SemanticError(
+                f"Interface {self.name} cannot inherit interface {exist_sym.name} more than once."
+            )
+
+        # dont think this is actually needed
         if len(set(self.extends)) < len(self.extends):
-            raise SemanticError(f"Duplicate class/interface in implements for class {self.name}")
+            raise SemanticError(f"Duplicate class/interface in extends for class {self.name}")
 
         super().hierarchy_check()
 
@@ -249,7 +257,7 @@ class InterfaceDecl(ClassInterfaceDecl):
 
         # Interfaces do not actually extend from Object but rather implicitly
         # declare many of the same methods as Object, so we check if "inherit
-        # metods" would pass
+        # methods" would pass
 
         extend = "Object"
         exist_sym = self.resolve_name(extend)
@@ -319,4 +327,3 @@ class LocalVarDecl(Symbol):
     def __init__(self, context, name, var_type):
         super().__init__(context, name)
         self.sym_type = var_type
-
