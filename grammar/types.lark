@@ -1,18 +1,18 @@
-type: PRIMITIVE_TYPE | reference_type
+type: primitive_type | reference_type
 
-PRIMITIVE_TYPE: NUMERIC_TYPE | BOOLEAN_KW
-NUMERIC_TYPE: BYTE_KW | SHORT_KW | INT_KW | CHAR_KW // no long or floats
+?primitive_type: numeric_type | BOOLEAN_KW
+?numeric_type: BYTE_KW | SHORT_KW | INT_KW | CHAR_KW // no long or floats
 
-?reference_type.1: type_name | ARRAY_TYPE
-ARRAY_TYPE: (NAME | BYTE_KW | SHORT_KW | INT_KW | CHAR_KW | BOOLEAN_KW) SQ_BRACKETS
+reference_type.1: type_name | array_type
+array_type: type_name SQ_BRACKETS | primitive_type SQ_BRACKETS
 
-NAME: IDENTIFIER ("." IDENTIFIER)*
+name: IDENTIFIER ("." name)*
 
-?type_name: NAME
-class_type: NAME
-interface_type: NAME
+type_name: name
+class_type: name
+interface_type: name
 
-package_name: NAME
-package_or_type_name: NAME
-method_name: NAME
-expression_name: NAME
+package_name: name
+package_or_type_name: name
+method_name: name
+expression_name: name

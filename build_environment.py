@@ -218,7 +218,8 @@ def parse_node(tree: ParseTree, context: Context):
         #     logging.debug("type_import_on_demand_decl", import_path)
 
         case "statement":
-            if (nested_block := next(filter(lambda c: isinstance(c, Tree) and c.data == "block", tree.children), None)) is not None:
+            scope_stmts = ["block", "if_st", "if_else_st", "for_st", "while_st"]
+            if (nested_block := next(filter(lambda c: isinstance(c, Tree) and c.data in scope_stmts, tree.children), None)) is not None:
                 # Blocks inside blocks have the same parent node
                 nested_context = Context(context, context.parent_node)
                 context.children.append(nested_context)
