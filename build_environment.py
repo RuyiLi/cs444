@@ -59,7 +59,13 @@ def resolve_type(tree: ParseTree):
     assert tree.data == "type"
 
     child = tree.children[0]
-    return child.value if isinstance(child, Token) else resolve_name(child)
+    if isinstance(child, Token):
+        return child.value
+    elif child.data == "array_type":
+        element_type = child.children[0]
+        return (element_type.value if isinstance(element_type, Token) else resolve_name(element_type)) + "[]"
+    else:
+        return resolve_name(child)
 
 def get_formal_params(tree: ParseTree):
     formal_params = next(tree.find_data("formal_param_list"), None)
