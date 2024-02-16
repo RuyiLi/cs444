@@ -1,7 +1,7 @@
 from typing import List
 import logging
 
-from context import ClassInterfaceDecl, ClassDecl, InterfaceDecl, Context, SemanticError, Symbol
+from context import ClassInterfaceDecl, ClassDecl, InterfaceDecl, Context, SemanticError
 
 
 """
@@ -13,6 +13,10 @@ Terminology:
 
 def resolve_simple_name(qualified_name: str) -> str:
     return qualified_name.split(".")[-1]
+
+
+def resolve_package_name(qualified_name: str) -> str:
+    return ".".join(qualified_name.split(".")[:-1])
 
 
 class ImportDeclaration:
@@ -81,7 +85,7 @@ class OnDemandImport(ImportDeclaration):
 
 
 def resolve_type(context: Context, type_name: str, type_decl: ClassInterfaceDecl):
-    print("Resolving", type_name)
+    logging.debug(f"Resolving {type_name}")
 
     is_qualified = "." in type_name
     if is_qualified:
@@ -117,14 +121,18 @@ def type_link(context: Context):
         )
     )
 
-    print([x.name for x in type_decls])
-
     for type_decl in type_decls:
-        print("Working on", type_decl.name)
+        logging.debug(f"Linking type {type_decl.name}")
 
         # resolve class/interface name to itself
         type_name = resolve_simple_name(type_decl.name)
         type_decl.type_names[type_name] = type_decl
+
+        # auto import types from the same package
+        package_name = resolve_package_name(type_decl.name)
+        for same_package_type_decl in context.packages[package_name]:
+            same_package_type_name = resolve_simple_name(same_package_type_decl.name)
+            type_decl.type_names[same_package_type_name] = same_package_type_decl
 
         # verify and resolve imports
         for import_decl in type_decl.imports:
