@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, Optional
 
 
 class SemanticError(Exception):
@@ -6,12 +6,18 @@ class SemanticError(Exception):
 
 
 class Symbol:
-    def __init__(self, context, name):
+    context: "Context"
+    name: str
+
+    # node types are at class level ("static") so we can access them with smth like ClassDecl.node_type
+    node_type: str
+
+    def __init__(self, context: "Context", name: str):
         self.context = context
         self.name = name
-        self.node_type = ""
 
     def sym_id(self):
+        # TODO attrify
         return self.node_type + "^" + self.name
 
     def hierarchy_check(self):
@@ -19,6 +25,8 @@ class Symbol:
 
 
 class Context:
+    parent: "Context"
+    parent_node: Symbol
     symbol_map: Dict[str, Symbol]
 
     def __init__(self, parent, parent_node):
@@ -28,12 +36,13 @@ class Context:
         self.symbol_map = {}
 
     def declare(self, symbol: Symbol):
-        if self.resolve(symbol.sym_id()) is not None:
-            raise SemanticError(f"Overlapping {symbol.node_type} in scope.")
+        existing = self.resolve(symbol.sym_id())
+        if existing is not None:
+            raise SemanticError(f"Overlapping {symbol.node_type} in scope: {symbol.sym_id()}")
 
         self.symbol_map[symbol.sym_id()] = symbol
 
-    def resolve(self, id_hash: str):
+    def resolve(self, id_hash: str) -> Optional[Symbol]:
         if id_hash in self.symbol_map:
             return self.symbol_map.get(id_hash)
 
@@ -49,9 +58,7 @@ def inherit_methods(symbol: Symbol, methods):
     for method in methods:
         # in Replace()?
         if (
-            replacing := next(
-                filter(lambda m: m.signature() == method.signature(), methods), None
-            )
+            replacing := next(filter(lambda m: m.signature() == method.signature(), methods), None)
         ) is not None:
             if replacing.return_type != method.return_type:
                 raise SemanticError(
@@ -97,16 +104,16 @@ def check_declare_same_signature(symbol: Symbol):
 
 
 class ClassInterfaceDecl(Symbol):
+    node_type = "class_interface"
+
     def __init__(
         self,
         context: Context,
         name: str,
         modifiers: List[str],
         extends: List[str],
-        node_type: Literal["class_decl"] | Literal["interface_decl"],
     ):
         super().__init__(context, name)
-        self.node_type = node_type
         self.modifiers = modifiers
         self.extends = extends
 
@@ -118,8 +125,10 @@ class ClassInterfaceDecl(Symbol):
 
 
 class ClassDecl(ClassInterfaceDecl):
+    node_type = "class_decl"
+
     def __init__(self, context, name, modifiers, extends, implements):
-        super().__init__(context, name, modifiers, extends, "class_decl")
+        super().__init__(context, name, modifiers, extends)
         self.implements = implements
         self.constructors = []
 
@@ -130,60 +139,42 @@ class ClassDecl(ClassInterfaceDecl):
             exist_sym = self.context.resolve(f"class_interface^{extend}")
 
             if exist_sym is None:
-                raise SemanticError(
-                    f"Class {self.name} cannot extend class {extend} that does not exist."
-                )
+                raise SemanticError(f"Class {self.name} cannot extend class {extend} that does not exist.")
 
             if exist_sym.node_type == "interface_decl":
-                raise SemanticError(
-                    f"Class {self.name} cannot extend an interface ({extend})."
-                )
+                raise SemanticError(f"Class {self.name} cannot extend an interface ({extend}).")
 
             if "final" in exist_sym.modifiers:
-                raise SemanticError(
-                    f"Class {self.name} cannot extend a final class ({extend})."
-                )
+                raise SemanticError(f"Class {self.name} cannot extend a final class ({extend}).")
 
-            contained_methods = contained_methods + inherit_methods(
-                self, exist_sym.methods
-            )
+            contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
 
         if len(set(self.extends)) < len(self.extends):
-            raise SemanticError(
-                f"Duplicate class/interface in extends for class {self.name}"
-            )
+            raise SemanticError(f"Duplicate class/interface in extends for class {self.name}")
 
         for implement in self.implements:
             exist_sym = self.context.resolve(f"class_interface^{implement}")
 
             if exist_sym is None:
-                raise SemanticError(
-                    f"Class {self.name} cannot extend class {implement} that does not exist."
-                )
+                raise SemanticError(f"Class {self.name} cannot extend class {implement} that does not exist.")
 
             if exist_sym.node_type == "class_decl":
-                raise SemanticError(
-                    f"Class {self.name} cannot implement a class ({implement})."
-                )
+                raise SemanticError(f"Class {self.name} cannot implement a class ({implement}).")
 
-            contained_methods = contained_methods + inherit_methods(
-                self, exist_sym.methods
-            )
+            contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
 
         if len(set(self.extends)) < len(self.extends):
-            raise SemanticError(
-                f"Duplicate class/interface in implements for class {self.name}"
-            )
+            raise SemanticError(f"Duplicate class/interface in implements for class {self.name}")
 
         check_declare_same_signature(self)
         print(list(map(lambda m: m.name, self.methods)))
 
 
 class InterfaceDecl(ClassInterfaceDecl):
-    def __init__(
-        self, context: Context, name: str, modifiers: List[str], extends: List[str]
-    ):
-        super().__init__(context, name, modifiers, extends, "interface_decl")
+    node_type = "interface_decl"
+
+    def __init__(self, context: Context, name: str, modifiers: List[str], extends: List[str]):
+        super().__init__(context, name, modifiers, extends)
 
     def hierarchy_check(self):
         contained_methods = self.methods
@@ -197,43 +188,35 @@ class InterfaceDecl(ClassInterfaceDecl):
                 )
 
             if exist_sym.node_type == "class_decl":
-                raise SemanticError(
-                    f"Interface {self.name} cannot extend a class ({extend})."
-                )
+                raise SemanticError(f"Interface {self.name} cannot extend a class ({extend}).")
 
-            contained_methods = contained_methods + inherit_methods(
-                self, exist_sym.methods
-            )
+            contained_methods = contained_methods + inherit_methods(self, exist_sym.methods)
 
         if len(set(self.extends)) < len(self.extends):
-            raise SemanticError(
-                f"Duplicate class/interface in extends for interface {self.name}"
-            )
+            raise SemanticError(f"Duplicate class/interface in extends for interface {self.name}")
 
         check_declare_same_signature(self)
 
 
 class ConstructorDecl(Symbol):
+    node_type = "constructor"
+
     def __init__(self, context, param_types, modifiers):
         super().__init__(context, "constructor")
-        self.node_type = "constructor"
         self.param_types = param_types
         self.modifiers = modifiers
 
         self.context.parent_node.constructors.append(self)
 
     def sym_id(self):
-        return (
-            "constructor^" + ",".join(self.param_types)
-            if self.param_types is not None
-            else "constructor"
-        )
+        return "constructor^" + ",".join(self.param_types) if self.param_types is not None else "constructor"
 
 
 class FieldDecl(Symbol):
+    node_type = "field_decl"
+
     def __init__(self, context, name, modifiers, field_type):
         super().__init__(context, name)
-        self.node_type = "field_decl"
         self.modifiers = modifiers
         self.sym_type = field_type
 
@@ -241,9 +224,10 @@ class FieldDecl(Symbol):
 
 
 class MethodDecl(Symbol):
+    node_type = "method_decl"
+
     def __init__(self, context, name, param_types, modifiers, return_type):
         super().__init__(context, name)
-        self.node_type = "method_decl"
         self.param_types = param_types
         self.modifiers = modifiers
         self.return_type = return_type
@@ -251,20 +235,17 @@ class MethodDecl(Symbol):
         self.context.parent_node.methods.append(self)
 
     def signature(self):
-        return (
-            self.name + "^" + ",".join(self.param_types)
-            if self.param_types is not None
-            else self.name
-        )
+        return self.name + "^" + ",".join(self.param_types) if self.param_types is not None else self.name
 
     def sym_id(self):
         return self.signature()
 
 
 class LocalVarDecl(Symbol):
+    node_type = "local_var_decl"
+
     def __init__(self, context, name, var_type):
         super().__init__(context, name)
-        self.node_type = "local_var_decl"
         self.sym_type = var_type
 
 
@@ -279,12 +260,35 @@ class WhileStmt(Symbol):
 
 
 class OnDemandImport(Symbol):
+    node_type = "type_import_on_demand_decl"
+
     def __init__(self, context, name):
         super().__init__(context, name)
-        self.node_type = "type_import_on_demand_decl"
 
 
 class SingleImport(Symbol):
+    """
+    A "path" is the full type_name of the import (e.g. foo.bar.Baz)
+    A "name" is just the name of the object being imported (e.g. Baz)
+    """
+
+    node_type = "single_type_import_decl"
+
     def __init__(self, context, name, type_path):
         super().__init__(context, name)
-        self.node_type = "single_type_import_decl"
+        self.type_path = type_path
+
+    @property
+    def type_name(self):
+        return ".".join(self.type_path)
+
+    def type_link(self):
+        imported_object = f"{ClassInterfaceDecl.node_type}^{self.name}"
+        # Import names cannot be the same as the class or interface being declared in the same file.
+        if imported_object in self.context.symbol_map:
+            raise SemanticError(f"Single type import name clashes with class declaration: {self.type_name}")
+
+        # Import paths must resolve to some class or interface in the global environment.
+        # if self.context.resolve()
+        # print(list(self.context.symbol_map.keys()))
+        # print(self.context.resolve(self.sym_id()).name)
