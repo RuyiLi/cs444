@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from collections import defaultdict
 
 import type_link
@@ -103,13 +103,14 @@ def inherit_methods(symbol: ClassInterfaceDecl, methods: List[MethodDecl]):
     return inherited_methods
 
 
-def check_declare_same_signature(symbol: ClassInterfaceDecl):
-    for i in range(len(symbol.methods)):
-        for j in range(i + 1, len(symbol.methods)):
-            if symbol.methods[i].signature() == symbol.methods[j].signature():
-                raise SemanticError(
-                    f"Class/interface {symbol.name} cannot declare two methods with the same signature: {symbol.methods[i].signature}."
-                )
+def check_cycle(symbol: ClassInterfaceDecl, visited: Set[str]):
+    if symbol.sym_id() in visited:
+        raise SemanticError(f"Cyclic dependency found, path {'->'.join(visited)} -> {symbol.sym_id()}")
+
+    visited |= {symbol.sym_id()}
+    for type_name in symbol.extends + getattr(symbol, "implements", []):
+        next_sym = symbol.resolve_name(type_name)
+        check_cycle(next_sym, visited)
 
 
 class ClassInterfaceDecl(Symbol):
@@ -137,6 +138,18 @@ class ClassInterfaceDecl(Symbol):
 
     def resolve_name(self, type_name: str) -> Optional[Symbol]:
         return self.type_names.get(type_name)
+
+    def check_declare_same_signature(self):
+        for i in range(len(self.methods)):
+            for j in range(i + 1, len(self.methods)):
+                if self.methods[i].signature() == self.methods[j].signature():
+                    raise SemanticError(
+                        f"Class/interface {self.name} cannot declare two methods with the same signature: {self.methods[i].signature}."
+                    )
+
+    def hierarchy_check(self):
+        self.check_declare_same_signature()
+        check_cycle(self, set())
 
 
 class ClassDecl(ClassInterfaceDecl):
@@ -196,7 +209,7 @@ class ClassDecl(ClassInterfaceDecl):
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in implements for class {self.name}")
 
-        check_declare_same_signature(self)
+        super().hierarchy_check()
 
 
 class InterfaceDecl(ClassInterfaceDecl):
@@ -235,7 +248,7 @@ class InterfaceDecl(ClassInterfaceDecl):
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in extends for interface {self.name}")
 
-        check_declare_same_signature(self)
+        super().hierarchy_check()
 
 
 class ConstructorDecl(Symbol):
