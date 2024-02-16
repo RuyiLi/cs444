@@ -36,7 +36,7 @@ class SingleTypeImport(ImportDeclaration):
         return f"SingleTypeImport({self.simple_name}, {self.name})"
 
     def link_type(self, context: Context, type_decl: ClassInterfaceDecl):
-        logging.info(f"Single Type Link: {self.name}, {type_decl.name}")
+        logging.debug(f"Single Type Link: {self.name}, {type_decl.name}")
 
         # No single-type-import declaration clashes with the class or interface declared in the same file.
         if self.simple_name == type_decl.name:
@@ -68,7 +68,7 @@ class OnDemandImport(ImportDeclaration):
         return f"SingleTypeImport({self.package}.*)"
 
     def link_type(self, context: Context, type_decl: ClassInterfaceDecl):
-        logging.info(f"On Demand Type Link: {self}, {type_decl.name}")
+        logging.debug(f"On Demand Type Link: {self}, {type_decl.name}")
 
         # Every import-on-demand declaration must refer to a package declared in some file listed on the
         # Joos command line. That is, the import-on-demand declaration must refer to a package whose name
@@ -93,8 +93,9 @@ def resolve_type(context: Context, type_name: str, type_decl: ClassInterfaceDecl
         symbol = context.resolve(f"{ClassInterfaceDecl.node_type}^{type_name}")
         if symbol is None:
             raise SemanticError(f"Full qualified type {type_name} does not resolve to any provided type")
-        else:
-            type_decl.type_names[type_name] = symbol
+
+        type_decl.type_names[type_name] = symbol
+
     else:
         # resolve simple type name
 
@@ -142,3 +143,17 @@ def type_link(context: Context):
         for type_name, symbol in type_decl.type_names.items():
             if symbol is None:
                 resolve_type(context, type_name, type_decl)
+
+        # When a fully qualified name resolves to a type, no strict prefix of the fully qualified name can resolve to a type in the same environment.
+        for type_name in type_decl.type_names.keys():
+            if "." not in type_name:
+                continue
+
+            identifiers = type_name.split(".")
+            curr_name = ""
+            for i in range(len(identifiers) - 1):
+                curr_name = f"{curr_name}.{identifiers[i]}" if curr_name else identifiers[i]
+                if type_decl.type_names.get(curr_name) is not None:
+                    raise SemanticError(
+                        f"Prefix of fully qualified type {type_name} resolves to a type in the same environment"
+                    )

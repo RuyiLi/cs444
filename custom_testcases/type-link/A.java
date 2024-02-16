@@ -6,6 +6,12 @@ import foo.*;
 import foo.bar.*;
 
 public class A {
+  public B x;
+  public foo.bar.C[] y;
+  public C[] z;
+  public int[] z1;
+  public int z2;
+
   public A() {
     B b = new B();
     // foo.B b2 = new foo.B();
