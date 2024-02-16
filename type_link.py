@@ -115,7 +115,8 @@ def resolve_type(context: Context, type_name: str, type_decl: ClassInterfaceDecl
             if isinstance(import_decl, OnDemandImport):
                 symbol = context.resolve(f"{ClassInterfaceDecl.node_type}^{import_decl.package}.{type_name}")
                 if symbol is not None:
-                    if type_decl.type_names.get(type_name) is not None:
+                    existing = type_decl.type_names.get(type_name)
+                    if existing is not None and existing != symbol:
                         raise SemanticError(
                             f"Simple type {type_name} resolves to a type in the same environment as a type from an on demand import (conflicting resolutions: {type_decl.type_names[type_name].name}, {symbol.name})"
                         )
