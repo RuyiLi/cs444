@@ -1,4 +1,6 @@
 import logging
+from typing import List
+from type_link import ImportDeclaration, SingleTypeImport, OnDemandImport
 
 from lark import Token, Tree, ParseTree
 from weeder import get_modifiers
@@ -10,8 +12,6 @@ from context import (
     InterfaceDecl,
     LocalVarDecl,
     MethodDecl,
-    OnDemandImport,
-    SingleImport,
 )
 
 
@@ -41,8 +41,11 @@ def get_identifiers(tree: ParseTree):
     return (token.value for token in tree.scan_values(lambda v: v.type == "IDENTIFIER"))
 
 
-def build_interface_declaration(tree: ParseTree, context: Context, package_prefix: str):
-    assert tree.data == "interface_declaration"
+def build_class_interface_declaration(
+    tree: ParseTree, context: Context, package_prefix: str, imports: List[ImportDeclaration]
+):
+    assert tree.data == "interface_declaration" or tree.data == "class_declaration"
+
     modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
     class_name = get_nested_token(tree, "IDENTIFIER")
 
@@ -53,50 +56,29 @@ def build_interface_declaration(tree: ParseTree, context: Context, package_prefi
         )
     )
 
-    symbol = InterfaceDecl(context, package_prefix + class_name, modifiers, extends)
-    context.declare(symbol)
+    if tree.data == "class_declaration":
+        implements = list(
+            map(
+                lambda e: get_nested_token(e, "IDENTIFIER"),
+                tree.find_pred(lambda c: c.data == "interface_type_list"),
+            )
+        )
+        symbol = ClassDecl(context, package_prefix + class_name, modifiers, extends, imports, implements)
+    else:
+        symbol = InterfaceDecl(context, package_prefix + class_name, modifiers, extends, imports)
 
+    context.declare(symbol)
     nested_context = Context(context, symbol)
     context.children.append(nested_context)
-    build_environment(
-        next(tree.find_pred(lambda c: c.data == "interface_body")),
-        nested_context,
-    )
 
-
-def build_class_declaration(tree: ParseTree, context: Context, package_prefix: str):
-    assert tree.data == "class_declaration"
-
-    # class_declaration = get_tree_token(tree,)
-    modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
-    class_name = get_nested_token(tree, "IDENTIFIER")
-
-    extends = list(
-        map(
-            lambda e: get_nested_token(e, "IDENTIFIER"),
-            tree.find_pred(lambda c: c.data == "class_type"),
-        )
-    )
-
-    implements = list(
-        map(
-            lambda e: get_nested_token(e, "IDENTIFIER"),
-            tree.find_pred(lambda c: c.data == "interface_type_list"),
-        )
-    )
-
-    symbol = ClassDecl(context, package_prefix + class_name, modifiers, extends, implements)
-    context.declare(symbol)
-
-    nested_context = Context(context, symbol)
-    context.children.append(nested_context)
-    build_environment(next(tree.find_pred(lambda c: c.data == "class_body")), nested_context)
+    target_node_type = "class_body" if tree.data == "class_declaration" else "interface_body"
+    build_environment(next(tree.find_pred(lambda c: c.data == target_node_type)), nested_context)
 
 
 def parse_node(tree: ParseTree, context: Context):
     match tree.data:
         case "compilation_unit":
-            # i dont like this but i dont know any clean way to pass the package name
+            # i dont like this but i dont know any clean way to pass the package name + imports
             # to the class/interface declaration
             package_name = ""
             try:
@@ -106,20 +88,22 @@ def parse_node(tree: ParseTree, context: Context):
                 pass
 
             # run through imports
-            for import_decl in tree.find_data("import_decl"):
-                parse_node(import_decl, context)
+            imports = []
+            for import_decl in tree.find_data("single_type_import_decl"):
+                type_name = ".".join(get_identifiers(import_decl))
+                imports.append(SingleTypeImport(type_name))
+            for import_decl in tree.find_data("type_import_on_demand_decl"):
+                type_name = ".".join(get_identifiers(import_decl))
+                imports.append(OnDemandImport(type_name))
 
-            # attempt to build class declaration
+            # attempt to build class or interface declaration
             try:
-                class_decl = next(tree.find_data("class_declaration"))
-                build_class_declaration(class_decl, context, package_name)
-            except StopIteration:
-                pass
-
-            # attempt to build interface declaration
-            try:
-                class_decl = next(tree.find_data("interface_declaration"))
-                build_interface_declaration(class_decl, context, package_name)
+                class_decl = next(
+                    tree.find_pred(
+                        lambda v: v.data == "class_declaration" or v.data == "interface_declaration"
+                    )
+                )
+                build_class_interface_declaration(class_decl, context, package_name, imports)
             except StopIteration:
                 pass
 
@@ -214,19 +198,19 @@ def parse_node(tree: ParseTree, context: Context):
 
             context.declare(LocalVarDecl(context, var_name, var_type))
 
-        case "single_type_import_decl":
-            identifiers = list(v.value for v in tree.scan_values(lambda v: isinstance(v, Token)))
-            # TODO maybe join type_path into a string so we don't have to pass two parameters?
-            type_name = identifiers[-1]
-            type_path = identifiers[1:]
-            context.declare(SingleImport(context, type_name, type_path))
-            logging.debug("single_type_import_decl", type_name, type_path)
+        # case "single_type_import_decl":
+        #     identifiers = list(v.value for v in tree.scan_values(lambda v: isinstance(v, Token)))
+        #     # TODO maybe join type_path into a string so we don't have to pass two parameters?
+        #     type_name = identifiers[-1]
+        #     type_path = identifiers[1:]
+        #     context.declare(SingleImport(context, type_name, type_path))
+        #     logging.debug("single_type_import_decl", type_name, type_path)
 
-        case "type_import_on_demand_decl":
-            identifiers = list(tree.scan_values(lambda v: isinstance(v, Token)))
-            import_path = ".".join(identifiers[1:])
-            context.declare(OnDemandImport(context, import_path))
-            logging.debug("type_import_on_demand_decl", import_path)
+        # case "type_import_on_demand_decl":
+        #     identifiers = list(tree.scan_values(lambda v: isinstance(v, Token)))
+        #     import_path = ".".join(identifiers[1:])
+        #     context.declare(OnDemandImport(context, import_path))
+        #     logging.debug("type_import_on_demand_decl", import_path)
 
         case _:
             build_environment(tree, context)

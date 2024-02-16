@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Optional
 
 
 class SemanticError(Exception):
@@ -112,10 +112,12 @@ class ClassInterfaceDecl(Symbol):
         name: str,
         modifiers: List[str],
         extends: List[str],
+        imports: List[str],
     ):
         super().__init__(context, name)
         self.modifiers = modifiers
         self.extends = extends
+        self.imports = imports
 
         self.fields = []
         self.methods = []
@@ -127,8 +129,16 @@ class ClassInterfaceDecl(Symbol):
 class ClassDecl(ClassInterfaceDecl):
     node_type = "class_decl"
 
-    def __init__(self, context, name, modifiers, extends, implements):
-        super().__init__(context, name, modifiers, extends)
+    def __init__(
+        self,
+        context: Context,
+        name: str,
+        modifiers: List[str],
+        extends: List[str],
+        imports: List[str],
+        implements: List[str],
+    ):
+        super().__init__(context, name, modifiers, extends, imports)
         self.implements = implements
         self.constructors = []
 
@@ -173,8 +183,15 @@ class ClassDecl(ClassInterfaceDecl):
 class InterfaceDecl(ClassInterfaceDecl):
     node_type = "interface_decl"
 
-    def __init__(self, context: Context, name: str, modifiers: List[str], extends: List[str]):
-        super().__init__(context, name, modifiers, extends)
+    def __init__(
+        self,
+        context: Context,
+        name: str,
+        modifiers: List[str],
+        extends: List[str],
+        imports: List[str],
+    ):
+        super().__init__(context, name, modifiers, extends, imports)
 
     def hierarchy_check(self):
         contained_methods = self.methods
@@ -257,38 +274,3 @@ class IfStmt(Symbol):
 class WhileStmt(Symbol):
     def __init__(self, context, name):
         super().__init__(context, name)
-
-
-class OnDemandImport(Symbol):
-    node_type = "type_import_on_demand_decl"
-
-    def __init__(self, context, name):
-        super().__init__(context, name)
-
-
-class SingleImport(Symbol):
-    """
-    A "path" is the full type_name of the import (e.g. foo.bar.Baz)
-    A "name" is just the name of the object being imported (e.g. Baz)
-    """
-
-    node_type = "single_type_import_decl"
-
-    def __init__(self, context, name, type_path):
-        super().__init__(context, name)
-        self.type_path = type_path
-
-    @property
-    def type_name(self):
-        return ".".join(self.type_path)
-
-    def type_link(self):
-        imported_object = f"{ClassInterfaceDecl.node_type}^{self.name}"
-        # Import names cannot be the same as the class or interface being declared in the same file.
-        if imported_object in self.context.symbol_map:
-            raise SemanticError(f"Single type import name clashes with class declaration: {self.type_name}")
-
-        # Import paths must resolve to some class or interface in the global environment.
-        # if self.context.resolve()
-        # print(list(self.context.symbol_map.keys()))
-        # print(self.context.resolve(self.sym_id()).name)
