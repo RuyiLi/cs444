@@ -184,8 +184,12 @@ if __name__ == "__main__":
         log_level = logging.ERROR
     elif args.v:
         log_level = logging.DEBUG
-    logging.basicConfig(level=log_level)
+
     logger.setLevel(log_level)
+    logging.basicConfig(
+        format="\033[2m[%(levelname)s] %(filename)s:%(funcName)s:%(lineno)d\033[0m\n%(message)s\n",
+        level=log_level,
+    )
 
     if args.a is not None:
         load_assignment_testcases(args.a, quiet=args.q)
@@ -194,4 +198,5 @@ if __name__ == "__main__":
         load_custom_testcases(args.t, quiet=args.q)
 
     if args.p is not None:
+        # TODO MAKEFILE: use -q flag
         load_path_testcases(args.p)
