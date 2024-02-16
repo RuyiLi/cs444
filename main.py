@@ -26,11 +26,11 @@ lark = Lark(
     propagate_positions=True,
 )
 
-# !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
 logging.basicConfig(
     format="\033[2m[%(levelname)s] %(filename)s:%(funcName)s:%(lineno)d\033[0m\n%(message)s\n",
     level=logging.ERROR,
 )
+# !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
 STDLIB_VERSION = 2.0
 stdlib_files = glob.glob(f"stdlib/{STDLIB_VERSION}/java/**/*.java")
 global_context_with_stdlib = Context(None, None)
