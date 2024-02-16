@@ -1,7 +1,8 @@
+import os
 import glob
 import logging
-import os
 from typing import List
+from copy import deepcopy
 
 from lark import Lark, logger
 
@@ -12,8 +13,8 @@ from type_link import type_link
 from weeder import Weeder
 
 grammar = ""
-files = glob.glob(r"./grammar/**/*.lark", recursive=True)
-for file in files:
+grammar_files = glob.glob(r"./grammar/**/*.lark", recursive=True)
+for file in grammar_files:
     print(f"Loaded grammar {file[2:]}")
     with open(file) as f:
         grammar += "\n" + f.read()
@@ -24,6 +25,20 @@ lark = Lark(
     parser="lalr",
     propagate_positions=True,
 )
+
+# !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
+logging.basicConfig(
+    format="\033[2m[%(levelname)s] %(filename)s:%(funcName)s:%(lineno)d\033[0m\n%(message)s\n",
+    level=logging.ERROR,
+)
+STDLIB_VERSION = 2.0
+stdlib_files = glob.glob(f"stdlib/{STDLIB_VERSION}/java/**/*.java")
+global_context_with_stdlib = Context(None, None)
+for file in stdlib_files:
+    with open(file) as f:
+        res = lark.parse(f.read())
+        Weeder(f.name).visit(res)
+        build_environment(res, global_context_with_stdlib)
 
 
 def static_check(context: Context):
@@ -68,7 +83,7 @@ def load_assignment_testcases(assignment: int, quiet: bool):
     failed_tests = []
     for test_files_list in test_files_lists:
         try:
-            global_context = Context(None, None)
+            global_context = deepcopy(global_context_with_stdlib)
 
             for test_file in test_files_list:
                 if not quiet:
@@ -109,7 +124,7 @@ def load_assignment_testcases(assignment: int, quiet: bool):
 
 
 def load_custom_testcases(test_names: List[str], quiet: bool):
-    global_context = Context(None, None)
+    global_context = deepcopy(global_context_with_stdlib)
 
     for test_name in test_names:
         if not quiet:
@@ -173,23 +188,17 @@ if __name__ == "__main__":
     parser.add_argument("-q", action="store_true", default=False, help="Only log errors")
     parser.add_argument("-v", action="store_true", default=False, help="Log everything")
 
-    # TODO implement
-    # parser.add_argument("-s", type=str, help="Auto import stdlib")
-
     args = parser.parse_args()
 
     # default to INFO
     log_level = logging.INFO
     if args.q:
         log_level = logging.ERROR
-    elif args.v:
+    if args.v:
         log_level = logging.DEBUG
 
     logger.setLevel(log_level)
-    logging.basicConfig(
-        format="\033[2m[%(levelname)s] %(filename)s:%(funcName)s:%(lineno)d\033[0m\n%(message)s\n",
-        level=log_level,
-    )
+    logging.root.setLevel(log_level)
 
     if args.a is not None:
         load_assignment_testcases(args.a, quiet=args.q)
@@ -198,5 +207,4 @@ if __name__ == "__main__":
         load_custom_testcases(args.t, quiet=args.q)
 
     if args.p is not None:
-        # TODO MAKEFILE: use -q flag
         load_path_testcases(args.p)
