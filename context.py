@@ -259,7 +259,7 @@ class InterfaceDecl(ClassInterfaceDecl):
                 f"Interface {self.name} cannot extend interface {extend} that does not exist."
             )
 
-        inherit_methods(self, exist_sym.methods)
+        inherit_methods(self, exist_sym)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in extends for interface {self.name}")
