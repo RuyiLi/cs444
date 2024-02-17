@@ -110,6 +110,15 @@ class PrimitiveType(Symbol):
     def sym_id(self):
         return f"primitive_type^{self.name}"
 
+class ArrayType(Symbol):
+    node_type = "array_type"
+
+    def __init__(self, name: str):
+        super().__init__(None, name)
+
+    def sym_id(self):
+        return f"array_type^{self.name}"
+
 
 def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl):
     inherited_methods = []
@@ -178,6 +187,9 @@ class ClassInterfaceDecl(Symbol):
         return f"class_interface^{self.name}"
 
     def resolve_name(self, type_name: str) -> Optional[Symbol]:
+        if type_name[-2:] == "[]":
+            elem_type = self.resolve_name(type_name[:-2])
+            return None if elem_type is None else ArrayType(elem_type.name + "[]")
         if type_name in type_link.PRIMITIVE_TYPES:
             return PrimitiveType(type_name)
         return self.type_names.get(type_name, None)
