@@ -51,6 +51,7 @@ class Context:
         if existing is not None:
             raise SemanticError(f"Overlapping {symbol.node_type} in scope: {symbol.sym_id()}")
 
+        # Duplicated in inherit_methods? Removing doesn't fail any tests.
         if symbol.node_type == "method_decl":
             matching = [
                 x
@@ -90,11 +91,11 @@ class Context:
         return None
 
 
-def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl, methods: List[MethodDecl]):
+def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl):
     inherited_methods = []
     for method in inherited_sym.methods:
         # method is the method from the parent class/interface that we're about to replace
-        replacing = next(filter(lambda m: m.signature() == method.signature(), methods), None)
+        replacing = next(filter(lambda m: m.signature() == method.signature(), symbol.methods), None)
 
         # in Replace()?
         if replacing is not None:
@@ -120,7 +121,7 @@ def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDec
         else:
             if (
                 symbol.node_type == "class_decl"
-                and ("abstract" in method.modifiers or isinstance(inherited_sym, InterfaceDecl))
+                and "abstract" in method.modifiers
                 and "abstract" not in symbol.modifiers
             ):
                 raise SemanticError(
@@ -177,8 +178,16 @@ class ClassInterfaceDecl(Symbol):
                         f"Class/interface {self.name} cannot declare two methods with the same signature: {self.methods[i].signature}."
                     )
 
+    def check_repeated_parents(self, parents: List[ClassInterfaceDecl]):
+        qualified_parents = [self.resolve_name(parent).name for parent in parents]
+        if len(set(qualified_parents)) < len(qualified_parents):
+            raise SemanticError(
+                f"Class/interface {self.name} cannot inherit a class/interface more than once."
+            )
+
     def hierarchy_check(self):
         self.check_declare_same_signature()
+        self.check_repeated_parents(self.extends)
         check_cycle(self, set())
         super().hierarchy_check()
 
@@ -203,8 +212,6 @@ class ClassDecl(ClassInterfaceDecl):
         if self._checked:
             return
 
-        contained_methods = self.methods
-
         for extend in self.extends:
             if extend == type_link.resolve_simple_name(self.name):
                 raise SemanticError(f"Class {self.name} cannot extend itself.")
@@ -214,6 +221,7 @@ class ClassDecl(ClassInterfaceDecl):
             if exist_sym is None:
                 raise SemanticError(f"Class {self.name} cannot extend class {extend} that does not exist.")
 
+            # Ensure parents have inherited their methods first
             exist_sym.hierarchy_check()
 
             if exist_sym.node_type == "interface_decl":
@@ -224,20 +232,17 @@ class ClassDecl(ClassInterfaceDecl):
             if "final" in exist_sym.modifiers:
                 raise SemanticError(f"Class {self.name} cannot extend a final class ({extend}).")
 
-            contained_methods += inherit_methods(self, exist_sym, contained_methods)
-
-        # dont think this is actually needed
-        if len(set(self.extends)) < len(self.extends):
-            raise SemanticError(f"Duplicate class/interface in extends for class {self.name}")
+            self.methods += inherit_methods(self, exist_sym)
 
         for implement in self.implements:
             exist_sym = self.resolve_name(implement)
 
             if exist_sym is None:
                 raise SemanticError(
-                    f"Class {self.name} cannot implement class {implement} that does not exist."
+                    f"Class {self.name} cannot implement interface {implement} that does not exist."
                 )
 
+            # Ensure parents have inherited their methods first
             exist_sym.hierarchy_check()
 
             if exist_sym.node_type == "class_decl":
@@ -245,18 +250,9 @@ class ClassDecl(ClassInterfaceDecl):
 
             assert isinstance(exist_sym, InterfaceDecl)
 
-            contained_methods += inherit_methods(self, exist_sym, contained_methods)
+            self.methods += inherit_methods(self, exist_sym)
 
-        qualified_implements = [self.resolve_name(implement).name for implement in self.implements]
-        if len(set(qualified_implements)) < len(qualified_implements):
-            raise SemanticError(
-                f"Interface {self.name} cannot inherit interface {exist_sym.name} more than once."
-            )
-
-        # dont think this is actually needed
-        if len(set(self.extends)) < len(self.extends):
-            raise SemanticError(f"Duplicate class/interface in extends for class {self.name}")
-
+        self.check_repeated_parents(self.implements)
         super().hierarchy_check()
 
 
@@ -277,8 +273,6 @@ class InterfaceDecl(ClassInterfaceDecl):
         if self._checked:
             return
 
-        contained_methods = self.methods
-
         for extend in self.extends:
             if extend == type_link.resolve_simple_name(self.name):
                 raise SemanticError(f"Interface {self.name} cannot extend itself.")
@@ -290,31 +284,24 @@ class InterfaceDecl(ClassInterfaceDecl):
                     f"Interface {self.name} cannot extend interface {extend} that does not exist."
                 )
 
+            # Ensure parents have inherited their methods first
             exist_sym.hierarchy_check()
 
             if exist_sym.node_type == "class_decl":
                 raise SemanticError(f"Interface {self.name} cannot extend a class ({extend}).")
 
             assert isinstance(exist_sym, InterfaceDecl)
-            contained_methods += inherit_methods(self, exist_sym, contained_methods)
+            self.methods += inherit_methods(self, exist_sym)
 
         # Interfaces do not actually extend from Object but rather implicitly
         # declare many of the same methods as Object, so we check if "inherit
         # methods" would pass
+        exist_sym = self.resolve_name("Object")
+        assert exist_sym is not None
 
-        extend = "Object"
-        exist_sym = self.resolve_name(extend)
+        inherit_methods(self, exist_sym)
 
-        if exist_sym is None:
-            raise SemanticError(
-                f"Interface {self.name} cannot extend interface {extend} that does not exist."
-            )
-
-        inherit_methods(self, exist_sym, contained_methods)
-
-        if len(set(self.extends)) < len(self.extends):
-            raise SemanticError(f"Duplicate class/interface in extends for interface {self.name}")
-
+        self.check_repeated_parents(self.extends)
         super().hierarchy_check()
 
 
@@ -353,6 +340,7 @@ class MethodDecl(Symbol):
         self._param_types = param_types
         self.modifiers = modifiers
         self.return_type = return_type
+
         if self.context.parent_node.node_type == "interface_decl" and "abstract" not in self.modifiers:
             self.modifiers.append("abstract")
 
