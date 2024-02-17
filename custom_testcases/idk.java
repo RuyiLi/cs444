@@ -8,12 +8,17 @@
  * same name.
  */
 import java.util.*;
-import local.bruh.bruh;
+
 
 public class idk {
 
     public idk() {}
-
+    protected int m1(int x) {
+        return 42;
+      }
+    public int m1(boolean x) {
+        return 87;
+      }
     public static int test() {
 	int j = 0;
 	for (int r = 0; r < 42; r = r + 1) {

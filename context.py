@@ -49,6 +49,19 @@ class Context:
         if existing is not None:
             raise SemanticError(f"Overlapping {symbol.node_type} in scope: {symbol.sym_id()}")
 
+        if symbol.node_type == "method_decl":
+            matching = [x for x in self.symbol_map if x.split("^")[0] == symbol.name and
+                    self.symbol_map[x].node_type == "method_decl"]
+
+            for dup in matching:
+                modifiers = self.symbol_map[dup].modifiers
+                return_type = self.symbol_map[dup].return_type
+
+                if "protected" in symbol.modifiers and "public" in modifiers:
+                    raise SemanticError(
+                        "A protected method must not replace a public method."
+                    )
+
         self.symbol_map[symbol.sym_id()] = symbol
 
     def resolve(self, id_hash: str) -> Optional[Symbol]:
