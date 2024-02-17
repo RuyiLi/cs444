@@ -91,6 +91,26 @@ class Context:
         return None
 
 
+def check_cycle(symbol: ClassInterfaceDecl, visited: Set[str]):
+    if symbol.sym_id() in visited:
+        raise SemanticError(f"Cyclic dependency found, path {'->'.join(visited)} -> {symbol.sym_id()}")
+
+    visited |= {symbol.sym_id()}
+    for type_name in symbol.extends + getattr(symbol, "implements", []):
+        next_sym = symbol.resolve_name(type_name)
+        check_cycle(next_sym, visited.copy())
+
+
+class PrimitiveType(Symbol):
+    node_type = "primitive_type"
+
+    def __init__(self, name: str):
+        super().__init__(None, name)
+
+    def sym_id(self):
+        return f"primitive_type^{self.name}"
+
+
 def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl):
     inherited_methods = []
     for method in inherited_sym.methods:
@@ -99,10 +119,7 @@ def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDec
 
         # in Replace()?
         if replacing is not None:
-            if (
-                symbol.resolve_name(replacing.return_type).name
-                != inherited_sym.resolve_name(method.return_type).name
-            ):
+            if replacing.return_symbol.name != method.return_symbol.name:
                 raise SemanticError(
                     f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing return types."
                 )
@@ -136,26 +153,6 @@ def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDec
     return inherited_methods
 
 
-def check_cycle(symbol: ClassInterfaceDecl, visited: Set[str]):
-    if symbol.sym_id() in visited:
-        raise SemanticError(f"Cyclic dependency found, path {'->'.join(visited)} -> {symbol.sym_id()}")
-
-    visited |= {symbol.sym_id()}
-    for type_name in symbol.extends + getattr(symbol, "implements", []):
-        next_sym = symbol.resolve_name(type_name)
-        check_cycle(next_sym, visited.copy())
-
-
-class PrimitiveType(Symbol):
-    node_type = "primitive_type"
-
-    def __init__(self, name: str):
-        super().__init__(None, name)
-
-    def sym_id(self):
-        return f"primitive_type^{self.name}"
-
-
 class ClassInterfaceDecl(Symbol):
     node_type = "class_interface"
     methods: List[MethodDecl]
@@ -183,9 +180,7 @@ class ClassInterfaceDecl(Symbol):
     def resolve_name(self, type_name: str) -> Optional[Symbol]:
         if type_name in type_link.PRIMITIVE_TYPES:
             return PrimitiveType(type_name)
-        if (symbol := self.type_names.get(type_name, None)) is not None:
-            return symbol
-        return self.context.resolve(f"{ClassInterfaceDecl.node_type}^{type_name}")
+        return self.type_names.get(type_name, None)
 
     def check_declare_same_signature(self):
         for i in range(len(self.methods)):
@@ -208,6 +203,11 @@ class ClassInterfaceDecl(Symbol):
         check_cycle(self, set())
         super().hierarchy_check()
 
+    def resolve_method_return_types(self):
+        for method in self.methods:
+            if method.return_symbol is None:
+                method.return_symbol = self.resolve_name(method.return_type)
+
 
 class ClassDecl(ClassInterfaceDecl):
     node_type = "class_decl"
@@ -228,6 +228,8 @@ class ClassDecl(ClassInterfaceDecl):
     def hierarchy_check(self):
         if self._checked:
             return
+
+        self.resolve_method_return_types()
 
         for extend in self.extends:
             if extend == type_link.resolve_simple_name(self.name):
@@ -289,6 +291,8 @@ class InterfaceDecl(ClassInterfaceDecl):
     def hierarchy_check(self):
         if self._checked:
             return
+
+        self.resolve_method_return_types()
 
         for extend in self.extends:
             if extend == type_link.resolve_simple_name(self.name):
@@ -353,12 +357,14 @@ class MethodDecl(Symbol):
     node_type = "method_decl"
     modifiers: List[str]
     return_type: str
+    return_symbol: ClassInterfaceDecl | PrimitiveType
 
     def __init__(self, context, name, param_types, modifiers, return_type):
         super().__init__(context, name)
         self._param_types = param_types
         self.modifiers = modifiers
         self.return_type = return_type
+        self.return_symbol = PrimitiveType(return_type) if return_type in type_link.PRIMITIVE_TYPES else None
 
         if self.context.parent_node.node_type == "interface_decl" and "abstract" not in self.modifiers:
             self.modifiers.append("abstract")
