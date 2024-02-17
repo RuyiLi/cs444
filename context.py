@@ -98,7 +98,10 @@ def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDec
 
         # in Replace()?
         if replacing is not None:
-            if replacing.return_type != method.return_type:
+            if (
+                symbol.resolve_name(replacing.return_type).name
+                != inherited_sym.resolve_name(method.return_type).name
+            ):
                 raise SemanticError(
                     f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing return types."
                 )
@@ -142,6 +145,16 @@ def check_cycle(symbol: ClassInterfaceDecl, visited: Set[str]):
         check_cycle(next_sym, visited.copy())
 
 
+class PrimitiveType(Symbol):
+    node_type = "primitive_type"
+
+    def __init__(self, name: str):
+        super().__init__(None, name)
+
+    def sym_id(self):
+        return f"primitive_type^{self.name}"
+
+
 class ClassInterfaceDecl(Symbol):
     node_type = "class_interface"
     methods: List[MethodDecl]
@@ -167,7 +180,11 @@ class ClassInterfaceDecl(Symbol):
         return f"class_interface^{self.name}"
 
     def resolve_name(self, type_name: str) -> Optional[Symbol]:
-        return self.type_names.get(type_name)
+        if type_name in type_link.PRIMITIVE_TYPES:
+            return PrimitiveType(type_name)
+        if (symbol := self.type_names.get(type_name, None)) is not None:
+            return symbol
+        return self.context.resolve(f"{ClassInterfaceDecl.node_type}^{type_name}")
 
     def check_declare_same_signature(self):
         for i in range(len(self.methods)):
@@ -347,6 +364,8 @@ class FieldDecl(Symbol):
 
 class MethodDecl(Symbol):
     node_type = "method_decl"
+    modifiers: List[str]
+    return_type: str
 
     def __init__(self, context, name, param_types, modifiers, return_type):
         super().__init__(context, name)
