@@ -21,12 +21,14 @@ class Symbol:
         self.context = context
         self.name = name
 
+        self._checked = False
+
     def sym_id(self):
         # TODO attrify
         return self.node_type + "^" + self.name
 
     def hierarchy_check(self):
-        pass
+        self._checked = True
 
     # TODO __repr__
 
@@ -50,17 +52,18 @@ class Context:
             raise SemanticError(f"Overlapping {symbol.node_type} in scope: {symbol.sym_id()}")
 
         if symbol.node_type == "method_decl":
-            matching = [x for x in self.symbol_map if x.split("^")[0] == symbol.name and
-                    self.symbol_map[x].node_type == "method_decl"]
+            matching = [
+                x
+                for x in self.symbol_map
+                if x.split("^")[0] == symbol.name and self.symbol_map[x].node_type == "method_decl"
+            ]
 
             for dup in matching:
                 modifiers = self.symbol_map[dup].modifiers
                 return_type = self.symbol_map[dup].return_type
 
                 if "protected" in symbol.modifiers and "public" in modifiers:
-                    raise SemanticError(
-                        "A protected method must not replace a public method."
-                    )
+                    raise SemanticError("A protected method must not replace a public method.")
 
         self.symbol_map[symbol.sym_id()] = symbol
 
@@ -164,6 +167,7 @@ class ClassInterfaceDecl(Symbol):
     def hierarchy_check(self):
         self.check_declare_same_signature()
         check_cycle(self, set())
+        super().hierarchy_check()
 
 
 class ClassDecl(ClassInterfaceDecl):
@@ -183,6 +187,9 @@ class ClassDecl(ClassInterfaceDecl):
         self.constructors = []
 
     def hierarchy_check(self):
+        if self._checked:
+            return
+
         contained_methods = self.methods
 
         for extend in self.extends:
@@ -193,6 +200,8 @@ class ClassDecl(ClassInterfaceDecl):
 
             if exist_sym is None:
                 raise SemanticError(f"Class {self.name} cannot extend class {extend} that does not exist.")
+
+            exist_sym.hierarchy_check()
 
             if exist_sym.node_type == "interface_decl":
                 raise SemanticError(f"Class {self.name} cannot extend an interface ({extend}).")
@@ -215,6 +224,8 @@ class ClassDecl(ClassInterfaceDecl):
                 raise SemanticError(
                     f"Class {self.name} cannot implement class {implement} that does not exist."
                 )
+
+            exist_sym.hierarchy_check()
 
             if exist_sym.node_type == "class_decl":
                 raise SemanticError(f"Class {self.name} cannot implement a class ({implement}).")
@@ -250,6 +261,9 @@ class InterfaceDecl(ClassInterfaceDecl):
         super().__init__(context, name, modifiers, extends, imports)
 
     def hierarchy_check(self):
+        if self._checked:
+            return
+
         contained_methods = self.methods
 
         for extend in self.extends:
@@ -262,6 +276,8 @@ class InterfaceDecl(ClassInterfaceDecl):
                 raise SemanticError(
                     f"Interface {self.name} cannot extend interface {extend} that does not exist."
                 )
+
+            exist_sym.hierarchy_check()
 
             if exist_sym.node_type == "class_decl":
                 raise SemanticError(f"Interface {self.name} cannot extend a class ({extend}).")
