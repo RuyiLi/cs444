@@ -66,26 +66,16 @@ class Context:
                     raise SemanticError("A protected method must not replace a public method.")
 
                 if "static" in symbol.modifiers and "static" not in modifiers:
-                    raise SemanticError(
-                        "A static method must not replace a nonstatic method."
-                    )
+                    raise SemanticError("A static method must not replace a nonstatic method.")
 
                 if "static" not in symbol.modifiers and "static" in modifiers:
-                    raise SemanticError(
-                        "A nonstatic method must not replace a static method."
-                    )
+                    raise SemanticError("A nonstatic method must not replace a static method.")
 
                 if "final" in modifiers:
-                    raise SemanticError(
-                        "A method must not replace a final method."
-                    )
+                    raise SemanticError("A method must not replace a final method.")
 
                 if return_type != symbol.return_type:
-                    raise SemanticError(
-                       "A method must not replace a method with a different return type."
-                    )
-
-
+                    raise SemanticError("A method must not replace a method with a different return type.")
 
         self.symbol_map[symbol.sym_id()] = symbol
 
@@ -103,6 +93,7 @@ class Context:
 def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl, methods: List[MethodDecl]):
     inherited_methods = []
     for method in inherited_sym.methods:
+        # method is the method from the parent class/interface that we're about to replace
         replacing = next(filter(lambda m: m.signature() == method.signature(), methods), None)
 
         # in Replace()?
@@ -373,13 +364,8 @@ class MethodDecl(Symbol):
         # a little sus, but here we assume that type linking is already finished
         if self._param_types is None:
             return []
-        try:
-            return [
-                self.context.parent_node.resolve_name(param_type).name for param_type in self._param_types
-            ]
-        except AttributeError:
-            # type linking hasn't finished, so fallback to the raw names
-            return self._param_types
+        resolutions = map(self.context.parent_node.resolve_name, self._param_types)
+        return [(self._param_types[i] if r is None else r.name) for i, r in enumerate(resolutions)]
 
     def signature(self):
         return self.name + "^" + ",".join(self.param_types)
