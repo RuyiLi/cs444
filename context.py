@@ -115,6 +115,7 @@ def check_cycle(symbol: ClassInterfaceDecl, visited: Set[str]):
 
 class ClassInterfaceDecl(Symbol):
     node_type = "class_interface"
+    methods: List[MethodDecl]
 
     def __init__(
         self,
@@ -307,15 +308,28 @@ class MethodDecl(Symbol):
 
     def __init__(self, context, name, param_types, modifiers, return_type):
         super().__init__(context, name)
-        self.param_types = param_types
+        self._param_types = param_types
         self.modifiers = modifiers
         self.return_type = return_type
 
         assert isinstance(self.context.parent_node, ClassInterfaceDecl)
         self.context.parent_node.methods.append(self)
 
+    @property
+    def param_types(self):
+        # a little sus, but here we assume that type linking is already finished
+        if self._param_types is None:
+            return []
+        try:
+            return [
+                self.context.parent_node.resolve_name(param_type).name for param_type in self._param_types
+            ]
+        except AttributeError:
+            # type linking hasn't finished, so fallback to the raw names
+            return self._param_types
+
     def signature(self):
-        return self.name + "^" + ",".join(self.param_types) if self.param_types is not None else self.name
+        return self.name + "^" + ",".join(self.param_types)
 
     def sym_id(self):
         return self.signature()

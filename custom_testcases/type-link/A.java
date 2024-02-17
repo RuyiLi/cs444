@@ -20,6 +20,15 @@ public class A {
     int foo = A.B();
     int bar = foo + foo.bar.A.B();
   }
+
+  public int x(B a) {
+    return 0;
+  }
+
+  // this should error
+  public int x(foo.bar.baz.B a) {
+    return 0;
+  }
 }
 
 // type names to resolve:
