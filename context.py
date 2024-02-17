@@ -62,6 +62,28 @@ class Context:
                         "A protected method must not replace a public method."
                     )
 
+                if "static" in symbol.modifiers and "static" not in modifiers:
+                    raise SemanticError(
+                        "A static method must not replace a nonstatic method."
+                    )
+
+                if "static" not in symbol.modifiers and "static" in modifiers:
+                    raise SemanticError(
+                        "A nonstatic method must not replace a static method."
+                    )
+
+                if "final" in modifiers:
+                    raise SemanticError(
+                        "A method must not replace a final method."
+                    )
+
+                if return_type != symbol.return_type:
+                    raise SemanticError(
+                       "A method must not replace a method with a different return type."
+                    )
+
+
+
         self.symbol_map[symbol.sym_id()] = symbol
 
     def resolve(self, id_hash: str) -> Optional[Symbol]:
