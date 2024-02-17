@@ -13,7 +13,7 @@ import java.util.*;
 public class idk {
 
     public idk() {}
-    protected int m1(int x) {
+    public int m1(int x) {
         return 42;
       }
     public int m1(boolean x) {
