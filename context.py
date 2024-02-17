@@ -62,10 +62,10 @@ class Context:
         return None
 
 
-def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl):
+def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl, methods: List[MethodDecl]):
     inherited_methods = []
     for method in inherited_sym.methods:
-        replacing = next(filter(lambda m: m.signature() == method.signature(), symbol.methods), None)
+        replacing = next(filter(lambda m: m.signature() == method.signature(), methods), None)
 
         # in Replace()?
         if replacing is not None:
@@ -189,7 +189,7 @@ class ClassDecl(ClassInterfaceDecl):
             if "final" in exist_sym.modifiers:
                 raise SemanticError(f"Class {self.name} cannot extend a final class ({extend}).")
 
-            contained_methods = contained_methods + inherit_methods(self, exist_sym)
+            contained_methods += inherit_methods(self, exist_sym, contained_methods)
 
         # dont think this is actually needed
         if len(set(self.extends)) < len(self.extends):
@@ -208,7 +208,7 @@ class ClassDecl(ClassInterfaceDecl):
 
             assert isinstance(exist_sym, InterfaceDecl)
 
-            contained_methods = contained_methods + inherit_methods(self, exist_sym)
+            contained_methods += inherit_methods(self, exist_sym, contained_methods)
 
         qualified_implements = [self.resolve_name(implement).name for implement in self.implements]
         if len(set(qualified_implements)) < len(qualified_implements):
@@ -254,7 +254,7 @@ class InterfaceDecl(ClassInterfaceDecl):
                 raise SemanticError(f"Interface {self.name} cannot extend a class ({extend}).")
 
             assert isinstance(exist_sym, InterfaceDecl)
-            contained_methods = contained_methods + inherit_methods(self, exist_sym)
+            contained_methods += inherit_methods(self, exist_sym, contained_methods)
 
         # Interfaces do not actually extend from Object but rather implicitly
         # declare many of the same methods as Object, so we check if "inherit
@@ -268,7 +268,7 @@ class InterfaceDecl(ClassInterfaceDecl):
                 f"Interface {self.name} cannot extend interface {extend} that does not exist."
             )
 
-        inherit_methods(self, exist_sym)
+        inherit_methods(self, exist_sym, contained_methods)
 
         if len(set(self.extends)) < len(self.extends):
             raise SemanticError(f"Duplicate class/interface in extends for interface {self.name}")
