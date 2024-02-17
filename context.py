@@ -362,6 +362,8 @@ class MethodDecl(Symbol):
         self._param_types = param_types
         self.modifiers = modifiers
         self.return_type = return_type
+        if self.context.parent_node.node_type == "interface_decl" and "abstract" not in self.modifiers:
+            self.modifiers.append("abstract")
 
         assert isinstance(self.context.parent_node, ClassInterfaceDecl)
         self.context.parent_node.methods.append(self)
