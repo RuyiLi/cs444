@@ -140,10 +140,8 @@ def load_custom_testcases(test_names: List[str]):
                     logging.debug(res.pretty())
                     Weeder(f.name).visit(res)
 
-                    # TODO: Go through all files and put them in global context
                     build_environment(res, global_context)
 
-                    # print([(c.symbol_map, c.children) for c in global_context.children])
                     print(f"Passed {test_name}")
                 except Exception as e:
                     print(f"Failed {test_name}:", e)
