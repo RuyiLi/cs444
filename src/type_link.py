@@ -4,6 +4,8 @@ import logging
 from context import ClassInterfaceDecl, ClassDecl, InterfaceDecl, Context, SemanticError
 
 
+PRIMITIVE_TYPES = {"byte", "short", "int", "char", "void", "boolean", "void"}
+
 """
 Terminology:
 - A "canonical name", "qualified name", or just "name" is the full type_name of the import (e.g. foo.bar.Baz)
