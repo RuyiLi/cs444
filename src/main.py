@@ -10,6 +10,7 @@ from build_environment import build_environment
 from context import Context
 from hierarchy_check import hierarchy_check
 from type_link import type_link
+from name_disambiguation import disambiguate_names
 from weeder import Weeder
 
 grammar = ""
@@ -33,12 +34,12 @@ logging.basicConfig(
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
 STDLIB_VERSION = 2.0
 stdlib_files = glob.glob(f"stdlib/{STDLIB_VERSION}/java/**/*.java")
-global_context_with_stdlib = Context(None, None)
-for file in stdlib_files:
-    with open(file) as f:
-        res = lark.parse(f.read())
-        Weeder(f.name).visit(res)
-        build_environment(res, global_context_with_stdlib)
+global_context_with_stdlib = Context(None, None, None)
+# for file in stdlib_files:
+#     with open(file) as f:
+#         res = lark.parse(f.read())
+#         Weeder(f.name).visit(res)
+#         build_environment(res, global_context_with_stdlib)
 
 
 def static_check(context: Context):
@@ -52,6 +53,16 @@ def static_check(context: Context):
         hierarchy_check(context)
     except Exception as e:
         logging.error("Failed hierarchy_check")
+        raise e
+
+    # TODO: remove
+    print(context.children[0].tree.pretty())
+    print(context.children[1].tree.pretty())
+
+    try:
+        disambiguate_names(context)
+    except Exception as e:
+        logging.error("Failed name disambiguation")
         raise e
 
 

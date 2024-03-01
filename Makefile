@@ -19,7 +19,7 @@ for filename in "$$@"; do
 done
 
 # Call the Python script with all input filenames
-python main.py -p "$$@"
+python src/main.py -p "$$@"
 
 # Check the exit status of the Python script
 case $$? in

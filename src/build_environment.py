@@ -17,7 +17,6 @@ from context import (
     MethodDecl,
 )
 
-
 def build_environment(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDecl = None):
     if class_symbol is None:
         parse_node(tree, context)
@@ -27,39 +26,21 @@ def build_environment(tree: ParseTree, context: Context, class_symbol: ClassInte
         if isinstance(child, Tree):
             parse_node(child, context, class_symbol)
 
-
-def get_tree_first_child(tree: ParseTree, name: str):
-    return next(tree.find_data(name)).children[0]
-
-
-def get_child_token(tree: ParseTree, name: str) -> str:
-    return next(filter(lambda c: isinstance(c, Token) and c.type == name, tree.children)).value
-
-
 def get_child_tree(tree: ParseTree, name: str) -> Tree:
     return next(filter(lambda c: isinstance(c, Tree) and c.data == name, tree.children), None)
-
 
 def get_nested_token(tree: ParseTree, name: str) -> str:
     return next(tree.scan_values(lambda v: isinstance(v, Token) and v.type == name)).value
 
-
 def get_tree_token(tree: ParseTree, tree_name: str, token_name: str):
     return get_nested_token(next(tree.find_data(tree_name)), token_name)
-
-
-def get_tree_child_token(tree: ParseTree, tree_name: str, token_name: str):
-    return get_child_token(next(tree.find_data(tree_name)), token_name)
-
 
 def get_identifiers(tree: ParseTree):
     tokens = tree.scan_values(lambda v: isinstance(v, Token) and v.type == "IDENTIFIER")
     return (token.value for token in tokens)
 
-
 def resolve_name(tree: ParseTree):
     return ".".join(get_identifiers(tree))
-
 
 def resolve_type(tree: ParseTree):
     assert tree.data == "type"
@@ -72,7 +53,6 @@ def resolve_type(tree: ParseTree):
         return (element_type.value if isinstance(element_type, Token) else resolve_name(element_type)) + "[]"
     else:
         return resolve_name(child)
-
 
 def get_formal_params(tree: ParseTree):
     formal_params = next(tree.find_data("formal_param_list"), None)
@@ -100,8 +80,8 @@ def build_class_interface_decl(
     class_name = package_prefix + get_nested_token(tree, "IDENTIFIER")
     modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
     extends = list(map(resolve_name, tree.find_data("class_type")))
-    if not extends and class_name != "java.lang.Object":
-        extends = ["Object"]
+    # if not extends and class_name != "java.lang.Object":
+    #     extends = ["Object"]
     inherited_interfaces = next(tree.find_data("interface_type_list"), [])
 
     if inherited_interfaces:
@@ -116,12 +96,14 @@ def build_class_interface_decl(
     for type_name in chain(extends, inherited_interfaces):
         _enqueue_type(symbol, type_name)
 
-    nested_context = Context(context, symbol)
+    target_node_type = "class_body" if tree.data == "class_declaration" else "interface_body"
+    nested_tree = next(tree.find_data(target_node_type))
+
+    nested_context = Context(context, symbol, nested_tree)
     context.declare(symbol)
     context.children.append(nested_context)
 
-    target_node_type = "class_body" if tree.data == "class_declaration" else "interface_body"
-    build_environment(next(tree.find_data(target_node_type)), nested_context, symbol)
+    build_environment(nested_tree, nested_context, symbol)
 
     return symbol
 
@@ -143,7 +125,7 @@ def parse_node(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDe
                 pass
 
             # run thru imports, auto import java.lang.*
-            imports: List[ImportDeclaration] = [OnDemandImport("java.lang")]
+            imports: List[ImportDeclaration] = [] #[OnDemandImport("java.lang")]
             for import_decl in tree.find_data("single_type_import_decl"):
                 type_name = resolve_name(import_decl)
                 imports.append(SingleTypeImport(type_name))
@@ -180,7 +162,7 @@ def parse_node(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDe
             context.declare(symbol)
 
             if (nested_tree := get_child_tree(tree, "block")) is not None:
-                nested_context = Context(context, symbol)
+                nested_context = Context(context, symbol, nested_tree)
                 context.children.append(nested_context)
 
                 for p_type, p_name in zip(formal_param_types, formal_param_names):
@@ -205,11 +187,8 @@ def parse_node(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDe
             context.declare(symbol)
             logging.debug(f"method_declaration {method_name} {formal_param_types} {modifiers} {return_type}")
 
-            # check return type for type name
-            # _enqueue_type()
-
             if (nested_tree := next(tree.find_data("method_body"), None)) is not None:
-                nested_context = Context(context, symbol)
+                nested_context = Context(context, symbol, nested_tree)
                 context.children.append(nested_context)
 
                 for p_type, p_name in zip(formal_param_types, formal_param_names):
@@ -221,10 +200,6 @@ def parse_node(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDe
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
             field_type = resolve_type(next(tree.find_data("type")))
             field_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
-
-            # check field type for type name
-            # if next(tree.find_data("type_name"), None) is not None:
-            #     _enqueue_type(class_symbol, field_type.replace("[]", ""))
 
             logging.debug(f"field_declaration {field_name} {modifiers} {field_type}")
             context.declare(FieldDecl(context, field_name, modifiers, field_type))
@@ -244,7 +219,7 @@ def parse_node(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDe
                 )
             ) is not None:
                 # Blocks inside blocks have the same parent node
-                nested_context = Context(context, context.parent_node)
+                nested_context = Context(context, context.parent_node, nested_block)
                 context.children.append(nested_context)
                 build_environment(nested_block, nested_context, class_symbol)
 

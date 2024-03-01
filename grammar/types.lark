@@ -13,6 +13,5 @@ class_type: name
 interface_type: name
 
 package_name: name
-package_or_type_name: name
 method_name: name
 expression_name: name
