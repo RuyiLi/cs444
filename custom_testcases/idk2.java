@@ -11,6 +11,7 @@ public class idk2 {
         }
         int alksd = 4;
         int llkesa = alksd + 16;
+        int x = b.idk.aaaaaaaaaaaaaaa + 4;
         idk2.laksdf();
         return 123;
     }
