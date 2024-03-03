@@ -7,7 +7,7 @@ from copy import deepcopy
 from lark import Lark, logger
 
 from build_environment import build_environment
-from context import Context
+from context import Context, GlobalContext
 from hierarchy_check import hierarchy_check
 from type_link import type_link
 from name_disambiguation import disambiguate_names
@@ -34,7 +34,7 @@ logging.basicConfig(
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
 STDLIB_VERSION = 3.0
 stdlib_files = glob.glob(f"stdlib/{STDLIB_VERSION}/java/**/*.java")
-global_context_with_stdlib = Context(None, None, None)
+global_context_with_stdlib = GlobalContext()
 for file in stdlib_files:
     with open(file) as f:
         res = lark.parse(f.read())
@@ -158,7 +158,7 @@ def load_custom_testcases(test_names: List[str]):
 
 
 def load_path_testcases(paths: List[str]):
-    global_context = Context(None, None, None)
+    global_context = GlobalContext()
 
     for path in paths:
         try:

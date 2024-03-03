@@ -8,6 +8,7 @@ from weeder import get_modifiers
 from type_link import ImportDeclaration, SingleTypeImport, OnDemandImport
 from context import (
     Context,
+    GlobalContext,
     ClassDecl,
     ClassInterfaceDecl,
     ConstructorDecl,
@@ -17,14 +18,14 @@ from context import (
     MethodDecl,
 )
 
-def build_environment(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDecl = None):
-    if class_symbol is None:
-        parse_node(tree, context)
+def build_environment(tree: ParseTree, context: Context):
+    if isinstance(context, GlobalContext):
+        build_compilation_unit(tree, context)
         return
 
     for child in tree.children:
         if isinstance(child, Tree):
-            parse_node(child, context, class_symbol)
+            parse_node(child, context)
 
 def get_child_tree(tree: ParseTree, name: str) -> Tree:
     return next(filter(lambda c: isinstance(c, Tree) and c.data == name, tree.children), None)
@@ -39,10 +40,10 @@ def get_identifiers(tree: ParseTree):
     tokens = tree.scan_values(lambda v: isinstance(v, Token) and v.type == "IDENTIFIER")
     return (token.value for token in tokens)
 
-def resolve_name(tree: ParseTree):
+def extract_name(tree: ParseTree):
     return ".".join(get_identifiers(tree))
 
-def resolve_type(tree: ParseTree):
+def extract_type(tree: ParseTree):
     assert tree.data == "type"
 
     child = tree.children[0]
@@ -50,9 +51,9 @@ def resolve_type(tree: ParseTree):
         return child.value
     elif child.data == "array_type":
         element_type = child.children[0]
-        return (element_type.value if isinstance(element_type, Token) else resolve_name(element_type)) + "[]"
+        return (element_type.value if isinstance(element_type, Token) else extract_name(element_type)) + "[]"
     else:
-        return resolve_name(child)
+        return extract_name(child)
 
 def get_formal_params(tree: ParseTree):
     formal_params = next(tree.find_data("formal_param_list"), None)
@@ -65,10 +66,48 @@ def get_formal_params(tree: ParseTree):
             if isinstance(child, Token):
                 continue
 
-            formal_param_types.append(resolve_type(next(child.find_data("type"))))
+            formal_param_types.append(extract_type(next(child.find_data("type"))))
             formal_param_names.append(get_tree_token(child, "var_declarator_id", "IDENTIFIER"))
 
     return (formal_param_types, formal_param_names)
+
+
+def build_compilation_unit(tree: ParseTree, context: Context):
+    package_name = ""
+    try:
+        package_decl = next(tree.find_data("package_decl"))
+        package_name = extract_name(package_decl) + "."
+    except StopIteration:
+        pass
+
+    # run thru imports, auto import java.lang.*
+    imports: List[ImportDeclaration] = [OnDemandImport("java.lang")]
+    for import_decl in tree.find_data("single_type_import_decl"):
+        type_name = extract_name(import_decl)
+        imports.append(SingleTypeImport(type_name))
+    for import_decl in tree.find_data("type_import_on_demand_decl"):
+        type_name = extract_name(import_decl)
+        imports.append(OnDemandImport(type_name))
+
+    # attempt to build class or interface declaration
+    try:
+        class_interface_decl = next(
+            tree.find_pred(lambda v: v.data in ["class_declaration", "interface_declaration"])
+        )
+        type_symbol = build_class_interface_decl(class_interface_decl, context, package_name, imports)
+
+        assert isinstance(context, GlobalContext)
+
+        # strip trailing period and add to context package list
+        package_name = package_name[:-1]
+        context.packages[package_name].append(type_symbol)
+
+        # enqueue type names to be resolved in type link step
+        for type_name in class_interface_decl.find_data("type_name"):
+            _enqueue_type(type_symbol, extract_name(type_name))
+
+    except StopIteration:
+        pass
 
 
 def build_class_interface_decl(
@@ -79,13 +118,13 @@ def build_class_interface_decl(
 ):
     class_name = package_prefix + get_nested_token(tree, "IDENTIFIER")
     modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
-    extends = list(map(resolve_name, tree.find_data("class_type")))
+    extends = list(map(extract_name, tree.find_data("class_type")))
     if not extends and class_name != "java.lang.Object":
         extends = ["Object"]
     inherited_interfaces = next(tree.find_data("interface_type_list"), [])
 
-    if inherited_interfaces:
-        inherited_interfaces = list(map(resolve_name, inherited_interfaces.find_data("interface_type")))
+    if isinstance(inherited_interfaces, Tree):
+        inherited_interfaces = list(map(extract_name, inherited_interfaces.find_data("interface_type")))
 
     if tree.data == "class_declaration":
         symbol = ClassDecl(context, class_name, modifiers, extends, imports, inherited_interfaces)
@@ -103,7 +142,7 @@ def build_class_interface_decl(
     context.declare(symbol)
     context.children.append(nested_context)
 
-    build_environment(nested_tree, nested_context, symbol)
+    build_environment(nested_tree, nested_context)
 
     return symbol
 
@@ -112,46 +151,8 @@ def _enqueue_type(class_symbol: ClassInterfaceDecl, type_name: str):
     class_symbol.type_names[type_name] = None
 
 
-def parse_node(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDecl = None):
+def parse_node(tree: ParseTree, context: Context):
     match tree.data:
-        case "compilation_unit":
-            # i dont like this but i dont know any clean way to pass the package name + imports
-            # to the class/interface declaration. context is the global one here
-            package_name = ""
-            try:
-                package_decl = next(tree.find_data("package_decl"))
-                package_name = resolve_name(package_decl) + "."
-            except StopIteration:
-                pass
-
-            # run thru imports, auto import java.lang.*
-            imports: List[ImportDeclaration] = [OnDemandImport("java.lang")]
-            for import_decl in tree.find_data("single_type_import_decl"):
-                type_name = resolve_name(import_decl)
-                imports.append(SingleTypeImport(type_name))
-            for import_decl in tree.find_data("type_import_on_demand_decl"):
-                type_name = resolve_name(import_decl)
-                imports.append(OnDemandImport(type_name))
-
-            # attempt to build class or interface declaration
-            try:
-                class_interface_decl = next(
-                    tree.find_pred(lambda v: v.data in ["class_declaration", "interface_declaration"])
-                )
-                type_symbol = build_class_interface_decl(class_interface_decl, context, package_name, imports)
-
-                # strip trailing period and add to context package list
-                package_name = package_name[:-1]
-                context.packages[package_name].append(type_symbol)
-
-                # enqueue type names to be resolved in type link step
-                # this is sus (e.g. doesnt work with methods foo.bar.A.B())
-                for type_name in class_interface_decl.find_data("type_name"):
-                    _enqueue_type(type_symbol, resolve_name(type_name))
-
-            except StopIteration:
-                pass
-
         case "constructor_declaration":
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
 
@@ -168,7 +169,7 @@ def parse_node(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDe
                 for p_type, p_name in zip(formal_param_types, formal_param_names):
                     nested_context.declare(LocalVarDecl(nested_context, p_name, p_type))
 
-                build_environment(nested_tree, nested_context, class_symbol)
+                build_environment(nested_tree, nested_context)
 
         case "method_declaration":
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
@@ -180,7 +181,7 @@ def parse_node(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDe
             return_type = (
                 "void"
                 if any(isinstance(x, Token) and x.type == "VOID_KW" for x in tree.children)
-                else resolve_type(get_child_tree(tree, "type"))
+                else extract_type(get_child_tree(tree, "type"))
             )
 
             symbol = MethodDecl(context, method_name, formal_param_types, modifiers, return_type)
@@ -194,18 +195,18 @@ def parse_node(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDe
                 for p_type, p_name in zip(formal_param_types, formal_param_names):
                     nested_context.declare(LocalVarDecl(nested_context, p_name, p_type))
 
-                build_environment(nested_tree, nested_context, class_symbol)
+                build_environment(nested_tree, nested_context)
 
         case "field_declaration":
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
-            field_type = resolve_type(next(tree.find_data("type")))
+            field_type = extract_type(next(tree.find_data("type")))
             field_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
 
             logging.debug(f"field_declaration {field_name} {modifiers} {field_type}")
             context.declare(FieldDecl(context, field_name, modifiers, field_type))
 
         case "local_var_declaration":
-            var_type = resolve_type(next(tree.find_data("type")))
+            var_type = extract_type(next(tree.find_data("type")))
             var_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
 
             logging.debug(f"local_var_declaration {var_name} {var_type}")
@@ -221,7 +222,7 @@ def parse_node(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDe
                 # Blocks inside blocks have the same parent node
                 nested_context = Context(context, context.parent_node, nested_block)
                 context.children.append(nested_context)
-                build_environment(nested_block, nested_context, class_symbol)
+                build_environment(nested_block, nested_context)
 
         case _:
-            build_environment(tree, context, class_symbol)
+            build_environment(tree, context)

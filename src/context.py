@@ -35,7 +35,6 @@ class Context:
     parent: Context
     parent_node: Symbol
     symbol_map: Dict[str, Symbol]
-    packages: Dict[str, List[ClassInterfaceDecl]]
     tree: Tree
 
     def __init__(self, parent: Context, parent_node: Symbol, tree: Tree):
@@ -43,7 +42,6 @@ class Context:
         self.parent_node = parent_node
         self.children = []
         self.symbol_map = {}
-        self.packages = defaultdict(list)
         self.tree = tree
 
     def declare(self, symbol: Symbol):
@@ -63,6 +61,12 @@ class Context:
 
         return None
 
+class GlobalContext(Context):
+    packages: Dict[str, List[ClassInterfaceDecl]]
+
+    def __init__(self):
+        super().__init__(None, None, None)
+        self.packages = defaultdict(list)
 
 class PrimitiveType(Symbol):
     node_type = "primitive_type"

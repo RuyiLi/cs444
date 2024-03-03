@@ -1,7 +1,7 @@
 from typing import List
 import logging
 
-from context import ClassInterfaceDecl, ClassDecl, InterfaceDecl, Context, SemanticError
+from context import ClassInterfaceDecl, GlobalContext, SemanticError
 
 
 PRIMITIVE_TYPES = {"byte", "short", "int", "char", "void", "boolean", "void"}
@@ -32,7 +32,7 @@ def resolve_prefixes(qualified_name: str) -> List[str]:
 
 
 class ImportDeclaration:
-    def link_type(self, context: Context, type_decl: ClassInterfaceDecl):
+    def link_type(self, context: GlobalContext, type_decl: ClassInterfaceDecl):
         raise NotImplementedError
 
 
@@ -47,7 +47,7 @@ class SingleTypeImport(ImportDeclaration):
     def __repr__(self):
         return f"SingleTypeImport({self.simple_name}, {self.name})"
 
-    def link_type(self, context: Context, type_decl: ClassInterfaceDecl):
+    def link_type(self, context: GlobalContext, type_decl: ClassInterfaceDecl):
         logging.debug(f"Single Type Link: {self.name}, {type_decl.name}")
 
         # No single-type-import declaration clashes with the class or interface declared in the same file, but a class can import itself.
@@ -79,7 +79,7 @@ class OnDemandImport(ImportDeclaration):
     def __repr__(self):
         return f"SingleTypeImport({self.package}.*)"
 
-    def link_type(self, context: Context, type_decl: ClassInterfaceDecl):
+    def link_type(self, context: GlobalContext, type_decl: ClassInterfaceDecl):
         logging.debug(f"On Demand Type Link: {self}, {type_decl.name}")
 
         # Every import-on-demand declaration must refer to a package declared in some file listed on
@@ -96,7 +96,7 @@ class OnDemandImport(ImportDeclaration):
         )
 
 
-def resolve_type(context: Context, type_name: str, type_decl: ClassInterfaceDecl):
+def resolve_type(context: GlobalContext, type_name: str, type_decl: ClassInterfaceDecl):
     logging.debug(f"Resolving {type_name}")
 
     is_qualified = "." in type_name
@@ -129,7 +129,7 @@ def resolve_type(context: Context, type_name: str, type_decl: ClassInterfaceDecl
             raise SemanticError(f"Simple type {type_name} does not resolve to any existing type")
 
 
-def check_type_clashes(context: Context, type_name: str, type_decl: ClassInterfaceDecl):
+def check_type_clashes(type_name: str, type_decl: ClassInterfaceDecl):
     is_qualified = "." in type_name
     if is_qualified:
         # When a fully qualified name resolves to a type, no strict prefix of the fully qualified
@@ -141,17 +141,11 @@ def check_type_clashes(context: Context, type_name: str, type_decl: ClassInterfa
                 )
 
 
-def type_link(context: Context):
+def type_link(context: GlobalContext):
     """
     Should only be run once on the global context.
     """
-
-    type_decls: List[ClassInterfaceDecl] = list(
-        filter(
-            lambda symbol: symbol.node_type in [ClassDecl.node_type, InterfaceDecl.node_type],
-            context.symbol_map.values(),
-        )
-    )
+    type_decls = [sym for sym in context.symbol_map.values() if isinstance(sym, ClassInterfaceDecl)]
 
     for type_decl in type_decls:
         logging.debug(f"Linking type {type_decl.name}")
@@ -176,7 +170,7 @@ def type_link(context: Context):
                 resolve_type(context, type_name, type_decl)
 
         for type_name in type_decl.type_names.keys():
-            check_type_clashes(context, type_name, type_decl)
+            check_type_clashes(type_name, type_decl)
 
     # No package names—including their prefixes—of declared packages, single-type-import
     # declarations or import-on-demand declarations that are used may resolve to types,
