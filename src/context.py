@@ -28,9 +28,6 @@ class Symbol:
         # TODO attrify
         return self.node_type + "^" + self.name
 
-    def hierarchy_check(self):
-        self._checked = True
-
     # TODO __repr__
 
 
@@ -67,16 +64,6 @@ class Context:
         return None
 
 
-def check_cycle(symbol: ClassInterfaceDecl, visited: Set[str]):
-    if symbol.sym_id() in visited:
-        raise SemanticError(f"Cyclic dependency found, path {'->'.join(visited)} -> {symbol.sym_id()}")
-
-    visited |= {symbol.sym_id()}
-    for type_name in symbol.extends + getattr(symbol, "implements", []):
-        next_sym = symbol.resolve_name(type_name)
-        check_cycle(next_sym, visited.copy())
-
-
 class PrimitiveType(Symbol):
     node_type = "primitive_type"
 
@@ -94,52 +81,6 @@ class ArrayType(Symbol):
 
     def sym_id(self):
         return f"array_type^{self.name}"
-
-
-def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl):
-    inherited_methods = []
-    for method in inherited_sym.methods:
-        # method is the method from the parent class/interface that we're about to replace
-        replacing = next(filter(lambda m: m.signature() == method.signature(), symbol.methods), None)
-
-        # in Replace()?
-        if replacing is not None:
-            if replacing.return_symbol.name != method.return_symbol.name:
-                raise SemanticError(
-                    f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing return types."
-                )
-
-            if ("static" in replacing.modifiers) != ("static" in method.modifiers):
-                raise SemanticError(
-                    f"Class/interface {symbol.name} cannot replace method with signature {method.signature()} with differing static-ness."
-                )
-
-            if "protected" in replacing.modifiers and "public" in method.modifiers:
-                raise SemanticError(
-                    f"Class/interface {symbol.name} cannot replace public method with signature {method.signature()} with a protected method."
-                )
-
-            if "final" in method.modifiers:
-                raise SemanticError(
-                    f"Class/interface {symbol.name} cannot replace final method with signature {method.signature()}."
-                )
-        else:
-            if (
-                symbol.node_type == "class_decl"
-                and "abstract" in method.modifiers
-                and "abstract" not in symbol.modifiers
-            ):
-                raise SemanticError(
-                    f"Non-abstract class {symbol.name} cannot inherit abstract method with signature {method.signature()} without implementing it."
-                )
-
-            inherited_methods.append(method)
-
-    return inherited_methods
-
-def inherit_fields(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl):
-    return [inherited_field for inherited_field in inherited_sym.fields
-        if not any(inherited_field.name == declared_field.name for declared_field in symbol.fields)]
 
 class ClassInterfaceDecl(Symbol):
     node_type = "class_interface"
@@ -188,12 +129,6 @@ class ClassInterfaceDecl(Symbol):
                 f"Class/interface {self.name} cannot inherit a class/interface more than once."
             )
 
-    def hierarchy_check(self):
-        self.check_declare_same_signature()
-        self.check_repeated_parents(self.extends)
-        check_cycle(self, set())
-        super().hierarchy_check()
-
     def resolve_method_return_types(self):
         for method in self.methods:
             if method.return_symbol is None:
@@ -216,57 +151,6 @@ class ClassDecl(ClassInterfaceDecl):
         self.implements = implements
         self.constructors = []
 
-    def hierarchy_check(self):
-        if self._checked:
-            return
-
-        self.resolve_method_return_types()
-
-        for extend in self.extends:
-            if extend == type_link.resolve_simple_name(self.name):
-                raise SemanticError(f"Class {self.name} cannot extend itself.")
-
-            exist_sym = self.resolve_name(extend)
-
-            if exist_sym is None:
-                raise SemanticError(f"Class {self.name} cannot extend class {extend} that does not exist.")
-
-            # Ensure parents have inherited their methods first
-            exist_sym.hierarchy_check()
-
-            if exist_sym.node_type == "interface_decl":
-                raise SemanticError(f"Class {self.name} cannot extend an interface ({extend}).")
-
-            assert isinstance(exist_sym, ClassDecl)
-
-            if "final" in exist_sym.modifiers:
-                raise SemanticError(f"Class {self.name} cannot extend a final class ({extend}).")
-
-            self.methods += inherit_methods(self, exist_sym)
-            self.fields += inherit_fields(self, exist_sym)
-
-        for implement in self.implements:
-            exist_sym = self.resolve_name(implement)
-
-            if exist_sym is None:
-                raise SemanticError(
-                    f"Class {self.name} cannot implement interface {implement} that does not exist."
-                )
-
-            # Ensure parents have inherited their methods first
-            exist_sym.hierarchy_check()
-
-            if exist_sym.node_type == "class_decl":
-                raise SemanticError(f"Class {self.name} cannot implement a class ({implement}).")
-
-            assert isinstance(exist_sym, InterfaceDecl)
-
-            self.methods += inherit_methods(self, exist_sym)
-            self.fields += inherit_fields(self, exist_sym)
-
-        self.check_repeated_parents(self.implements)
-        super().hierarchy_check()
-
 
 class InterfaceDecl(ClassInterfaceDecl):
     node_type = "interface_decl"
@@ -280,44 +164,6 @@ class InterfaceDecl(ClassInterfaceDecl):
         imports: List[type_link.ImportDeclaration],
     ):
         super().__init__(context, name, modifiers, extends, imports)
-
-    def hierarchy_check(self):
-        if self._checked:
-            return
-
-        self.resolve_method_return_types()
-
-        for extend in self.extends:
-            if extend == type_link.resolve_simple_name(self.name):
-                raise SemanticError(f"Interface {self.name} cannot extend itself.")
-
-            exist_sym = self.resolve_name(extend)
-
-            if exist_sym is None:
-                raise SemanticError(
-                    f"Interface {self.name} cannot extend interface {extend} that does not exist."
-                )
-
-            # Ensure parents have inherited their methods first
-            exist_sym.hierarchy_check()
-
-            if exist_sym.node_type == "class_decl":
-                raise SemanticError(f"Interface {self.name} cannot extend a class ({extend}).")
-
-            assert isinstance(exist_sym, InterfaceDecl)
-            self.methods += inherit_methods(self, exist_sym)
-            self.fields += inherit_fields(self, exist_sym)
-
-        # Interfaces do not actually extend from Object but rather implicitly
-        # declare many of the same methods as Object, so we check if "inherit
-        # methods" would pass
-        exist_sym = self.resolve_name("Object")
-        assert exist_sym is not None
-
-        inherit_methods(self, exist_sym)
-
-        self.check_repeated_parents(self.extends)
-        super().hierarchy_check()
 
 
 class ConstructorDecl(Symbol):
