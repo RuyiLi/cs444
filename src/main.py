@@ -32,14 +32,14 @@ logging.basicConfig(
     level=logging.ERROR,
 )
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
-STDLIB_VERSION = 2.0
+STDLIB_VERSION = 3.0
 stdlib_files = glob.glob(f"stdlib/{STDLIB_VERSION}/java/**/*.java")
 global_context_with_stdlib = Context(None, None, None)
-# for file in stdlib_files:
-#     with open(file) as f:
-#         res = lark.parse(f.read())
-#         Weeder(f.name).visit(res)
-#         build_environment(res, global_context_with_stdlib)
+for file in stdlib_files:
+    with open(file) as f:
+        res = lark.parse(f.read())
+        Weeder(f.name).visit(res)
+        build_environment(res, global_context_with_stdlib)
 
 
 def static_check(context: Context):
@@ -54,10 +54,6 @@ def static_check(context: Context):
     except Exception as e:
         logging.error("Failed hierarchy_check")
         raise e
-
-    # TODO: remove
-    print(context.children[0].tree.pretty())
-    print(context.children[1].tree.pretty())
 
     try:
         disambiguate_names(context)
@@ -162,7 +158,7 @@ def load_custom_testcases(test_names: List[str]):
 
 
 def load_path_testcases(paths: List[str]):
-    global_context = Context(None, None)
+    global_context = Context(None, None, None)
 
     for path in paths:
         try:

@@ -324,6 +324,9 @@ class Weeder(Visitor):
             # enforce that it is casting an object (if it is array_type, we skip since that is enforced in grammer)
             if expr.data != "expression_name" and cast.data == "expr":
                 format_error("Expression casting invalid.", tree.meta.line)
+            else:
+                expr.data = "reference_type"
+                pass
 
     # def __default__(self, tree: ParseTree):
     # print(tree.data, tree.children)

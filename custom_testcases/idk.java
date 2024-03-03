@@ -12,7 +12,7 @@ public class idk {
         for (int r = 0; r < 42; r = r + 1) {
             r = r + 1;
         }
-        int aaaaaaaaaaaaaaa = 14;
+        int aaaaaaaaaaaaaaa = (String)14;
 
         int x = aaaaaaaaaaaaaaa + 1;
         return 123;

@@ -80,8 +80,8 @@ def build_class_interface_decl(
     class_name = package_prefix + get_nested_token(tree, "IDENTIFIER")
     modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
     extends = list(map(resolve_name, tree.find_data("class_type")))
-    # if not extends and class_name != "java.lang.Object":
-    #     extends = ["Object"]
+    if not extends and class_name != "java.lang.Object":
+        extends = ["Object"]
     inherited_interfaces = next(tree.find_data("interface_type_list"), [])
 
     if inherited_interfaces:
@@ -125,7 +125,7 @@ def parse_node(tree: ParseTree, context: Context, class_symbol: ClassInterfaceDe
                 pass
 
             # run thru imports, auto import java.lang.*
-            imports: List[ImportDeclaration] = [] #[OnDemandImport("java.lang")]
+            imports: List[ImportDeclaration] = [OnDemandImport("java.lang")]
             for import_decl in tree.find_data("single_type_import_decl"):
                 type_name = resolve_name(import_decl)
                 imports.append(SingleTypeImport(type_name))

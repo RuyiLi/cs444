@@ -43,7 +43,7 @@ export JOOSC_FILE_CONTENTS
 
 TEST_DIR := test
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
-CURR_ASSIGNMENT = a2
+CURR_ASSIGNMENT = a3
 all: joosc
 
 clean:

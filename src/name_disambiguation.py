@@ -9,7 +9,7 @@ def disambiguate_names(context: Context):
         disambiguate_names(child_context)
 
 def get_enclosing_type_decl(context):
-     # Go up contexts until we reach a class/interface (do we need this? can we just use parent_node?)
+     # Go up contexts until we reach a class/interface
     new_context = context
     while not isinstance(new_context.parent_node, ClassInterfaceDecl):
         new_context = new_context.parent
@@ -30,32 +30,24 @@ def parse_node(tree: ParseTree, context: Context):
             pass
 
         case "type_name":
-            print(tree)
             ids = list(get_identifiers(tree))
             type_id = ids[-1]
 
             enclosing_type_decl = get_enclosing_type_decl(context)
+            type_name = ".".join(ids)
+            symbol = enclosing_type_decl.type_names[type_name]
 
-            # Not sure if we need some kind of priority system. Can types clash?
-            if len(ids) == 1:
-                symbol = enclosing_type_decl.type_names[type_id]
-
-                if symbol is None:
-                    raise SemanticError(f"Type name '{type_id}' doesn't exist in scope.")
-            else:
-                type_name = ".".join(list(ids)[:-1])
-                symbol = enclosing_type_decl.type_names[type_name]
-
-                if symbol is None or type_id not in symbol.type_names:
-                    raise SemanticError(f"Can't resolve type name '{'.'.join(ids)}'")
+            if symbol is None or type_id not in symbol.type_names:
+                raise SemanticError(f"Can't resolve type name '{'.'.join(ids)}'")
 
         case "expression_name":
-            print(tree)
             ids = list(get_identifiers(tree))
             expr_id = ids[-1]
 
             if len(ids) == 1:
-                symbol = context.resolve(f"{LocalVarDecl.node_type}^{expr_id}") or context.resolve(f"{FieldDecl.node_type}^{expr_id}")
+                symbol = context.resolve(f"{LocalVarDecl.node_type}^{expr_id}") or \
+                    context.resolve(f"{FieldDecl.node_type}^{expr_id}") or \
+                    next(filter(lambda field: field.name == expr_id, get_enclosing_type_decl(context).fields), None)
                 
                 if symbol is None:
                     raise SemanticError(f"Can't resolve expression name '{expr_id}'.")
@@ -72,16 +64,15 @@ def parse_node(tree: ParseTree, context: Context):
                     if field_symbol is not None and "static" not in field_symbol.modifiers:
                         raise SemanticError(f"Can't access non-static field {expr_id} from {'.'.join(ids[:-1])}.")
                 else:
-                    # TODO: Get type of expression. If type isn't a reference type, error
-                    symbol = None
+                    # Defer type checking of expressions until later
+                    return
 
         case "method_name":
-            print(tree)
             ids = list(get_identifiers(tree))
             method_id = ids[-1]
 
             if len(ids) == 1:
-                symbol = context.parent_node
+                symbol = get_enclosing_type_decl(context)
 
                 if symbol is None:
                     raise SemanticError(f"Method with name '{method_id}' doesn't exist in scope.")
@@ -97,8 +88,8 @@ def parse_node(tree: ParseTree, context: Context):
                     if symbol is None:
                         raise SemanticError(f"Can't resolve type name '{type_name}'.")
                 else:
-                    # TODO: Get type of expression
-                    symbol = None
+                    # Defer type checking of expressions until later
+                    return
 
             if isinstance(symbol, InterfaceDecl):
                 raise SemanticError(f"Can't call method {method_id} as static from interface {symbol.name}")
@@ -126,21 +117,28 @@ def parse_ambiguous_name(context, ids):
     if len(ids) == 1:
         if context.resolve(f"{LocalVarDecl.node_type}^{last_id}") or context.resolve(f"{FieldDecl.node_type}^{last_id}"):
             return "expression_name"
-        else:
+        elif last_id in get_enclosing_type_decl(context).type_names:
             return "type_name"
+        else:
+            return "package_name"
     else:
         result = parse_ambiguous_name(context, ids[:-1])
+        pre_name = ".".join(ids[:-1])
 
-        if result == "type_name":
-            enclosing_type_decl = get_enclosing_type_decl(context)
-            symbol = enclosing_type_decl.type_names.get(".".join(ids[:-1]))
-
-            # Just try type name?
-            if symbol is None:
+        if result == "package_name":
+            if pre_name in get_enclosing_type_decl(context).type_names:
                 return "type_name"
+            else:
+                return "package_name"
+        elif result == "type_name":
+            symbol = get_enclosing_type_decl(context).type_names.get(pre_name)
+
+            assert symbol is not None
 
             if any(last_id == method.name for method in symbol.methods) or any(last_id == field.name for field in symbol.fields):
                 return "expression_name"
+            else:
+                raise SemanticError(f"'{last_id}' is not the name of a field or method in type '{pre_name}'.")
         elif result == "expression_name":
             # Need to somehow resolve type of expression??
             return "expression_name"

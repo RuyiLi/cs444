@@ -54,33 +54,6 @@ class Context:
         if existing is not None:
             raise SemanticError(f"Overlapping {symbol.node_type} in scope: {symbol.sym_id()}")
 
-        # Duplicated in inherit_methods? Removing doesn't fail any tests.
-        if symbol.node_type == "method_decl":
-            matching = [
-                x
-                for x in self.symbol_map
-                if x.split("^")[0] == symbol.name and self.symbol_map[x].node_type == "method_decl"
-            ]
-
-            for dup in matching:
-                modifiers = self.symbol_map[dup].modifiers
-                return_type = self.symbol_map[dup].return_type
-
-                if "protected" in symbol.modifiers and "public" in modifiers:
-                    raise SemanticError("A protected method must not replace a public method.")
-
-                if "static" in symbol.modifiers and "static" not in modifiers:
-                    raise SemanticError("A static method must not replace a nonstatic method.")
-
-                if "static" not in symbol.modifiers and "static" in modifiers:
-                    raise SemanticError("A nonstatic method must not replace a static method.")
-
-                if "final" in modifiers:
-                    raise SemanticError("A method must not replace a final method.")
-
-                if return_type != symbol.return_type:
-                    raise SemanticError("A method must not replace a method with a different return type.")
-
         self.symbol_map[symbol.sym_id()] = symbol
 
     def resolve(self, id_hash: str) -> Optional[Symbol]:
@@ -164,6 +137,9 @@ def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDec
 
     return inherited_methods
 
+def inherit_fields(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl):
+    return [inherited_field for inherited_field in inherited_sym.fields
+        if not any(inherited_field.name == declared_field.name for declared_field in symbol.fields)]
 
 class ClassInterfaceDecl(Symbol):
     node_type = "class_interface"
@@ -205,7 +181,7 @@ class ClassInterfaceDecl(Symbol):
                         f"Class/interface {self.name} cannot declare two methods with the same signature: {self.methods[i].signature}."
                     )
 
-    def check_repeated_parents(self, parents: List[ClassInterfaceDecl]):
+    def check_repeated_parents(self, parents: List[str]):
         qualified_parents = [self.resolve_name(parent).name for parent in parents]
         if len(set(qualified_parents)) < len(qualified_parents):
             raise SemanticError(
@@ -267,6 +243,7 @@ class ClassDecl(ClassInterfaceDecl):
                 raise SemanticError(f"Class {self.name} cannot extend a final class ({extend}).")
 
             self.methods += inherit_methods(self, exist_sym)
+            self.fields += inherit_fields(self, exist_sym)
 
         for implement in self.implements:
             exist_sym = self.resolve_name(implement)
@@ -285,6 +262,7 @@ class ClassDecl(ClassInterfaceDecl):
             assert isinstance(exist_sym, InterfaceDecl)
 
             self.methods += inherit_methods(self, exist_sym)
+            self.fields += inherit_fields(self, exist_sym)
 
         self.check_repeated_parents(self.implements)
         super().hierarchy_check()
@@ -328,6 +306,7 @@ class InterfaceDecl(ClassInterfaceDecl):
 
             assert isinstance(exist_sym, InterfaceDecl)
             self.methods += inherit_methods(self, exist_sym)
+            self.fields += inherit_fields(self, exist_sym)
 
         # Interfaces do not actually extend from Object but rather implicitly
         # declare many of the same methods as Object, so we check if "inherit
