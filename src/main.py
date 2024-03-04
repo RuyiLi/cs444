@@ -9,6 +9,7 @@ from lark import Lark, logger
 from build_environment import build_environment
 from context import Context, GlobalContext
 from hierarchy_check import hierarchy_check
+from type_check import type_check
 from type_link import type_link
 from name_disambiguation import disambiguate_names
 from weeder import Weeder
@@ -42,7 +43,7 @@ for file in stdlib_files:
         build_environment(res, global_context_with_stdlib)
 
 
-def static_check(context: Context):
+def static_check(context: GlobalContext):
     try:
         type_link(context)
     except Exception as e:
@@ -59,6 +60,12 @@ def static_check(context: Context):
         disambiguate_names(context)
     except Exception as e:
         logging.error("Failed name disambiguation")
+        raise e
+
+    try:
+        type_check(context)
+    except Exception as e:
+        logging.error("Failed type check")
         raise e
 
 
