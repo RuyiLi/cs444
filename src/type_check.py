@@ -74,6 +74,10 @@ def resolve_token(token: Token, context: Context):
                 raise SemanticError("Keyword 'this' found without an enclosing class.")
         case "INSTANCEOF_KW":
             return "instanceof"
+        case "LT_EQ":
+            return "<="
+        case "GT_EQ":
+            return ">="
         case x:
             raise SemanticError(f"Unknown token {x}")
 
@@ -125,13 +129,17 @@ def resolve_expression(tree: ParseTree | Token, context: Context):
         case "rel_expr":
             operands = list(map(lambda c: resolve_expression(c, context), tree.children))
 
-            if len(operands) == 3:
-                [left_type, _, right_type] = operands
+            op = None
 
-                if not (left_type is "null" or isinstance(left_type, ClassDecl)):
-                    raise SemanticError(f"Left side of instanceof must be a reference type or the null type")
+            if len(operands) == 3:
+                [left_type, op, right_type] = operands
             else:
                 [left_type, right_type] = operands
+
+            if op == "instanceof":
+                if not (left_type == "null" or isinstance(left_type, ClassDecl)):
+                    raise SemanticError(f"Left side of instanceof must be a reference type or the null type")
+            else:
                 if any(t not in NUMERIC_TYPES for t in [left_type, right_type]):
                     raise SemanticError(f"Cannot use operands of type {left_type},{right_type} in relational expression")
 
