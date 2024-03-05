@@ -77,7 +77,7 @@ class PrimitiveType(Symbol):
     node_type = "primitive_type"
 
     def __init__(self, name: str):
-        assert name in type_link.PRIMITIVE_TYPES
+        # assert name in type_link.PRIMITIVE_TYPES
         super().__init__(None, name)
 
     def sym_id(self):

@@ -95,6 +95,14 @@ def resolve_token(token: Token, context: Context):
             return PrimitiveType("<=")
         case "GT_EQ":
             return PrimitiveType(">=")
+        case "LOGICAL_AND":
+            return PrimitiveType("&&")
+        case "LOGICAL_OR":
+            return PrimitiveType("||")
+        case "EAGER_AND":
+            return PrimitiveType("&")
+        case "EAGER_OR":
+            return PrimitiveType("|")
         case x:
             raise SemanticError(f"Unknown token {x}")
 
@@ -281,8 +289,8 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
                 left_type, right_type = operands
 
             if op == "instanceof":
-                if not (left_type.name == "null" or isinstance(left_type, ClassDecl)):
-                    raise SemanticError("Left side of instanceof must be a reference type or the null type")
+                if not (left_type.name == "null" or isinstance(left_type, ClassDecl) or isinstance(left_type, ArrayType)):
+                    raise SemanticError(f"Left side of instanceof must be a reference type or the null type (found {left_type})")
             else:
                 if not is_numeric_type(left_type) or not is_numeric_type(right_type):
                     raise SemanticError(
@@ -302,7 +310,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             return PrimitiveType("boolean")
 
         case "eager_and_expr" | "eager_or_expr" | "and_expr" | "or_expr":
-            left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
+            left_type, _, right_type = map(lambda c: resolve_expression(c, context), tree.children)
 
             if left_type.name != "boolean" or right_type.name != "boolean":
                 raise SemanticError(
@@ -311,7 +319,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
 
             return PrimitiveType("boolean")
 
-        case "expression_name":
+        case "expression_name" | "type_name":
             name = extract_name(tree)
             return resolve_refname(name, context)
 
