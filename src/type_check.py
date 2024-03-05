@@ -1,5 +1,5 @@
 from lark import ParseTree, Token, Tree
-from context import ClassDecl, ClassInterfaceDecl, Context, FieldDecl, LocalVarDecl, SemanticError
+from context import ArrayType, ClassDecl, ClassInterfaceDecl, Context, FieldDecl, InterfaceDecl, LocalVarDecl, SemanticError
 
 from build_environment import extract_name, get_tree_token
 from name_disambiguation import get_enclosing_type_decl
@@ -39,7 +39,28 @@ def parse_node(tree: ParseTree, context: Context):
                 parse_node(child, context)
 
         case "assignment":
-            pass
+            if tree.children[0].children[0].data == "expression_name":
+                lhs = resolve_expression(tree.children[0].children[0], context)
+            else:
+                lhs = parse_node(tree.children[0], context)
+
+            expr = resolve_expression(tree.children[1], context)
+
+            if lhs != expr:
+                if lhs in NUMERIC_TYPES:
+                    if not ((lhs == "int" and expr in ["char", "byte", "short"]) or
+                        (lhs == "short" and expr == "byte")):
+                        raise SemanticError(f"Can't convert type {expr} to {lhs} in assignment.")
+                else:
+                    if expr in PRIMITIVE_TYPES:
+                        raise SemanticError(f"Can't convert type {expr} to {lhs} in assignment.")
+
+                    if isinstance(expr, ArrayType):
+                        # allow a windening conversion for reference types
+                        if lhs not in ["java.lang.Object", "java.lang.Cloneable", "java.io.Serializable"]:
+                            pass
+
+            return expr
 
         case "method_invocation":
             pass
@@ -128,7 +149,6 @@ def resolve_expression(tree: ParseTree | Token, context: Context):
 
         case "rel_expr":
             operands = list(map(lambda c: resolve_expression(c, context), tree.children))
-
             op = None
 
             if len(operands) == 3:
