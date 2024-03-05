@@ -91,7 +91,7 @@ def class_hierarchy_check(symbol: ClassDecl):
     symbol.resolve_method_return_types()
 
     for extend in symbol.extends:
-        if extend == type_link.resolve_simple_name(symbol.name):
+        if extend == type_link.get_simple_name(symbol.name):
             raise SemanticError(f"Class {symbol.name} cannot extend itsymbol.")
 
         exist_sym = symbol.resolve_name(extend)
@@ -143,7 +143,7 @@ def interface_hierarchy_check(symbol: InterfaceDecl):
     symbol.resolve_method_return_types()
 
     for extend in symbol.extends:
-        if extend == type_link.resolve_simple_name(symbol.name):
+        if extend == type_link.get_simple_name(symbol.name):
             raise SemanticError(f"Interface {symbol.name} cannot extend itsymbol.")
 
         exist_sym = symbol.resolve_name(extend)

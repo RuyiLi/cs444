@@ -20,15 +20,15 @@ Terminology:
 """
 
 
-def resolve_simple_name(qualified_name: str) -> str:
+def get_simple_name(qualified_name: str) -> str:
     return qualified_name.split(".")[-1]
 
 
-def resolve_package_name(qualified_name: str) -> str:
+def get_package_name(qualified_name: str) -> str:
     return ".".join(qualified_name.split(".")[:-1])
 
 
-def resolve_prefixes(qualified_name: str) -> List[str]:
+def get_prefixes(qualified_name: str) -> List[str]:
     prefixes = []
     identifiers = qualified_name.split(".")
     curr_name = ""
@@ -49,7 +49,7 @@ class SingleTypeImport(ImportDeclaration):
 
     @property
     def simple_name(self):
-        return resolve_simple_name(self.name)
+        return get_simple_name(self.name)
 
     def __repr__(self):
         return f"SingleTypeImport({self.simple_name}, {self.name})"
@@ -58,7 +58,7 @@ class SingleTypeImport(ImportDeclaration):
         logging.debug(f"Single Type Link: {self.name}, {type_decl.name}")
 
         # No single-type-import declaration clashes with the class or interface declared in the same file, but a class can import itself.
-        if self.name != type_decl.name and self.simple_name == resolve_simple_name(type_decl.name):
+        if self.name != type_decl.name and self.simple_name == get_simple_name(type_decl.name):
             raise SemanticError(f"Type {type_decl.name} clashes with import declaration {self.name}")
 
         # No two single-type-import declarations clash with each other.
@@ -141,7 +141,7 @@ def check_type_clashes(type_name: str, type_decl: ClassInterfaceDecl):
     if is_qualified:
         # When a fully qualified name resolves to a type, no strict prefix of the fully qualified
         # name can resolve to a type in the same environment.
-        for prefix in resolve_prefixes(type_name)[:-1]:
+        for prefix in get_prefixes(type_name)[:-1]:
             if type_decl.type_names.get(prefix) is not None:
                 raise SemanticError(
                     f"Prefix {prefix} of fully qualified type {type_name} resolves to a type in the same environment"
@@ -158,13 +158,13 @@ def type_link(context: GlobalContext):
         logging.debug(f"Linking type {type_decl.name}")
 
         # resolve class/interface name to itself
-        type_name = resolve_simple_name(type_decl.name)
+        type_name = get_simple_name(type_decl.name)
         type_decl.type_names[type_name] = type_decl
 
         # auto import types from the same package
-        package_name = resolve_package_name(type_decl.name)
+        package_name = get_package_name(type_decl.name)
         for same_package_type_decl in context.packages[package_name]:
-            same_package_type_name = resolve_simple_name(same_package_type_decl.name)
+            same_package_type_name = get_simple_name(same_package_type_decl.name)
             type_decl.type_names[same_package_type_name] = same_package_type_decl
 
         # verify and resolve imports
@@ -183,7 +183,7 @@ def type_link(context: GlobalContext):
     # declarations or import-on-demand declarations that are used may resolve to types,
     # except for types in the default, unnamed package.
     for package in context.packages.keys():
-        for prefix in resolve_prefixes(package)[1:]:
+        for prefix in get_prefixes(package)[1:]:
             if context.resolve(f"{ClassInterfaceDecl.node_type}^{prefix}") is not None:
                 raise SemanticError(
                     f"Prefix {prefix} of package {package} resolves to a type in the same environment"

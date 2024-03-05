@@ -17,7 +17,7 @@ from context import (
 
 from build_environment import extract_name, get_tree_token
 from name_disambiguation import get_enclosing_type_decl
-from type_link import is_primitive_type
+from type_link import is_primitive_type, resolve_type
 
 
 NUMERIC_TYPES = {"byte", "short", "int", "char"}
@@ -64,34 +64,7 @@ def parse_node(tree: ParseTree, context: Context):
             if isinstance(child, Tree) and child.data not in scope_stmts:
                 parse_node(child, context)
 
-        case "assignment":
-            # print(tree)
-            lhs = next(tree.find_data("lhs"))
-            lhs = resolve_expression(lhs.children[0], context)
-            expr = resolve_expression(tree.children[1], context)
-
-            if not assignable(expr, lhs, get_enclosing_type_decl(context)):
-                raise SemanticError(f"Cannot assign type {expr} to {lhs}")
-
-            # if lhs != expr:
-            #     if is_numeric_type(lhs):
-            #         if not (
-            #             (lhs == "int" and expr in ["char", "byte", "short"])
-            #             or (lhs == "short" and expr == "byte")
-            #         ):
-            #             raise SemanticError(f"Can't convert type {expr} to {lhs} in assignment.")
-            #     else:
-            #         if is_primitive_type(expr):
-            #             raise SemanticError(f"Can't convert type {expr} to {lhs} in assignment.")
-
-            #         if isinstance(expr, ArrayType):
-            #             # allow a widening conversion for reference types
-            #             if lhs not in ["java.lang.Object", "java.lang.Cloneable", "java.io.Serializable"]:
-            #                 pass
-
-            return expr
-
-        case "method_invocation" | "field_access" | "array_access":
+        case "assignment" | "method_invocation" | "field_access" | "array_access":
             return resolve_expression(tree, context)
 
         case _:
@@ -129,13 +102,16 @@ def resolve_token(token: Token, context: Context):
 
 def resolve_bare_refname(name: str, context: Context) -> Symbol:
     # resolves a refname with no dots
+
+    type_decl = get_enclosing_type_decl(context)
     if name == "this":
-        return get_enclosing_type_decl(context)
+        return type_decl
 
     symbol = (
         context.resolve(f"{LocalVarDecl.node_type}^{name}")
         or context.resolve(f"{FieldDecl.node_type}^{name}")
-        or get_enclosing_type_decl(context).type_names.get(name)
+        or type_decl.resolve_name(name)
+        or resolve_type(type_decl.context, name, type_decl)
     )
 
     if symbol is None:
@@ -356,7 +332,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
                 # lhs is expression
                 left, method_name = tree.children
                 ref_type = resolve_expression(left, context)
-                print(ref_type, method_name)
+                # print(ref_type, method_name)
 
             # print(ref_name, ref_type)
             if is_primitive_type(ref_type):
@@ -386,7 +362,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             ref_array, index = tree.children
 
             index_type = resolve_expression(index, context)
-            if index_type.name != "int":
+            if not is_numeric_type(index_type):
                 raise SemanticError(f"Array index must be of type int, not {index_type}")
 
             array_type = resolve_expression(ref_array, context)
@@ -423,11 +399,37 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
 
             raise SemanticError(f"Cannot cast type {source_type.name} to {cast_type.name}")
 
+        case "assignment":
+            lhs = next(tree.find_data("lhs"))
+            lhs = resolve_expression(lhs.children[0], context)
+            expr = resolve_expression(tree.children[1], context)
+
+            if not assignable(expr, lhs, get_enclosing_type_decl(context)):
+                raise SemanticError(f"Cannot assign type {expr} to {lhs}")
+
+            # if lhs != expr:
+            #     if is_numeric_type(lhs):
+            #         if not (
+            #             (lhs == "int" and expr in ["char", "byte", "short"])
+            #             or (lhs == "short" and expr == "byte")
+            #         ):
+            #             raise SemanticError(f"Can't convert type {expr} to {lhs} in assignment.")
+            #     else:
+            #         if is_primitive_type(expr):
+            #             raise SemanticError(f"Can't convert type {expr} to {lhs} in assignment.")
+
+            #         if isinstance(expr, ArrayType):
+            #             # allow a widening conversion for reference types
+            #             if lhs not in ["java.lang.Object", "java.lang.Cloneable", "java.io.Serializable"]:
+            #                 pass
+
+            return expr
+
         case "char_l":
             return PrimitiveType("char")
 
         case "string_l":
-            return context.resolve("class_interface^java.lang.String")
+            return context.resolve(f"{ClassInterfaceDecl.node_type}^java.lang.String")
 
         case x:
             logging.warn(f"Unknown tree data {x}")

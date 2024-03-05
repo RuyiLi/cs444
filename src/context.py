@@ -110,6 +110,7 @@ class ArrayType(Symbol):
             sym = Symbol(None, "length")
             sym.sym_type = "int"
             sym.resolved_sym_type = PrimitiveType("int")
+            sym.modifiers = ["public", "final"]
             return sym
         return None
 
@@ -146,13 +147,20 @@ class ClassInterfaceDecl(Symbol):
     def resolve_name(self, type_name: str) -> Optional[Symbol]:
         if type_link.is_primitive_type(type_name):
             return type_name if isinstance(type_name, PrimitiveType) else PrimitiveType(type_name)
+
         if type_name[-2:] == "[]":
             elem_type = self.resolve_name(type_name[:-2])
             return None if elem_type is None else ArrayType(elem_type.name + "[]")
-        symbol = self.type_names.get(type_name, None)
-        if symbol is not None:
+
+        if (symbol := self.type_names.get(type_name, None)) is not None:
             return symbol
-        return self.context.resolve(f"class_interface^{type_name}")
+
+        try:
+            # late resolution
+            type_link.resolve_type(self.context, type_name, self)
+            return self.type_names[type_name]
+        except SemanticError:
+            return self.context.resolve(f"{ClassInterfaceDecl.node_type}^{type_name}")
 
     def check_declare_same_signature(self):
         for i in range(len(self.methods)):
