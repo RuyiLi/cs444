@@ -50,7 +50,16 @@ def parse_node(tree: ParseTree, context: Context):
             assert isinstance(symbol, LocalVarDecl)
             assert isinstance(expr, Tree)
 
+            # Get type
             initialized_expr_type = resolve_expression(expr, context)
+            type_decl = get_enclosing_type_decl(context)
+
+            # Make comparable to resolved expr
+            symbol.name = symbol.sym_type
+
+            # Check if assignable
+            if not (assignable(symbol, initialized_expr_type, type_decl) or assignable(initialized_expr_type, symbol, type_decl)):
+                raise SemanticError(f"Cannot assign type {symbol.name} to {initialized_expr_type.name}")
 
             if initialized_expr_type is None:
                 print(symbol.sym_type)
@@ -289,8 +298,10 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
                 left_type, right_type = operands
 
             if op == "instanceof":
-                if not (left_type.name == "null" or isinstance(left_type, ClassDecl) or isinstance(left_type, ArrayType)):
-                    raise SemanticError(f"Left side of instanceof must be a reference type or the null type (found {left_type})")
+                if not (left_type.name == "null" or isinstance(left_type, ClassDecl) or isinstance(left_type,
+                                                                                                   ArrayType)):
+                    raise SemanticError(
+                        f"Left side of instanceof must be a reference type or the null type (found {left_type})")
             else:
                 if not is_numeric_type(left_type) or not is_numeric_type(right_type):
                     raise SemanticError(

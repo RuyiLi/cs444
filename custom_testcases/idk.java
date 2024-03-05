@@ -13,7 +13,8 @@ public class idk {
         }
 
         int x = aaaaaaaaaaaaaaa + 1;
-        byte k = (byte)'*';
+        byte k = '*';
+        char z = "string";
         return 123;
     }
     public void testing() {
