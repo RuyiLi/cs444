@@ -77,6 +77,7 @@ class PrimitiveType(Symbol):
     node_type = "primitive_type"
 
     def __init__(self, name: str):
+        assert name in type_link.PRIMITIVE_TYPES
         super().__init__(None, name)
 
     def sym_id(self):
@@ -85,11 +86,16 @@ class PrimitiveType(Symbol):
     def __eq__(self, other):
         return self.name == other
 
-    def __str__(self):
-        return self.name
+
+class NullReference(Symbol):
+    node_type = "null_reference"
+
+    def __init__(self):
+        super().__init__(None, "null")
 
 
 class ArrayType(Symbol):
+    # TODO add type of elements
     node_type = "array_type"
 
     def __init__(self, name: str):
@@ -97,6 +103,15 @@ class ArrayType(Symbol):
 
     def sym_id(self):
         return f"array_type^{self.name}"
+
+    def resolve_field(self, field_name: str) -> Optional[FieldDecl]:
+        if field_name == "length":
+            # hardcode builtin property length for array types
+            sym = Symbol(None, "length")
+            sym.sym_type = "int"
+            sym.resolved_sym_type = PrimitiveType("int")
+            return sym
+        return None
 
 
 class ClassInterfaceDecl(Symbol):
@@ -130,11 +145,14 @@ class ClassInterfaceDecl(Symbol):
 
     def resolve_name(self, type_name: str) -> Optional[Symbol]:
         if type_link.is_primitive_type(type_name):
-            return PrimitiveType(type_name)
+            return type_name if isinstance(type_name, PrimitiveType) else PrimitiveType(type_name)
         if type_name[-2:] == "[]":
             elem_type = self.resolve_name(type_name[:-2])
             return None if elem_type is None else ArrayType(elem_type.name + "[]")
-        return self.type_names.get(type_name, None)
+        symbol = self.type_names.get(type_name, None)
+        if symbol is not None:
+            return symbol
+        return self.context.resolve(f"class_interface^{type_name}")
 
     def check_declare_same_signature(self):
         for i in range(len(self.methods)):
@@ -183,6 +201,13 @@ class ClassInterfaceDecl(Symbol):
             if method.return_symbol is None:
                 method.return_symbol = self.resolve_name(method.return_type)
 
+    def is_subclass_of(self, name: str):
+        for extend in self.extends:
+            parent = self.resolve_name(extend)
+            if name == parent.name or parent.is_subclass_of(name):
+                return True
+        return False
+
 
 class ClassDecl(ClassInterfaceDecl):
     node_type = "class_decl"
@@ -199,6 +224,19 @@ class ClassDecl(ClassInterfaceDecl):
         super().__init__(context, name, modifiers, extends, imports)
         self.implements = implements
         self.constructors = []
+
+    def implements_interface(self, name: str):
+        for interface in self.implements:
+            interface = self.resolve_name(interface)
+            if name == interface.name:
+                return True
+
+        for extend in self.extends:
+            parent = self.resolve_name(extend)
+            if parent.implements_interface(name):
+                return True
+
+        return False
 
 
 class InterfaceDecl(ClassInterfaceDecl):

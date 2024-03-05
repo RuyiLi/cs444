@@ -9,7 +9,7 @@ from context import (
     FieldDecl,
     InterfaceDecl,
     LocalVarDecl,
-    MethodDecl,
+    NullReference,
     SemanticError,
     PrimitiveType,
     Symbol,
@@ -65,36 +65,34 @@ def parse_node(tree: ParseTree, context: Context):
                 parse_node(child, context)
 
         case "assignment":
+            # print(tree)
             lhs = next(tree.find_data("lhs"))
             lhs = resolve_expression(lhs.children[0], context)
             expr = resolve_expression(tree.children[1], context)
 
-            if lhs != expr:
-                if is_numeric_type(lhs):
-                    if not (
-                        (lhs == "int" and expr in ["char", "byte", "short"])
-                        or (lhs == "short" and expr == "byte")
-                    ):
-                        raise SemanticError(f"Can't convert type {expr} to {lhs} in assignment.")
-                else:
-                    if is_primitive_type(expr):
-                        raise SemanticError(f"Can't convert type {expr} to {lhs} in assignment.")
+            if not assignable(expr, lhs, get_enclosing_type_decl(context)):
+                raise SemanticError(f"Cannot assign type {expr} to {lhs}")
 
-                    if isinstance(expr, ArrayType):
-                        # allow a widening conversion for reference types
-                        if lhs not in ["java.lang.Object", "java.lang.Cloneable", "java.io.Serializable"]:
-                            pass
+            # if lhs != expr:
+            #     if is_numeric_type(lhs):
+            #         if not (
+            #             (lhs == "int" and expr in ["char", "byte", "short"])
+            #             or (lhs == "short" and expr == "byte")
+            #         ):
+            #             raise SemanticError(f"Can't convert type {expr} to {lhs} in assignment.")
+            #     else:
+            #         if is_primitive_type(expr):
+            #             raise SemanticError(f"Can't convert type {expr} to {lhs} in assignment.")
+
+            #         if isinstance(expr, ArrayType):
+            #             # allow a widening conversion for reference types
+            #             if lhs not in ["java.lang.Object", "java.lang.Cloneable", "java.io.Serializable"]:
+            #                 pass
 
             return expr
 
-        case "method_invocation":
-            pass
-
-        case "field_access":
-            pass
-
-        case "array_access":
-            pass
+        case "method_invocation" | "field_access" | "array_access":
+            return resolve_expression(tree, context)
 
         case _:
             for child in tree.children:
@@ -105,26 +103,26 @@ def parse_node(tree: ParseTree, context: Context):
 def resolve_token(token: Token, context: Context):
     match token.type:
         case "INTEGER_L":
-            return "int"
+            return PrimitiveType("int")
         case "BOOLEAN_L":
-            return "boolean"
+            return PrimitiveType("boolean")
         case "char_l":
-            return "char"
+            return PrimitiveType("char")
         case "string_l":
-            return "String"
+            return PrimitiveType("String")
         case "NULL":
-            return "null"
+            return NullReference()
         case "THIS_KW":
             symbol = get_enclosing_type_decl(context)
             if symbol is None:
                 raise SemanticError("Keyword 'this' found without an enclosing class.")
             return symbol
         case "INSTANCEOF_KW":
-            return "instanceof"
+            return PrimitiveType("instanceof")
         case "LT_EQ":
-            return "<="
+            return PrimitiveType("<=")
         case "GT_EQ":
-            return ">="
+            return PrimitiveType(">=")
         case x:
             raise SemanticError(f"Unknown token {x}")
 
@@ -148,7 +146,6 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
 
 
 def resolve_refname(name: str, context: Context):
-    print(name)
     # assert non primitive type?
     symbol = context.resolve(f"{ClassDecl.node_type}^{name}")
     if symbol is not None:
@@ -164,7 +161,73 @@ def resolve_refname(name: str, context: Context):
     return ref_type
 
 
-def resolve_expression(tree: ParseTree | Token, context: Context):
+VALID_PRIMITIVE_CONVERSIONS = dict(
+    byte={"short", "int", "long", "float", "double"},
+    short={"int", "long", "float", "double"},
+    char={"int", "long", "float", "double"},
+    int={"long", "float", "double"},
+    long={"float", "double"},
+    float={"double"},
+)
+
+
+def assignable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
+    if s.name == t.name:
+        return True
+
+    if is_primitive_type(s) != is_primitive_type(t):
+        return False
+
+    if is_primitive_type(s):
+        # s and t are both primitive types
+        return t.name in VALID_PRIMITIVE_CONVERSIONS[s.name]
+
+    # s and t are both reference types
+
+    if t.name == "java.lang.Object" or t.name == "null":
+        return True
+
+    if s.node_type == ClassDecl.node_type:
+        match t.node_type:
+            case ClassDecl.node_type:
+                return s.is_subclass_of(t.name)
+            case InterfaceDecl.node_type:
+                return s.implements_interface(t.name)
+
+    if s.node_type == InterfaceDecl.node_type:
+        match t.node_type:
+            case InterfaceDecl.node_type:
+                return s.is_subclass_of(t.name)
+
+    if s.node_type == ArrayType.node_type:
+        match t.node_type:
+            case InterfaceDecl.node_type:
+                return t.name == "java.lang.Cloneable" or t.name == "java.io.Serializable"
+            case ArrayType.node_type:
+                s = type_decl.resolve_name(s.name[:-2])
+                t = type_decl.resolve_name(t.name[:-2])
+                return assignable(s, t, type_decl)
+
+    return False
+
+
+def castable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
+    if assignable(s, t, type_decl) or assignable(t, s, type_decl):
+        return True
+
+    for a, b in (s, t), (t, s):
+        if a.node_type == InterfaceDecl.node_type:
+            if b.node_type == InterfaceDecl.node_type or (
+                b.node_type == ClassDecl.node_type and "final" not in b.modifiers
+            ):
+                return True
+
+    return False
+
+
+def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | None:
+    # TODO fix arraytype
+
     if isinstance(tree, Token):
         return resolve_token(tree, context)
 
@@ -174,19 +237,20 @@ def resolve_expression(tree: ParseTree | Token, context: Context):
             return resolve_expression(tree.children[0], context)
 
         case "class_instance_creation":
-            return get_enclosing_type_decl(context)
+            new_type = extract_name(tree.children[1])
+            return resolve_refname(new_type, context)
 
         case "array_creation_expr":
             array_type = tree.children[1]
             if is_primitive_type(array_type):
-                return f"{array_type}[]"
-            else:
-                type_name = extract_name(tree.children[1])
-                symbol = get_enclosing_type_decl(context).type_names.get(type_name)
+                return ArrayType(f"{array_type}[]")
 
-                if symbol is None:
-                    raise SemanticError(f"Type name '{type_name}' could not be resolved.")
-                return f"{symbol.name}[]"
+            type_name = extract_name(tree.children[1])
+            symbol = get_enclosing_type_decl(context).type_names.get(type_name)
+
+            if symbol is None:
+                raise SemanticError(f"Type name '{type_name}' could not be resolved.")
+            return ArrayType(f"{symbol.name}[]")
 
         case "mult_expr":
             left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
@@ -196,19 +260,21 @@ def resolve_expression(tree: ParseTree | Token, context: Context):
                 )
 
             # Binary numeric promotion into int
-            return "int"
+            return PrimitiveType("int")
 
         case "add_expr":
             left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
 
-            if "String" in [left_type, right_type]:
-                return "String"
+            if left_type.name == "java.lang.String":
+                return left_type
+            if right_type.name == "java.lang.String":
+                return right_type
 
             if not is_numeric_type(left_type) or not is_numeric_type(right_type):
                 raise SemanticError(f"Cannot use operands of type {left_type},{right_type} in add expression")
 
             # Binary numeric promotion into int
-            return "int"
+            return PrimitiveType("int")
 
         case "sub_expr":
             left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
@@ -217,7 +283,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context):
                 raise SemanticError(f"Cannot use operands of type {left_type},{right_type} in add expression")
 
             # Binary numeric promotion into int
-            return "int"
+            return PrimitiveType("int")
 
         case "rel_expr":
             operands = list(map(lambda c: resolve_expression(c, context), tree.children))
@@ -229,7 +295,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context):
                 left_type, right_type = operands
 
             if op == "instanceof":
-                if not (left_type == "null" or isinstance(left_type, ClassDecl)):
+                if not (left_type.name == "null" or isinstance(left_type, ClassDecl)):
                     raise SemanticError("Left side of instanceof must be a reference type or the null type")
             else:
                 if not is_numeric_type(left_type) or not is_numeric_type(right_type):
@@ -237,7 +303,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context):
                         f"Cannot use operands of type {left_type},{right_type} in relational expression"
                     )
 
-            return "boolean"
+            return PrimitiveType("boolean")
 
         case "eq_expr":
             left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
@@ -247,52 +313,61 @@ def resolve_expression(tree: ParseTree | Token, context: Context):
                     f"Cannot use operands of type {left_type},{right_type} in equality expression"
                 )
 
-            return "boolean"
+            return PrimitiveType("boolean")
 
         case "eager_and_expr" | "eager_or_expr" | "and_expr" | "or_expr":
             left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
 
-            if left_type != "boolean" or right_type != "boolean":
+            if left_type.name != "boolean" or right_type.name != "boolean":
                 raise SemanticError(
                     f"Cannot use operands of type {left_type},{right_type} (must be boolean) in and/or expression"
                 )
 
-            return "boolean"
+            return PrimitiveType("boolean")
 
         case "expression_name":
             name = extract_name(tree)
             return resolve_refname(name, context)
 
         case "field_access":
-            expr_name = extract_name(tree)
-            if tree.children[0].type == "THIS_KW":
-                expr_name = "this." + expr_name
-            return resolve_refname(expr_name, context)
+            left, field_name = tree.children
+            left_type = resolve_expression(left, context)
+            field = left_type.resolve_field(field_name)
+            return getattr(field, "resolved_sym_type", field)
 
         case "method_invocation":
-            invocation_name = extract_name(next(tree.find_data("method_name")))
-            *ref_name, method_name = invocation_name.split(".")
-
             type_decl = get_enclosing_type_decl(context)
-            if ref_name:
-                # assert non primitive type?
-                ref_name = ".".join(ref_name)
-                ref_type = resolve_refname(ref_name, context)
+
+            # if not type_decl.name.startswith("java."):
+            #     print(tree)
+
+            if tree.children[0].data == "method_name":
+                # format is method_name ( ... )
+                invocation_name = extract_name(tree.children[0])
+                *ref_name, method_name = invocation_name.split(".")
+
+                if ref_name:
+                    # assert non primitive type?
+                    ref_name = ".".join(ref_name)
+                    ref_type = resolve_refname(ref_name, context)
+                else:
+                    ref_type = type_decl
             else:
-                ref_type = type_decl
+                # lhs is expression
+                left, method_name = tree.children
+                ref_type = resolve_expression(left, context)
+                print(ref_type, method_name)
+
+            # print(ref_name, ref_type)
+            if is_primitive_type(ref_type):
+                raise SemanticError(f"Cannot call method {method_name} on simple type {ref_type}")
 
             arg_list = next(tree.find_data("argument_list"), None)
             if arg_list is None:
                 arg_types = []
             else:
-                arg_types = map(
-                    lambda c: resolve_expression(c, context),
-                    arg_list.children,
-                )
-
-                # resolve arg list to fully qualified typenames
-                # arg_types = map(type_decl.resolve_name, arg_types)
-                arg_types = [getattr(arg_type, "name", arg_type) for arg_type in arg_types]
+                arg_types = map(lambda c: resolve_expression(c, context), arg_list.children)
+                arg_types = [arg_type.name for arg_type in arg_types]
             method = ref_type.resolve_method(method_name, arg_types)
 
             # if is_static and "static" not in method.modifiers:
@@ -311,21 +386,48 @@ def resolve_expression(tree: ParseTree | Token, context: Context):
             ref_array, index = tree.children
 
             index_type = resolve_expression(index, context)
-            if index_type != "int":
+            if index_type.name != "int":
                 raise SemanticError(f"Array index must be of type int, not {index_type}")
 
-            # TODO this should probably be a symbol, not a string ending in []?
             array_type = resolve_expression(ref_array, context)
             if not isinstance(array_type, ArrayType):
                 raise SemanticError(f"Cannot index non-array type {array_type}")
 
-            return array_type.name[:-2]
+            type_decl = get_enclosing_type_decl(context)
+            return type_decl.resolve_name(array_type.name[:-2])
+
+        case "cast_expr":
+            type_decl = get_enclosing_type_decl(context)
+            if len(tree.children) == 2:
+                cast_type, cast_target = tree.children
+
+                if isinstance(cast_type, Token):
+                    type_name = cast_type.value
+                elif cast_type.data == "array_type":
+                    type_name = extract_name(cast_type.children[0]) + "[]"
+                else:
+                    type_name = extract_name(cast_type)
+
+                cast_type = type_decl.resolve_name(type_name)
+            else:
+                cast_type, square_brackets, cast_target = tree.children
+                assert square_brackets.value == "[]"
+                cast_type = type_decl.resolve_name(cast_type.value + "[]")
+
+            source_type = resolve_expression(cast_target, context)
+            if is_primitive_type(source_type) and isinstance(source_type, str):
+                source_type = PrimitiveType(source_type)
+
+            if castable(source_type, cast_type, type_decl):
+                return cast_type
+
+            raise SemanticError(f"Cannot cast type {source_type.name} to {cast_type.name}")
 
         case "char_l":
-            return "char"
+            return PrimitiveType("char")
 
         case "string_l":
-            return "String"
+            return context.resolve("class_interface^java.lang.String")
 
         case x:
             logging.warn(f"Unknown tree data {x}")
