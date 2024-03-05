@@ -46,8 +46,11 @@ pre_dec_expr.1: "--" unary_expr     // prioritize over unary_neg
 ?mult_expr: unary_expr
           | mult_expr ("*" | "/" | "%") unary_expr
 
-?add_expr: mult_expr
-         | add_expr ("+" | "-") mult_expr
+?sub_expr: mult_expr
+         | sub_expr "-" mult_expr
+
+?add_expr: sub_expr
+         | add_expr "+" sub_expr
 
 ?rel_expr: add_expr
          | rel_expr ("<" | ">" | LT_EQ | GT_EQ) add_expr
