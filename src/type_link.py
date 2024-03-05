@@ -1,10 +1,17 @@
-from typing import List
 import logging
+from typing import List
 
-from context import ClassInterfaceDecl, GlobalContext, SemanticError
+from context import ClassInterfaceDecl, GlobalContext, SemanticError, Symbol, PrimitiveType
 
 
 PRIMITIVE_TYPES = {"byte", "short", "int", "char", "void", "boolean", "void"}
+
+
+def is_primitive_type(type_name: Symbol | str):
+    if isinstance(type_name, PrimitiveType):
+        type_name = type_name.name
+    return type_name in PRIMITIVE_TYPES
+
 
 """
 Terminology:
