@@ -28,7 +28,10 @@ class Symbol:
         # TODO attrify
         return self.node_type + "^" + self.name
 
-    # TODO __repr__
+    def __repr__(self):
+        # idk how to fix circular refs
+        # items = ", ".join(f"{k}=?" for k, v in self.__dict__.items())
+        return f"{self.__class__.__name__}(name={self.name}, context={self.context})"
 
 
 class Context:
@@ -61,12 +64,14 @@ class Context:
 
         return None
 
+
 class GlobalContext(Context):
     packages: Dict[str, List[ClassInterfaceDecl]]
 
     def __init__(self):
         super().__init__(None, None, None)
         self.packages = defaultdict(list)
+
 
 class PrimitiveType(Symbol):
     node_type = "primitive_type"
@@ -77,6 +82,13 @@ class PrimitiveType(Symbol):
     def sym_id(self):
         return f"primitive_type^{self.name}"
 
+    def __eq__(self, other):
+        return self.name == other
+
+    def __str__(self):
+        return self.name
+
+
 class ArrayType(Symbol):
     node_type = "array_type"
 
@@ -86,8 +98,14 @@ class ArrayType(Symbol):
     def sym_id(self):
         return f"array_type^{self.name}"
 
+
 class ClassInterfaceDecl(Symbol):
     node_type = "class_interface"
+
+    modifiers: List[str]
+    extends: List[str]
+    imports: List[str]
+    fields: List[FieldDecl]
     methods: List[MethodDecl]
 
     def __init__(
@@ -111,11 +129,11 @@ class ClassInterfaceDecl(Symbol):
         return f"class_interface^{self.name}"
 
     def resolve_name(self, type_name: str) -> Optional[Symbol]:
+        if type_link.is_primitive_type(type_name):
+            return PrimitiveType(type_name)
         if type_name[-2:] == "[]":
             elem_type = self.resolve_name(type_name[:-2])
             return None if elem_type is None else ArrayType(elem_type.name + "[]")
-        if type_name in type_link.PRIMITIVE_TYPES:
-            return PrimitiveType(type_name)
         return self.type_names.get(type_name, None)
 
     def check_declare_same_signature(self):
@@ -132,6 +150,33 @@ class ClassInterfaceDecl(Symbol):
             raise SemanticError(
                 f"Class/interface {self.name} cannot inherit a class/interface more than once."
             )
+
+    def resolve_method(self, method_name: str, argtypes: List[str]) -> Optional[MethodDecl]:
+        # ???
+        signature = method_name + "^" + ",".join(argtypes)
+        for m in self.methods:
+            if m.signature() == signature:
+                return m
+        for extend in self.extends:
+            parent = self.resolve_name(extend)
+            if parent is not None:
+                method = parent.resolve_method(method_name, argtypes)
+                if method is not None:
+                    return method
+        return None
+
+    def resolve_field(self, field_name: str) -> Optional[FieldDecl]:
+        # ???
+        for f in self.fields:
+            if f.name == field_name:
+                return f
+        for extend in self.extends:
+            parent = self.resolve_name(extend)
+            if parent is not None:
+                field = parent.resolve_field(field_name)
+                if field is not None:
+                    return field
+        return None
 
     def resolve_method_return_types(self):
         for method in self.methods:
@@ -196,6 +241,11 @@ class FieldDecl(Symbol):
         assert isinstance(self.context.parent_node, ClassInterfaceDecl)
         self.context.parent_node.fields.append(self)
 
+    @property
+    def resolved_sym_type(self):
+        # assumes type linking is finished
+        return self.context.parent_node.resolve_name(self.sym_type)
+
 
 class MethodDecl(Symbol):
     node_type = "method_decl"
@@ -205,7 +255,7 @@ class MethodDecl(Symbol):
 
     def __init__(self, context, name, param_types, modifiers, return_type):
         super().__init__(context, name)
-        self._param_types = param_types
+        self.raw_param_types = param_types
         self.modifiers = modifiers
         self.return_type = return_type
         self.return_symbol = PrimitiveType(return_type) if return_type in type_link.PRIMITIVE_TYPES else None
@@ -219,16 +269,16 @@ class MethodDecl(Symbol):
     @property
     def param_types(self):
         # a little sus, but here we assume that type linking is already finished
-        if self._param_types is None:
+        if self.raw_param_types is None:
             return []
-        resolutions = map(self.context.parent_node.resolve_name, self._param_types)
-        return [(self._param_types[i] if r is None else r.name) for i, r in enumerate(resolutions)]
+        resolutions = map(self.context.parent_node.resolve_name, self.raw_param_types)
+        return [(self.raw_param_types[i] if r is None else r.name) for i, r in enumerate(resolutions)]
 
     def signature(self):
         return self.name + "^" + ",".join(self.param_types)
 
     def sym_id(self):
-        return self.signature()
+        return self.name + "^" + ",".join(self.raw_param_types)
 
 
 class LocalVarDecl(Symbol):
@@ -237,3 +287,9 @@ class LocalVarDecl(Symbol):
     def __init__(self, context, name, var_type):
         super().__init__(context, name)
         self.sym_type = var_type
+
+    @property
+    def resolved_sym_type(self):
+        # assumes type linking is finished
+        parent = self.context.parent_node.context.parent_node
+        return parent.resolve_name(self.sym_type)
