@@ -1,5 +1,5 @@
 from lark import ParseTree, Token, Tree
-from context import ClassInterfaceDecl, Context, FieldDecl, LocalVarDecl, SemanticError
+from context import ClassDecl, ClassInterfaceDecl, Context, FieldDecl, LocalVarDecl, SemanticError
 
 from build_environment import extract_name, get_tree_token
 from name_disambiguation import get_enclosing_type_decl
@@ -38,6 +38,18 @@ def parse_node(tree: ParseTree, context: Context):
             if isinstance(child, Tree) and child.data not in scope_stmts:
                 parse_node(child, context)
 
+        case "assignment":
+            pass
+
+        case "method_invocation":
+            pass
+
+        case "field_access":
+            pass
+
+        case "array_access":
+            pass
+
         case _:
             for child in tree.children:
                 if isinstance(child, Tree):
@@ -60,8 +72,12 @@ def resolve_token(token: Token, context: Context):
 
             if symbol is None:
                 raise SemanticError("Keyword 'this' found without an enclosing class.")
-        case _:
-            raise SemanticError("how did you get here?")
+        case "INSTANCEOF_KW":
+            return "instanceof"
+        case x:
+            raise SemanticError(f"Unknown token {x}")
+
+NUMERIC_TYPES = ["byte", "short", "int", "char"]
 
 def resolve_expression(tree: ParseTree | Token, context: Context):
     if isinstance(tree, Token):
@@ -71,8 +87,10 @@ def resolve_expression(tree: ParseTree | Token, context: Context):
         case "expr":
             assert len(tree.children) == 1
             return resolve_expression(tree.children[0], context)
+
         case "class_instance_creation":
             return get_enclosing_type_decl(context)
+
         case "array_creation_expr":
             array_type = tree.children[1]
             if array_type in PRIMITIVE_TYPES:
@@ -84,31 +102,57 @@ def resolve_expression(tree: ParseTree | Token, context: Context):
                 if symbol is None:
                     raise SemanticError(f"Type name '{type_name}' could not be resolved.")
                 return f"{symbol.name}[]"
-        case "mult_expr": # | "eq_expr" | "eager_and_expr" | "eager_or_expr" | "and_expr" | "or_expr":
+
+        case "mult_expr":
             [left_type, right_type] = map(lambda c: resolve_expression(c, context), tree.children)
-            # print('expr', tree)
-            # print('ls', left_type)
-            # print('rs', right_type)
-            if any(t not in ["byte", "short", "int", "char"] for t in [left_type, right_type]):
+            if any(t not in NUMERIC_TYPES for t in [left_type, right_type]):
                 raise SemanticError(f"Cannot use operands of type {left_type},{right_type} in mult expression")
 
             # Binary numeric promotion into int
             return "int"
+
         case "add_expr":
             [left_type, right_type] = map(lambda c: resolve_expression(c, context), tree.children)
 
             if "String" in [left_type, right_type]:
                 return "String"
-            elif any(t not in ["byte", "short", "int", "char"] for t in [left_type, right_type]):
+            elif any(t not in NUMERIC_TYPES for t in [left_type, right_type]):
                 raise SemanticError(f"Cannot use operands of type {left_type},{right_type} in add expression")
 
             # Binary numeric promotion into int
             return "int"
+
         case "rel_expr":
+            operands = list(map(lambda c: resolve_expression(c, context), tree.children))
+
+            if len(operands) == 3:
+                [left_type, _, right_type] = operands
+
+                if not (left_type is "null" or isinstance(left_type, ClassDecl)):
+                    raise SemanticError(f"Left side of instanceof must be a reference type or the null type")
+            else:
+                [left_type, right_type] = operands
+                if any(t not in NUMERIC_TYPES for t in [left_type, right_type]):
+                    raise SemanticError(f"Cannot use operands of type {left_type},{right_type} in relational expression")
+
+            return "boolean"
+
+        case "eq_expr":
             [left_type, right_type] = map(lambda c: resolve_expression(c, context), tree.children)
-            # print('expr', tree)
-            # print('ls', left_type)
-            # print('rs', right_type)
+
+            if left_type != right_type and not all(t in NUMERIC_TYPES for t in [left_type, right_type]):
+                raise SemanticError(f"Cannot use operands of type {left_type},{right_type} in equality expression")
+
+            return "boolean"
+
+        case "eager_and_expr" | "eager_or_expr" | "and_expr" | "or_expr":
+            [left_type, right_type] = map(lambda c: resolve_expression(c, context), tree.children)
+
+            if left_type != "boolean" or right_type != "boolean":
+                raise SemanticError(f"Cannot use operands of type {left_type},{right_type} (must be boolean) in and/or expression")
+
+            return "boolean"
+
         case "expression_name":
             name = extract_name(tree)
             symbol = context.resolve(f"{LocalVarDecl.node_type}^{name}") or \
@@ -119,5 +163,6 @@ def resolve_expression(tree: ParseTree | Token, context: Context):
                 raise SemanticError(f"Name '{name}' could not be resolved in expression.")
 
             return symbol.sym_type or symbol
+
         case x:
             print("unknown tree data", x)
