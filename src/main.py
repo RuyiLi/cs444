@@ -73,14 +73,19 @@ def should_error(path_name: str):
     return path_name[:2] == "Je"
 
 
-def load_assignment_testcases(assignment: int, quiet: bool):
+def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: List[str]):
     test_directory = os.path.join(os.getcwd(), f"assignment_testcases/a{assignment}")
     test_files_lists = []
+    custom_test_names_set = set(custom_test_names) if custom_test_names else None
 
     for entry in sorted(os.listdir(test_directory)):
         entry_path = os.path.join(test_directory, entry)
         if os.path.isfile(entry_path):
-            test_files_lists.append([entry])
+            if custom_test_names_set:
+                if entry in custom_test_names_set:
+                    test_files_lists.append([entry])
+            else:
+                test_files_lists.append([entry])
 
     for entry in sorted(os.listdir(test_directory)):
         entry_path = os.path.join(test_directory, entry)
@@ -91,7 +96,11 @@ def load_assignment_testcases(assignment: int, quiet: bool):
                     test_file = os.path.relpath(os.path.join(root, file), test_directory)
                     test_files_list.append(test_file)
             if test_files_list:
-                test_files_lists.append(test_files_list)
+                if custom_test_names_set:
+                    if entry in custom_test_names_set:
+                        test_files_lists.append(test_files_list)
+                else:
+                    test_files_lists.append(test_files_list)
 
     passed = 0
     failed_tests = []
@@ -165,7 +174,7 @@ def load_custom_testcases(test_names: List[str]):
 
 
 def load_path_testcases(paths: List[str]):
-    global_context = GlobalContext()
+    global_context = deepcopy(global_context_with_stdlib)
 
     for path in paths:
         try:
@@ -233,13 +242,13 @@ if __name__ == "__main__":
     logging.root.setLevel(log_level)
 
     if args.a is not None:
-        load_assignment_testcases(args.a, quiet=args.q)
+        load_assignment_testcases(args.a, quiet=args.q, custom_test_names=args.t)
 
-    if args.t is not None:
+    elif args.t is not None:
         load_custom_testcases(args.t)
 
-    if args.p is not None:
+    elif args.p is not None:
         load_path_testcases(args.p)
 
-    if args.g is not None:
+    elif args.g is not None:
         load_parse_trees(args.g)
