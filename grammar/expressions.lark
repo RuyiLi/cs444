@@ -14,7 +14,9 @@ dim_exprs: ("[" expr "]")
                      | method_invocation
                      | array_access
 
-field_access: primary "." IDENTIFIER
+
+
+field_access.1: primary "." IDENTIFIER
 
 method_invocation: method_name "(" argument_list? ")"
                  | primary "." IDENTIFIER "(" argument_list? ")"

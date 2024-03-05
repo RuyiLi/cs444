@@ -19,7 +19,6 @@ from build_environment import extract_name, get_tree_token
 from name_disambiguation import get_enclosing_type_decl
 from type_link import is_primitive_type, resolve_type
 
-
 NUMERIC_TYPES = {"byte", "short", "int", "char"}
 
 
@@ -108,10 +107,10 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
         return type_decl
 
     symbol = (
-        context.resolve(f"{LocalVarDecl.node_type}^{name}")
-        or context.resolve(f"{FieldDecl.node_type}^{name}")
-        or type_decl.resolve_name(name)
-        or resolve_type(type_decl.context, name, type_decl)
+            context.resolve(f"{LocalVarDecl.node_type}^{name}")
+            or context.resolve(f"{FieldDecl.node_type}^{name}")
+            or type_decl.resolve_name(name)
+            or resolve_type(type_decl.context, name, type_decl)
     )
 
     if symbol is None:
@@ -137,13 +136,23 @@ def resolve_refname(name: str, context: Context):
     return ref_type
 
 
-VALID_PRIMITIVE_CONVERSIONS = dict(
+VALID_PRIMITIVE_CONVERSIONS_WIDENING = dict(
     byte={"short", "int", "long", "float", "double"},
     short={"int", "long", "float", "double"},
     char={"int", "long", "float", "double"},
     int={"long", "float", "double"},
     long={"float", "double"},
     float={"double"},
+)
+
+VALID_PRIMITIVE_CONVERSIONS_SHORTENING = dict(
+    byte={"char"},
+    short={"byte", "char"},
+    char={"byte", "short"},
+    int={"byte", "short", "char"},
+    long={"byte", "short", "char", "int"},
+    float={"byte", "short", "char", "int", "long"},
+    double={"byte", "byte", "short", "char", "int", "long", "float"}
 )
 
 
@@ -156,7 +165,8 @@ def assignable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
 
     if is_primitive_type(s):
         # s and t are both primitive types
-        return t.name in VALID_PRIMITIVE_CONVERSIONS[s.name]
+        return t.name in VALID_PRIMITIVE_CONVERSIONS_WIDENING[s.name] or \
+               t.name in VALID_PRIMITIVE_CONVERSIONS_SHORTENING[s.name]
 
     # s and t are both reference types
 
@@ -194,7 +204,7 @@ def castable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
     for a, b in (s, t), (t, s):
         if a.node_type == InterfaceDecl.node_type:
             if b.node_type == InterfaceDecl.node_type or (
-                b.node_type == ClassDecl.node_type and "final" not in b.modifiers
+                    b.node_type == ClassDecl.node_type and "final" not in b.modifiers
             ):
                 return True
 
