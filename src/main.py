@@ -181,14 +181,32 @@ def load_path_testcases(paths: List[str]):
                     Weeder(f.name).visit(res)
                     build_environment(res, global_context)
                 except Exception as e:
-                    logging.error(e)
+                    logging.exception(e)
                     exit(42)
 
     try:
         static_check(global_context)
     except Exception as e:
-        logging.error(e)
+        logging.exception(e)
         exit(42)
+
+
+def load_parse_trees(paths: List[str]):
+    for path in paths:
+        try:
+            f = open(path, "r")
+        except FileNotFoundError:
+            logging.info(f"Could not find test with name {path}, skipping...")
+        else:
+            with f:
+                test_file_contents = f.read()
+                try:
+                    logging.info(f"Parsing {f.name}")
+                    res = lark.parse(test_file_contents)
+                    Weeder(f.name).visit(res)
+                    logging.info(res.pretty())
+                except Exception as e:
+                    logging.error(e)
 
 
 if __name__ == "__main__":
@@ -200,6 +218,7 @@ if __name__ == "__main__":
     parser.add_argument("-p", type=str, nargs="+", help="Load testcases from path")
     parser.add_argument("-q", action="store_true", default=False, help="Only log errors")
     parser.add_argument("-v", action="store_true", default=False, help="Log everything")
+    parser.add_argument("-g", type=str, nargs="+", help="View parse tree of files")
 
     args = parser.parse_args()
 
@@ -221,3 +240,6 @@ if __name__ == "__main__":
 
     if args.p is not None:
         load_path_testcases(args.p)
+
+    if args.g is not None:
+        load_parse_trees(args.g)
