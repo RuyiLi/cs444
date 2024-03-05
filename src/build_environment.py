@@ -18,6 +18,7 @@ from context import (
     MethodDecl,
 )
 
+
 def build_environment(tree: ParseTree, context: Context):
     if isinstance(context, GlobalContext):
         build_compilation_unit(tree, context)
@@ -27,21 +28,27 @@ def build_environment(tree: ParseTree, context: Context):
         if isinstance(child, Tree):
             parse_node(child, context)
 
+
 def get_child_tree(tree: ParseTree, name: str) -> Tree:
     return next(filter(lambda c: isinstance(c, Tree) and c.data == name, tree.children), None)
+
 
 def get_nested_token(tree: ParseTree, name: str) -> str:
     return next(tree.scan_values(lambda v: isinstance(v, Token) and v.type == name)).value
 
+
 def get_tree_token(tree: ParseTree, tree_name: str, token_name: str):
     return get_nested_token(next(tree.find_data(tree_name)), token_name)
+
 
 def get_identifiers(tree: ParseTree):
     tokens = tree.scan_values(lambda v: isinstance(v, Token) and v.type == "IDENTIFIER")
     return (token.value for token in tokens)
 
+
 def extract_name(tree: ParseTree):
     return ".".join(get_identifiers(tree))
+
 
 def extract_type(tree: ParseTree):
     assert tree.data == "type"
@@ -54,6 +61,7 @@ def extract_type(tree: ParseTree):
         return (element_type.value if isinstance(element_type, Token) else extract_name(element_type)) + "[]"
     else:
         return extract_name(child)
+
 
 def get_formal_params(tree: ParseTree):
     formal_params = next(tree.find_data("formal_param_list"), None)

@@ -1,15 +1,25 @@
 from lark import ParseTree, Tree
-from context import ClassDecl, ClassInterfaceDecl, Context, FieldDecl, InterfaceDecl, LocalVarDecl, SemanticError
+from context import (
+    ClassDecl,
+    ClassInterfaceDecl,
+    Context,
+    FieldDecl,
+    InterfaceDecl,
+    LocalVarDecl,
+    SemanticError,
+)
 
 from build_environment import get_identifiers
+
 
 def disambiguate_names(context: Context):
     for child_context in context.children:
         parse_node(child_context.tree, child_context)
         disambiguate_names(child_context)
 
+
 def get_enclosing_type_decl(context):
-     # Go up contexts until we reach a class/interface
+    # Go up contexts until we reach a class/interface
     new_context = context
     while not isinstance(new_context.parent_node, ClassInterfaceDecl):
         new_context = new_context.parent
@@ -19,6 +29,7 @@ def get_enclosing_type_decl(context):
 
     return enclosing_type_decl
 
+
 def parse_node(tree: ParseTree, context: Context):
     match tree.data:
         case "constructor_declaration" | "method_declaration":
@@ -26,7 +37,7 @@ def parse_node(tree: ParseTree, context: Context):
             pass
 
         case "package_name":
-            # I suspect all package names are just valid? 
+            # I suspect all package names are just valid?
             pass
 
         case "type_name":
@@ -45,10 +56,15 @@ def parse_node(tree: ParseTree, context: Context):
             expr_id = ids[-1]
 
             if len(ids) == 1:
-                symbol = context.resolve(f"{LocalVarDecl.node_type}^{expr_id}") or \
-                    context.resolve(f"{FieldDecl.node_type}^{expr_id}") or \
-                    next(filter(lambda field: field.name == expr_id, get_enclosing_type_decl(context).fields), None)
-                
+                symbol = (
+                    context.resolve(f"{LocalVarDecl.node_type}^{expr_id}")
+                    or context.resolve(f"{FieldDecl.node_type}^{expr_id}")
+                    or next(
+                        filter(lambda field: field.name == expr_id, get_enclosing_type_decl(context).fields),
+                        None,
+                    )
+                )
+
                 if symbol is None:
                     raise SemanticError(f"Can't resolve expression name '{expr_id}'.")
             else:
@@ -62,7 +78,9 @@ def parse_node(tree: ParseTree, context: Context):
                     field_symbol = next(filter(lambda f: f.name == expr_id, type_decl.fields), None)
 
                     if field_symbol is not None and "static" not in field_symbol.modifiers:
-                        raise SemanticError(f"Can't access non-static field {expr_id} from {'.'.join(ids[:-1])}.")
+                        raise SemanticError(
+                            f"Can't access non-static field {expr_id} from {'.'.join(ids[:-1])}."
+                        )
                 else:
                     # Defer type checking of expressions until later
                     return
@@ -111,11 +129,14 @@ def parse_node(tree: ParseTree, context: Context):
                 if isinstance(child, Tree):
                     parse_node(child, context)
 
+
 def parse_ambiguous_name(context, ids):
     last_id = ids[-1]
 
     if len(ids) == 1:
-        if context.resolve(f"{LocalVarDecl.node_type}^{last_id}") or context.resolve(f"{FieldDecl.node_type}^{last_id}"):
+        if context.resolve(f"{LocalVarDecl.node_type}^{last_id}") or context.resolve(
+            f"{FieldDecl.node_type}^{last_id}"
+        ):
             return "expression_name"
         elif last_id in get_enclosing_type_decl(context).type_names:
             return "type_name"
@@ -135,7 +156,9 @@ def parse_ambiguous_name(context, ids):
 
             assert symbol is not None
 
-            if any(last_id == method.name for method in symbol.methods) or any(last_id == field.name for field in symbol.fields):
+            if any(last_id == method.name for method in symbol.methods) or any(
+                last_id == field.name for field in symbol.fields
+            ):
                 return "expression_name"
             else:
                 raise SemanticError(f"'{last_id}' is not the name of a field or method in type '{pre_name}'.")

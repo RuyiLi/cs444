@@ -3,6 +3,7 @@ from context import ClassDecl, ClassInterfaceDecl, Context, InterfaceDecl, Seman
 
 import type_link
 
+
 def hierarchy_check(context: Context):
     for symbol in context.symbol_map.values():
         if isinstance(symbol, ClassInterfaceDecl):
@@ -20,6 +21,7 @@ def check_cycle(symbol: ClassInterfaceDecl, visited: Set[str]):
     for type_name in symbol.extends + getattr(symbol, "implements", []):
         next_sym = symbol.resolve_name(type_name)
         check_cycle(next_sym, visited.copy())
+
 
 def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl):
     inherited_methods = []
@@ -62,9 +64,13 @@ def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDec
 
     return inherited_methods
 
+
 def inherit_fields(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl):
-    return [inherited_field for inherited_field in inherited_sym.fields
-        if not any(inherited_field.name == declared_field.name for declared_field in symbol.fields)]
+    return [
+        inherited_field
+        for inherited_field in inherited_sym.fields
+        if not any(inherited_field.name == declared_field.name for declared_field in symbol.fields)
+    ]
 
 
 def class_interface_hierarchy_check(symbol: ClassInterfaceDecl):
