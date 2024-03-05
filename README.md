@@ -67,7 +67,7 @@ python3 -m pip install -r requirements.txt
 #### Run the `main.py` File
 
 ```bash
-python3 main.py -a=1
+python3 src/main.py -a=1
 ```
 
 ## Building
