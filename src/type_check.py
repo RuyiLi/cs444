@@ -69,12 +69,12 @@ def extract_type(tree: ParseTree | Token):
 
 
 def get_argument_types(context: Context, tree: Tree, meta: Meta = None):
-    arg_list = next(tree.find_data("argument_list"), None)
-    if arg_list is None:
-        arg_types = []
-    else:
-        arg_types = map(lambda c: resolve_expression(c, context, meta), arg_list.children)
-        arg_types = [arg_type.name for arg_type in arg_types]
+    arg_lists = list(tree.find_data("argument_list"))
+    arg_types = []
+    if arg_lists:
+        # get the last one, because find_data fetches bottom-up
+        target = arg_lists[-1].children
+        arg_types = [resolve_expression(c, context, meta).name for c in target]
     return arg_types
 
 
@@ -83,6 +83,37 @@ def parse_node(tree: ParseTree, context: Context):
         case "constructor_declaration" | "method_declaration":
             # Nested, ignore
             pass
+
+        case "class_body":
+            type_decl = get_enclosing_type_decl(context)
+            if type_decl.name == "java.lang.Object":
+                return
+
+            for extend in type_decl.extends:
+                parent: ClassDecl = type_decl.resolve_name(extend)
+                if not any(len(ctor.param_types) == 0 for ctor in parent.constructors):
+                    raise SemanticError(
+                        f"Class {parent.name} is subclassed, and thus must have a zero-argument constructor"
+                    )
+
+            for child in tree.children:
+                if isinstance(child, Tree):
+                    parse_node(child, context)
+
+        case "return_st":
+            type_decl = get_enclosing_type_decl(context)
+            method_decl = get_enclosing_decl(context, MethodDecl)
+            if method_decl.return_type == "void":
+                if tree.children:
+                    raise SemanticError(f"Method {method_decl.name} must not return a value")
+                return
+
+            if tree.children:
+                return_type = resolve_expression(tree.children[1], context)
+                if not assignable(return_type, method_decl.return_symbol, type_decl):
+                    raise SemanticError(
+                        f"Cannot return type {return_type.name} from method {method_decl.name} (expecting {method_decl.return_type})"
+                    )
 
         case "field_declaration":
             type_decl = get_enclosing_type_decl(context)
@@ -117,6 +148,8 @@ def parse_node(tree: ParseTree, context: Context):
                     raise SemanticError(
                         f"constructor declaration {formal_param_types} differs in type from class declaration {arg_types}"
                     )
+
+            resolve_expression(tree, context)
 
         case "local_var_declaration":
             # print(tree)
@@ -410,9 +443,27 @@ def resolve_expression(tree: ParseTree | Token, context: Context, meta: Meta = N
 
         case "class_instance_creation":
             new_type = extract_name(tree.children[1])
-            ref_type = resolve_refname(new_type, context)
-            assert isinstance(ref_type, ReferenceType)
-            return ref_type.referenced_type
+            ref_type = resolve_refname(new_type, context).referenced_type
+
+            type_decl = get_enclosing_type_decl(context)
+            arg_types = get_argument_types(context, tree)
+            for constructor in ref_type.constructors:
+                # find matching constructor
+                ctor_param_names = [param.name for param in constructor.resolved_param_types]
+                if ctor_param_names == arg_types:
+                    # construction using new keyword is only allowed if
+                    # 1) calling class is a subclass of the class being constructed
+                    # 2) they are in the same package
+                    if "protected" in constructor.modifiers:
+                        if not (
+                            type_decl.is_subclass_of(ref_type.name) and type_decl.package == ref_type.package
+                        ):
+                            raise SemanticError(
+                                f"Cannot access protected constructor of {ref_type.name} from {type_decl.name}"
+                            )
+                    return ref_type
+
+            raise SemanticError(f"Constructor {ref_type.name}({arg_types}) not found")
 
         case "array_creation_expr" | "array_type":
             array_type = tree.children[1 if tree.data == "array_creation_expr" else 0]
@@ -570,10 +621,6 @@ def resolve_expression(tree: ParseTree | Token, context: Context, meta: Meta = N
                 if ref_name:
                     # assert non primitive type?
                     ref_name = ".".join(ref_name)
-                    # if (ref_type := type_decl.resolve_name(ref_name)) is not None:
-                    #     # check if it resolves to a type (static)
-                    #     is_static_call = True
-                    # else:
                     ref_type = resolve_refname(ref_name, context)
                 else:
                     # assume no static imports
@@ -584,8 +631,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context, meta: Meta = N
                     ref_type = type_decl
             else:
                 # lhs is expression
-                # TODO handle case where lhs resolves to a type? (static)
-                left, method_name = tree.children
+                left, method_name, *_arg_list = tree.children
                 ref_type = resolve_expression(left, context, meta)
 
             # print(ref_name, ref_type)
@@ -594,11 +640,8 @@ def resolve_expression(tree: ParseTree | Token, context: Context, meta: Meta = N
             arg_types = get_argument_types(context, tree, meta)
             method = ref_type.resolve_method(method_name, arg_types, type_decl)
 
-            # if is_static_call and "static" not in method.modifiers:
-            #     raise SemanticError(f"Cannot statically call non-static method {method_name}")
-
-            # if not is_static_call and "static" in method.modifiers:
-            #     raise SemanticError(f"Cannot non-statically call static method {method_name}")
+            if method is None:
+                raise SemanticError(f"Method {ref_type.name}.{method_name}({arg_types}) not found")
 
             return method.return_symbol
 

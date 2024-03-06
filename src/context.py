@@ -125,8 +125,11 @@ def validate_field_access(
     static: bool,
     orig_owner: ClassInterfaceDecl,
 ):
-    if "static" in field.modifiers and not static:
+    if static and "static" not in field.modifiers:
         raise SemanticError(f"Cannot access non-static name {field.name} from static context.")
+
+    if not static and "static" in field.modifiers:
+        raise SemanticError(f"Cannot access static name {field.name} from non-static context.")
 
     if "protected" in field.modifiers:
         container = field.context.parent_node.name
@@ -139,7 +142,7 @@ def validate_field_access(
                 and ("static" in field.modifiers or orig_owner.is_subclass_of(accessor.name))
             )
             # or they can just be in the same package
-            or type_link.get_package_name(accessor.name) == type_link.get_package_name(container)
+            or accessor.package == container.package
         ):
             raise SemanticError(f"Cannot access protected name {field.name} from unrelated context.")
 
@@ -270,9 +273,16 @@ class ClassInterfaceDecl(Symbol):
                 return True
         return False
 
+    @property
+    def package(self):
+        return type_link.get_package_name(self.name)
+
 
 class ClassDecl(ClassInterfaceDecl):
     node_type = "class_decl"
+
+    implements: List[str]
+    constructors: List[ConstructorDecl]
 
     def __init__(
         self,
@@ -339,14 +349,19 @@ class ConstructorDecl(Symbol):
 
     def __init__(self, context, param_types, modifiers):
         super().__init__(context, "constructor")
-        self.param_types = param_types
+        self.param_types = param_types or []
         self.modifiers = modifiers
 
         assert isinstance(self.context.parent_node, ClassDecl)
         self.context.parent_node.constructors.append(self)
 
     def sym_id(self):
-        return "constructor^" + ",".join(self.param_types) if self.param_types is not None else "constructor"
+        return "constructor^" + ",".join(self.param_types)
+
+    @property
+    def resolved_param_types(self):
+        # assumes type linking is finished
+        return [self.context.parent_node.resolve_name(param) for param in self.param_types]
 
 
 class FieldDecl(Symbol):
