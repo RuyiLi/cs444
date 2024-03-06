@@ -77,6 +77,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
     test_directory = os.path.join(os.getcwd(), f"assignment_testcases/a{assignment}")
     test_files_lists = []
     custom_test_names_set = set(custom_test_names) if custom_test_names else None
+    seen_custom_test_names_set = set()
 
     for entry in sorted(os.listdir(test_directory)):
         entry_path = os.path.join(test_directory, entry)
@@ -84,6 +85,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
             if custom_test_names_set:
                 if entry in custom_test_names_set:
                     test_files_lists.append([entry])
+                    seen_custom_test_names_set.add(entry)
             else:
                 test_files_lists.append([entry])
 
@@ -99,8 +101,14 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                 if custom_test_names_set:
                     if entry in custom_test_names_set:
                         test_files_lists.append(test_files_list)
+                        seen_custom_test_names_set.add(entry)
                 else:
                     test_files_lists.append(test_files_list)
+    
+    if custom_test_names_set:
+        missed_tests = custom_test_names_set.difference(seen_custom_test_names_set)
+        for test_name in missed_tests:
+            print(f"Could not find test file or folder in assignment {assignment} with name {test_name}, skipping...")
 
     passed = 0
     failed_tests = []
