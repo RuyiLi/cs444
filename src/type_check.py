@@ -384,6 +384,12 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
                 raise SemanticError(f"Cannot use operand of type {expr_type} in unary negative expression")
             return expr_type
 
+        case "unary_complement_expr":
+            expr_type = resolve_expression(tree.children[0], context)
+            if expr_type != "boolean":
+                raise SemanticError(f"Cannot use operand of type {expr_type} in unary complement expression")
+            return expr_type
+        
         case "array_access":
             assert len(tree.children) == 2
             ref_array, index = tree.children
@@ -459,4 +465,5 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             return context.resolve(f"{ClassInterfaceDecl.node_type}^java.lang.String")
 
         case x:
+            print('assdsd')
             logging.warn(f"Unknown tree data {x}")

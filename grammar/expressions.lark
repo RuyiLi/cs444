@@ -31,6 +31,9 @@ array_access: (expression_name | primary_no_new_array) "[" expr "]"
 
 unary_negative_expr: "-" unary_expr
 
+unary_complement_expr: "!" unary_expr
+
+
 ?unary_expr: pre_dec_expr
            | unary_negative_expr
            | unary_expr_not_plus_minus
@@ -38,7 +41,7 @@ unary_negative_expr: "-" unary_expr
 pre_dec_expr.1: "--" unary_expr     // prioritize over unary_neg
 
 ?unary_expr_not_plus_minus: postfix_expr
-                          | "!" unary_expr
+                          | unary_complement_expr
                           | cast_expr
 
 ?cast_expr: "(" primitive_type SQ_BRACKETS? ")" unary_expr
