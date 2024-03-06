@@ -170,7 +170,7 @@ def load_custom_testcases(test_names: List[str]):
                     res = lark.parse(test_file_contents)
                     logging.debug(res.pretty())
                     Weeder(f.name).visit(res)
-
+                    print(res.pretty())
                     build_environment(res, global_context)
 
                     print(f"Passed {test_name}")
