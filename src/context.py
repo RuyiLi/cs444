@@ -179,30 +179,46 @@ class ClassInterfaceDecl(Symbol):
                 f"Class/interface {self.name} cannot inherit a class/interface more than once."
             )
 
-    def resolve_method(self, method_name: str, argtypes: List[str]) -> Optional[MethodDecl]:
-        # ???
+    def resolve_method(
+        self, method_name: str, argtypes: List[str], allow_static: bool = False
+    ) -> Optional[MethodDecl]:
         signature = method_name + "^" + ",".join(argtypes)
-        for m in self.methods:
-            if m.signature() == signature:
-                return m
+        for method in self.methods:
+            if method.signature() == signature:
+                if not allow_static and "static" in method.modifiers:
+                    raise SemanticError(f"Cannot access non-static method {signature} from static context.")
+                return method
+
+        # TODO interfaces?
         for extend in self.extends:
             parent = self.resolve_name(extend)
             if parent is not None:
-                method = parent.resolve_method(method_name, argtypes)
+                method = parent.resolve_method(method_name, argtypes, allow_static)
                 if method is not None:
+                    if not allow_static and "static" in method.modifiers:
+                        raise SemanticError(
+                            f"Cannot access non-static method {signature} from static context."
+                        )
                     return method
         return None
 
-    def resolve_field(self, field_name: str) -> Optional[FieldDecl]:
-        # ???
-        for f in self.fields:
-            if f.name == field_name:
-                return f
+    def resolve_field(self, field_name: str, allow_static: bool = False) -> Optional[FieldDecl]:
+        for field in self.fields:
+            if field.name == field_name:
+                if not allow_static and "static" in field.modifiers:
+                    raise SemanticError(f"Cannot access non-static field {field_name} from static context.")
+                return field
+
+        # TODO interfaces?
         for extend in self.extends:
             parent = self.resolve_name(extend)
             if parent is not None:
-                field = parent.resolve_field(field_name)
+                field = parent.resolve_field(field_name, allow_static)
                 if field is not None:
+                    if not allow_static and "static" in field.modifiers:
+                        raise SemanticError(
+                            f"Cannot access non-static field {field_name} from static context."
+                        )
                     return field
         return None
 
@@ -271,13 +287,13 @@ class ReferenceType(Symbol):
         self.referenced_type = type_decl
 
     def resolve_field(self, field_name: str) -> Optional[FieldDecl]:
-        field = self.referenced_type.resolve_field(field_name)
+        field = self.referenced_type.resolve_field(field_name, True)
         if field and "static" not in field.modifiers:
             raise SemanticError(f"Cannot access non-static field {field_name} from static context.")
         return field
 
     def resolve_method(self, method_name: str, argtypes: List[str]) -> Optional[FieldDecl]:
-        method = self.referenced_type.resolve_method(method_name, argtypes)
+        method = self.referenced_type.resolve_method(method_name, argtypes, True)
         if method and "static" not in method.modifiers:
             raise SemanticError(f"Cannot access non-static method {method.signature()} from static context.")
         return method

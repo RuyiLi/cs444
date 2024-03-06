@@ -19,7 +19,7 @@ from context import (
 
 from build_environment import extract_name, get_tree_token, get_modifiers
 from name_disambiguation import get_enclosing_type_decl
-from type_link import is_primitive_type, resolve_type
+from type_link import is_primitive_type, get_prefixes
 
 
 NUMERIC_TYPES = {"byte", "short", "int", "char"}
@@ -194,16 +194,28 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
 
 def resolve_refname(name: str, context: Context):
     # assert non primitive type?
-    symbol = context.resolve(f"{ClassDecl.node_type}^{name}")
-    if symbol is not None:
-        # fully qualified name
-        return ReferenceType(symbol)
+    type_decl = get_enclosing_type_decl(context)
 
-    # foo.bar.baz, this.asdf, x
+    ref_type = None
+    for prefix in reversed(get_prefixes(name)):
+        symbol = type_decl.resolve_name(prefix)
+        if symbol is not None:
+            # fully qualified name
+            ref_type = ReferenceType(symbol)
+            name = name[len(prefix) :]
+            break
+
     refs = name.split(".")
-    ref_type = resolve_bare_refname(refs[0], context)
-    for i in range(1, len(refs)):
-        ref_type = ref_type.resolve_field(refs[i]).resolved_sym_type
+    if refs[0] == "":
+        refs.pop(0)
+
+    if ref_type is None:
+        ref_type = resolve_bare_refname(refs[0], context)
+        for i in range(1, len(refs)):
+            ref_type = ref_type.resolve_field(refs[i]).resolved_sym_type
+    else:
+        for ref in refs:
+            ref_type = ref_type.resolve_field(ref).resolved_sym_type
 
     return ref_type
 
@@ -421,7 +433,6 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
         case "method_invocation":
             type_decl = get_enclosing_type_decl(context)
 
-            is_static_call = False
             if tree.children[0].data == "method_name":
                 # method_name ( ... )
                 invocation_name = extract_name(tree.children[0])
@@ -430,11 +441,11 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
                 if ref_name:
                     # assert non primitive type?
                     ref_name = ".".join(ref_name)
-                    if (ref_type := type_decl.resolve_name(ref_name)) is not None:
-                        # check if it resolves to a type (static)
-                        is_static_call = True
-                    else:
-                        ref_type = resolve_refname(ref_name, context)
+                    # if (ref_type := type_decl.resolve_name(ref_name)) is not None:
+                    #     # check if it resolves to a type (static)
+                    #     is_static_call = True
+                    # else:
+                    ref_type = resolve_refname(ref_name, context)
                 else:
                     # assume no static imports
                     if is_static_context(context):
@@ -460,11 +471,11 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
                 arg_types = [arg_type.name for arg_type in arg_types]
             method = ref_type.resolve_method(method_name, arg_types)
 
-            if is_static_call and "static" not in method.modifiers:
-                raise SemanticError(f"Cannot statically call non-static method {method_name}")
+            # if is_static_call and "static" not in method.modifiers:
+            #     raise SemanticError(f"Cannot statically call non-static method {method_name}")
 
-            if not is_static_call and "static" in method.modifiers:
-                raise SemanticError(f"Cannot non-statically call static method {method_name}")
+            # if not is_static_call and "static" in method.modifiers:
+            #     raise SemanticError(f"Cannot non-statically call static method {method_name}")
 
             return method.return_symbol
 
