@@ -117,6 +117,18 @@ def parse_node(tree: ParseTree, context: Context):
             if isinstance(child, Tree) and child.data not in scope_stmts:
                 parse_node(child, context)
 
+        case "if_st" | "if_else_st" | "if_else_st_no_short_if" | "while_st" | "while_st_no_short_if" | "for_st":
+            expr = next(filter(lambda c: isinstance(c, Tree) and c.data == "expr", tree.children), None)
+
+            # For statements are allowed to have an optional expression
+            if expr is None:
+                return
+
+            condition_type = resolve_expression(expr, context)
+
+            if condition_type.name != "boolean":
+                raise SemanticError(f"If/While/For condition must have type boolean (found {condition_type.name})")
+
         case "assignment" | "method_invocation" | "field_access" | "array_access" | "expr":
             return resolve_expression(tree, context)
 
@@ -322,20 +334,33 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             assert isinstance(ref_type, ReferenceType)
             return ref_type.referenced_type
 
-        case "array_creation_expr":
-            array_type = tree.children[1]
+        case "array_creation_expr" | "array_type":
+            array_type = tree.children[1 if tree.data == "array_creation_expr" else 0]
+
+            if tree.data == "array_creation_expr":
+                size_expr = next(tree.find_data("expr"))
+                size_expr_type = resolve_expression(size_expr, context)
+
+                if not is_numeric_type(size_expr_type):
+                    raise SemanticError(f"Size expression of array creation must be a numeric type (found {size_expr_type.name})");
+
             if is_primitive_type(array_type):
                 return ArrayType(f"{array_type}[]")
 
-            type_name = extract_name(tree.children[1])
+            type_name = extract_name(array_type)
             symbol = get_enclosing_type_decl(context).type_names.get(type_name)
 
             if symbol is None:
                 raise SemanticError(f"Type name '{type_name}' could not be resolved.")
+
             return ArrayType(f"{symbol.name}[]")
 
         case "mult_expr":
             left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
+
+            if any(t.name == "void" for t in [left_type, right_type]):
+                raise SemanticError(f"Operand cannot have type void in mult expression")
+
             if not is_numeric_type(left_type) or not is_numeric_type(right_type):
                 raise SemanticError(
                     f"Cannot use operands of type {left_type},{right_type} in mult expression"
@@ -346,6 +371,9 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
 
         case "add_expr":
             left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
+
+            if any(t.name == "void" for t in [left_type, right_type]):
+                raise SemanticError(f"Operand cannot have type void in add expression")
 
             if left_type.name == "java.lang.String":
                 return left_type
@@ -361,8 +389,11 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
         case "sub_expr":
             left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
 
+            if any(t.name == "void" for t in [left_type, right_type]):
+                raise SemanticError(f"Operand cannot have type void in subtract expression")
+
             if not is_numeric_type(left_type) or not is_numeric_type(right_type):
-                raise SemanticError(f"Cannot use operands of type {left_type},{right_type} in add expression")
+                raise SemanticError(f"Cannot use operands of type {left_type},{right_type} in subtract expression")
 
             # Binary numeric promotion into int
             return PrimitiveType("int")
@@ -375,6 +406,9 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
                 left_type, op, right_type = operands
             else:
                 left_type, right_type = operands
+
+            if any(t.name == "void" for t in [left_type, right_type]):
+                raise SemanticError(f"Operand cannot have type void in relational expression")
 
             if op == "instanceof":
                 if not (
@@ -396,14 +430,14 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
         case "eq_expr":
             left_type, _, right_type = map(lambda c: resolve_expression(c, context), tree.children)
 
-            if not (
-                all(map(is_numeric_type, [left_type, right_type]))
-                or all(t.name == "boolean" for t in [left_type, right_type])
-                or all(
-                    isinstance(t, ClassInterfaceDecl) or isinstance(t, NullReference)
-                    for t in [left_type, right_type]
-                )
-            ):
+            if any(t.name == "void" for t in [left_type, right_type]):
+                raise SemanticError(f"Operand cannot have type void in equality expression")
+
+            if not (all(map(is_numeric_type, [left_type, right_type])) or
+                all(t.name == "boolean" for t in [left_type, right_type]) or
+                (all(isinstance(t, ClassInterfaceDecl) or isinstance(t, NullReference) for t in [left_type, right_type])) and
+                    castable(left_type, right_type, get_enclosing_type_decl(context))):
+
                 raise SemanticError(
                     f"Cannot use operands of type {left_type},{right_type} in equality expression"
                 )
@@ -412,6 +446,9 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
 
         case "eager_and_expr" | "eager_or_expr" | "and_expr" | "or_expr":
             left_type, _, right_type = map(lambda c: resolve_expression(c, context), tree.children)
+
+            if any(t.name == "void" for t in [left_type, right_type]):
+                raise SemanticError(f"Operand cannot have type void in and/or expression")
 
             if left_type.name != "boolean" or right_type.name != "boolean":
                 raise SemanticError(
@@ -481,12 +518,20 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
 
         case "unary_negative_expr":
             expr_type = resolve_expression(tree.children[0], context)
+
+            if expr_type.name == "void":
+                raise SemanticError(f"Operand cannot have type void in unary negative expression")
+
             if not is_numeric_type(expr_type):
                 raise SemanticError(f"Cannot use operand of type {expr_type} in unary negative expression")
             return expr_type
 
         case "unary_complement_expr":
             expr_type = resolve_expression(tree.children[0], context)
+
+            if expr_type.name == "void":
+                raise SemanticError(f"Operand cannot have type void in unary complement expression")
+
             if expr_type != "boolean":
                 raise SemanticError(f"Cannot use operand of type {expr_type} in unary complement expression")
             return expr_type
@@ -524,13 +569,15 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             if castable(source_type, cast_type, type_decl):
                 return cast_type
 
+            if source_type.name == "void":
+                raise SemanticError(f"Cast target cannot be of type void")
+
             raise SemanticError(f"Cannot cast type {source_type.name} to {cast_type.name}")
 
         case "assignment":
-            lhs = next(tree.find_data("lhs"))
-            lhs = resolve_expression(lhs.children[0], context)
+            lhs_tree = next(tree.find_data("lhs")).children[0]
+            lhs = resolve_expression(lhs_tree, context)
             expr = resolve_expression(tree.children[1], context)
-            # print(99, lhs, expr)
             if not assignable(expr, lhs, get_enclosing_type_decl(context)):
                 raise SemanticError(f"Cannot assign type {expr} to {lhs}")
 
