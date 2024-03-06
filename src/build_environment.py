@@ -211,7 +211,7 @@ def parse_node(tree: ParseTree, context: Context):
             field_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
 
             logging.debug(f"field_declaration {field_name} {modifiers} {field_type}")
-            context.declare(FieldDecl(context, field_name, modifiers, field_type))
+            context.declare(FieldDecl(context, field_name, modifiers, field_type, tree.meta))
 
         case "local_var_declaration":
             var_type = extract_type(next(tree.find_data("type")))
