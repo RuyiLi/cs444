@@ -18,10 +18,9 @@ from context import (
     ReferenceType,
 )
 
-from build_environment import extract_name, get_tree_token, get_modifiers
+from build_environment import extract_name, get_tree_token, get_modifiers, get_formal_params
 from name_disambiguation import get_enclosing_type_decl
-from type_link import is_primitive_type, get_prefixes
-
+from type_link import is_primitive_type, get_simple_name, get_prefixes
 
 NUMERIC_TYPES = {"byte", "short", "int", "char"}
 
@@ -68,6 +67,16 @@ def extract_type(tree: ParseTree | Token):
     return extract_type(tree.children[0])
 
 
+def get_argument_types(context: Context, tree: Tree):
+    arg_list = next(tree.find_data("argument_list"), None)
+    if arg_list is None:
+        arg_types = []
+    else:
+        arg_types = map(lambda c: resolve_expression(c, context), arg_list.children)
+        arg_types = [arg_type.name for arg_type in arg_types]
+    return arg_types
+
+
 def parse_node(tree: ParseTree, context: Context):
     match tree.data:
         case "constructor_declaration" | "method_declaration":
@@ -89,6 +98,24 @@ def parse_node(tree: ParseTree, context: Context):
                 rhs_type = resolve_expression(rhs.children[0], static_context)
                 if not assignable(rhs_type, field_type, type_decl):
                     raise SemanticError(f"Cannot assign type {rhs_type.name} to {field_type.name}")
+
+        case "class_instance_creation":
+            type_decl = get_enclosing_type_decl(context)
+            arg_types = get_argument_types(context, tree)
+            formal_param_types = []
+            for constructor in type_decl.constructors:
+                formal_param_types, _ = get_formal_params(constructor.context.tree)
+
+            if len(formal_param_types) != len(arg_types):
+                raise SemanticError(
+                    f"constructor declaration {formal_param_types} differs in argument count from class declaration {arg_types}"
+                )
+
+            for arg_type, formal_param_type in zip(arg_types, formal_param_types):
+                if get_simple_name(arg_type) != get_simple_name(formal_param_type):
+                    raise SemanticError(
+                        f"constructor declaration {formal_param_types} differs in type from class declaration {arg_types}"
+                    )
 
         case "local_var_declaration":
             # print(tree)
@@ -528,14 +555,8 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             # print(ref_name, ref_type)
             if is_primitive_type(ref_type):
                 raise SemanticError(f"Cannot call method {method_name} on simple type {ref_type}")
-
-            arg_list = next(tree.find_data("argument_list"), None)
-            if arg_list is None:
-                arg_types = []
-            else:
-                arg_types = map(lambda c: resolve_expression(c, context), arg_list.children)
-                arg_types = [arg_type.name for arg_type in arg_types]
-            method = ref_type.resolve_method(method_name, arg_types, type_decl)
+            arg_types = get_argument_types(context, tree)
+            method = ref_type.resolve_method(method_name, arg_types)
 
             # if is_static_call and "static" not in method.modifiers:
             #     raise SemanticError(f"Cannot statically call non-static method {method_name}")
