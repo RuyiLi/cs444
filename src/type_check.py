@@ -330,7 +330,8 @@ def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_mo
                         "Initializer of non-static field cannot use a non-static field declared later without explicit 'this'."
                     )
         old_ref_type = ref_type
-        
+        ref_type = ref_type.resolve_field(refs[i], type_decl).resolved_sym_type
+
         if (
             get_final_modifier
             and isinstance(old_ref_type, ArrayType)
