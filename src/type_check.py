@@ -247,7 +247,7 @@ VALID_PRIMITIVE_CONVERSIONS_WIDENING = dict(
     float={"double"},
 )
 
-VALID_PRIMITIVE_CONVERSIONS_SHORTENING = dict(
+VALID_PRIMITIVE_CONVERSIONS_NARROWING = dict(
     byte={"char"},
     short={"byte", "char"},
     char={"byte", "short"},
@@ -307,6 +307,17 @@ def assignable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
 
 
 def castable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
+    if s.name == t.name:
+        return True
+
+    if is_primitive_type(s) != is_primitive_type(t):
+        return False
+
+    if is_primitive_type(s):
+        # s and t are both primitive types
+        return t.name in VALID_PRIMITIVE_CONVERSIONS_WIDENING[s.name] or \
+               t.name in VALID_PRIMITIVE_CONVERSIONS_NARROWING[s.name]
+
     if assignable(s, t, type_decl) or assignable(t, s, type_decl):
         return True
 
