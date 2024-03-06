@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Set
 from collections import defaultdict
 from lark import Tree
+from lark.tree import Meta
 
 import type_link
 
@@ -14,6 +15,7 @@ class SemanticError(Exception):
 class Symbol:
     context: Context
     name: str
+    meta: Meta
 
     # node types are at class level ("static") so we can access them with smth like ClassDecl.node_type
     node_type: str
@@ -332,10 +334,11 @@ class ConstructorDecl(Symbol):
 class FieldDecl(Symbol):
     node_type = "field_decl"
 
-    def __init__(self, context, name, modifiers, field_type):
+    def __init__(self, context, name, modifiers, field_type, meta):
         super().__init__(context, name)
         self.modifiers = modifiers
         self.sym_type = field_type
+        self.meta = meta
 
         assert isinstance(self.context.parent_node, ClassInterfaceDecl)
         self.context.parent_node.fields.append(self)

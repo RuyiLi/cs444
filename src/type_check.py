@@ -2,6 +2,7 @@ import logging
 import copy
 
 from lark import ParseTree, Token, Tree
+from lark.tree import Meta
 from context import (
     ArrayType,
     ClassDecl,
@@ -67,12 +68,12 @@ def extract_type(tree: ParseTree | Token):
     return extract_type(tree.children[0])
 
 
-def get_argument_types(context: Context, tree: Tree):
+def get_argument_types(context: Context, tree: Tree, meta: Meta = None):
     arg_list = next(tree.find_data("argument_list"), None)
     if arg_list is None:
         arg_types = []
     else:
-        arg_types = map(lambda c: resolve_expression(c, context), arg_list.children)
+        arg_types = map(lambda c: resolve_expression(c, context, meta), arg_list.children)
         arg_types = [arg_type.name for arg_type in arg_types]
     return arg_types
 
@@ -95,7 +96,7 @@ def parse_node(tree: ParseTree, context: Context):
             if rhs is not None:
                 static_context = copy.copy(context)
                 static_context.is_static = "static" in modifiers
-                rhs_type = resolve_expression(rhs.children[0], static_context)
+                rhs_type = resolve_expression(rhs.children[0], static_context, tree.meta)
                 if not assignable(rhs_type, field_type, type_decl):
                     raise SemanticError(f"Cannot assign type {rhs_type.name} to {field_type.name}")
 
@@ -237,7 +238,7 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
     return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
 
 
-def resolve_refname(name: str, context: Context):
+def resolve_refname(name: str, context: Context, meta: Meta = None):
     # assert non primitive type?
     type_decl = get_enclosing_type_decl(context)
 
@@ -260,7 +261,16 @@ def resolve_refname(name: str, context: Context):
         ref_type = resolve_bare_refname(refs[0], context)
         start_idx = 1
 
+    if len(refs) <= 2 and meta is not None and refs[0] != "this" and any(refs[0] == f.name for f in type_decl.fields):
+        if (declare := context.resolve(f"{FieldDecl.node_type}^{name}") or context.resolve(f"{FieldDecl.node_type}^{'.'.join(refs[:-1])}")):
+            if "static" not in declare.modifiers and declare.meta.line > meta.line or (declare.meta.line == meta.line and declare.meta.column >= meta.column):
+                raise SemanticError(f"Initializer of non-static field cannot use a non-static field declared later without explicit 'this'.")
+
     for i in range(start_idx, len(refs)):
+        if len(refs) > 1 and meta is not None and refs[0] != "this" and any(refs[0] == f.name for f in type_decl.fields):
+            if (declare := context.resolve(f"{FieldDecl.node_type}^{'.'.join(refs[:i+1])}")):
+                if "static" not in declare.modifiers and declare.meta.line > meta.line or (declare.meta.line == meta.line and declare.meta.column >= meta.column):
+                    raise SemanticError(f"Initializer of non-static field cannot use a non-static field declared later without explicit 'this'.")
         ref_type = ref_type.resolve_field(refs[i], type_decl).resolved_sym_type
 
     return ref_type
@@ -359,7 +369,7 @@ def castable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
     return False
 
 
-def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | None:
+def resolve_expression(tree: ParseTree | Token, context: Context, meta: Meta = None) -> Symbol | None:
     """
     Resolves the type of an expression tree.
     TODO fix arraytype
@@ -371,7 +381,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
     match tree.data:
         case "expr":
             assert len(tree.children) == 1
-            return resolve_expression(tree.children[0], context)
+            return resolve_expression(tree.children[0], context, meta)
 
         case "class_instance_creation":
             new_type = extract_name(tree.children[1])
@@ -384,7 +394,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
 
             if tree.data == "array_creation_expr":
                 size_expr = next(tree.find_data("expr"))
-                size_expr_type = resolve_expression(size_expr, context)
+                size_expr_type = resolve_expression(size_expr, context, meta)
 
                 if not is_numeric_type(size_expr_type):
                     raise SemanticError(
@@ -403,7 +413,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             return ArrayType(f"{symbol.name}[]")
 
         case "mult_expr":
-            left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
+            left_type, right_type = map(lambda c: resolve_expression(c, context, meta), tree.children)
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in mult expression")
@@ -417,7 +427,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             return PrimitiveType("int")
 
         case "add_expr":
-            left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
+            left_type, right_type = map(lambda c: resolve_expression(c, context, meta), tree.children)
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in add expression")
@@ -434,7 +444,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             return PrimitiveType("int")
 
         case "sub_expr":
-            left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
+            left_type, right_type = map(lambda c: resolve_expression(c, context, meta), tree.children)
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in subtract expression")
@@ -448,7 +458,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             return PrimitiveType("int")
 
         case "rel_expr":
-            operands = list(map(lambda c: resolve_expression(c, context), tree.children))
+            operands = list(map(lambda c: resolve_expression(c, context, meta), tree.children))
             op = None
 
             if len(operands) == 3:
@@ -477,7 +487,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             return PrimitiveType("boolean")
 
         case "eq_expr":
-            left_type, _, right_type = map(lambda c: resolve_expression(c, context), tree.children)
+            left_type, _, right_type = map(lambda c: resolve_expression(c, context, meta), tree.children)
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in equality expression")
@@ -500,7 +510,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             return PrimitiveType("boolean")
 
         case "eager_and_expr" | "eager_or_expr" | "and_expr" | "or_expr":
-            left_type, _, right_type = map(lambda c: resolve_expression(c, context), tree.children)
+            left_type, _, right_type = map(lambda c: resolve_expression(c, context, meta), tree.children)
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in and/or expression")
@@ -515,11 +525,11 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
         case "expression_name" | "type_name":
             # expression_name actually handles a lot of the field access cases...
             name = extract_name(tree)
-            return resolve_refname(name, context)
+            return resolve_refname(name, context, meta)
 
         case "field_access":
             left, field_name = tree.children
-            left_type = resolve_expression(left, context)
+            left_type = resolve_expression(left, context, meta)
             type_decl = get_enclosing_type_decl(context)
             field = left_type.resolve_field(field_name, type_decl)
             return field.resolved_sym_type
@@ -551,13 +561,14 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
                 # lhs is expression
                 # TODO handle case where lhs resolves to a type? (static)
                 left, method_name = tree.children
-                ref_type = resolve_expression(left, context)
+                ref_type = resolve_expression(left, context, meta)
 
             # print(ref_name, ref_type)
             if is_primitive_type(ref_type):
                 raise SemanticError(f"Cannot call method {method_name} on simple type {ref_type}")
-            arg_types = get_argument_types(context, tree)
+            arg_types = get_argument_types(context, tree, meta)
             method = ref_type.resolve_method(method_name, arg_types, type_decl)
+
 
             # if is_static_call and "static" not in method.modifiers:
             #     raise SemanticError(f"Cannot statically call non-static method {method_name}")
@@ -568,7 +579,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             return method.return_symbol
 
         case "unary_negative_expr":
-            expr_type = resolve_expression(tree.children[0], context)
+            expr_type = resolve_expression(tree.children[0], context, meta)
 
             if expr_type.name == "void":
                 raise SemanticError("Operand cannot have type void in unary negative expression")
@@ -578,7 +589,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             return expr_type
 
         case "unary_complement_expr":
-            expr_type = resolve_expression(tree.children[0], context)
+            expr_type = resolve_expression(tree.children[0], context, meta)
 
             if expr_type.name == "void":
                 raise SemanticError("Operand cannot have type void in unary complement expression")
@@ -591,11 +602,11 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             assert len(tree.children) == 2
             ref_array, index = tree.children
 
-            index_type = resolve_expression(index, context)
+            index_type = resolve_expression(index, context, meta)
             if not is_numeric_type(index_type):
                 raise SemanticError(f"Array index must be an integer type, not {index_type}")
 
-            array_type = resolve_expression(ref_array, context)
+            array_type = resolve_expression(ref_array, context, meta)
             if not isinstance(array_type, ArrayType):
                 raise SemanticError(f"Cannot index non-array type {array_type}")
 
@@ -613,7 +624,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
                 assert square_brackets.value == "[]"
                 cast_type = type_decl.resolve_name(cast_type.value + "[]")
 
-            source_type = resolve_expression(cast_target, context)
+            source_type = resolve_expression(cast_target, context, meta)
             if is_primitive_type(source_type) and isinstance(source_type, str):
                 source_type = PrimitiveType(source_type)
 
@@ -627,8 +638,8 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
 
         case "assignment":
             lhs_tree = next(tree.find_data("lhs")).children[0]
-            lhs = resolve_expression(lhs_tree, context)
-            expr = resolve_expression(tree.children[1], context)
+            lhs = resolve_expression(lhs_tree, context) # We allow all left-hand operands, even if non-static and forward
+            expr = resolve_expression(tree.children[1], context, meta)
             if not assignable(expr, lhs, get_enclosing_type_decl(context)):
                 raise SemanticError(f"Cannot assign type {expr} to {lhs}")
 
