@@ -225,10 +225,10 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
         return type_decl
 
     symbol = context.resolve(f"{LocalVarDecl.node_type}^{name}")
-    if not is_static_context(context):
+    if symbol is None and not is_static_context(context):
         # disallow implicit this in static context
         # assume no static imports
-        symbol = symbol or type_decl.resolve_field(name, type_decl)
+        symbol = type_decl.resolve_field(name, type_decl)
     symbol = symbol or type_decl.resolve_name(name)
 
     if symbol is None:
@@ -275,7 +275,7 @@ def resolve_refname(name: str, context: Context, meta: Meta = None):
                 or (declare.meta.line == meta.line and declare.meta.column >= meta.column)
             ):
                 raise SemanticError(
-                    f"Initializer of non-static field cannot use a non-static field declared later without explicit 'this'."
+                    "Initializer of non-static field cannot use a non-static field declared later without explicit 'this'."
                 )
 
     for i in range(start_idx, len(refs)):
@@ -292,7 +292,7 @@ def resolve_refname(name: str, context: Context, meta: Meta = None):
                     or (declare.meta.line == meta.line and declare.meta.column >= meta.column)
                 ):
                     raise SemanticError(
-                        f"Initializer of non-static field cannot use a non-static field declared later without explicit 'this'."
+                        "Initializer of non-static field cannot use a non-static field declared later without explicit 'this'."
                     )
         ref_type = ref_type.resolve_field(refs[i], type_decl).resolved_sym_type
 

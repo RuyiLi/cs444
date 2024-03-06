@@ -119,14 +119,26 @@ class ArrayType(Symbol):
         return None
 
 
-def validate_field_access(field: FieldDecl | MethodDecl, accessor: ClassInterfaceDecl, static: bool):
+def validate_field_access(
+    field: FieldDecl | MethodDecl,
+    accessor: ClassInterfaceDecl,
+    static: bool,
+    orig_owner: ClassInterfaceDecl,
+):
     if "static" in field.modifiers and not static:
         raise SemanticError(f"Cannot access non-static name {field.name} from static context.")
 
     if "protected" in field.modifiers:
         container = field.context.parent_node.name
         if not (
-            accessor.is_subclass_of(container)
+            (
+                # accessor must always be a subclass of the declaring class
+                accessor.is_subclass_of(container)
+                # if the field is not static (ie instance), the ref type of the field access
+                # must be a subclass of the accessor
+                and ("static" in field.modifiers or orig_owner.is_subclass_of(accessor.name))
+            )
+            # or they can just be in the same package
             or type_link.get_package_name(accessor.name) == type_link.get_package_name(container)
         ):
             raise SemanticError(f"Cannot access protected name {field.name} from unrelated context.")
@@ -200,20 +212,23 @@ class ClassInterfaceDecl(Symbol):
         argtypes: List[str],
         accessor: ClassInterfaceDecl,
         allow_static: bool = False,
+        orig_owner: ClassInterfaceDecl = None,
     ) -> Optional[MethodDecl]:
+        orig_owner = orig_owner or self
+
         signature = method_name + "^" + ",".join(argtypes)
         for method in self.methods:
             if method.signature() == signature:
-                validate_field_access(method, accessor, allow_static)
+                validate_field_access(method, accessor, allow_static, orig_owner)
                 return method
 
         # TODO interfaces?
         for extend in self.extends:
             parent = self.resolve_name(extend)
             if parent is not None:
-                method = parent.resolve_method(method_name, argtypes, accessor, allow_static)
+                method = parent.resolve_method(method_name, argtypes, accessor, allow_static, orig_owner)
                 if method is not None:
-                    validate_field_access(method, accessor, allow_static)
+                    validate_field_access(method, accessor, allow_static, orig_owner)
                     return method
         return None
 
@@ -222,19 +237,22 @@ class ClassInterfaceDecl(Symbol):
         field_name: str,
         accessor: ClassInterfaceDecl,
         allow_static: bool = False,
+        orig_owner: ClassInterfaceDecl = None,
     ) -> Optional[FieldDecl]:
+        orig_owner = orig_owner or self
+
         for field in self.fields:
             if field.name == field_name:
-                validate_field_access(field, accessor, allow_static)
+                validate_field_access(field, accessor, allow_static, orig_owner)
                 return field
 
         # TODO interfaces?
         for extend in self.extends:
             parent = self.resolve_name(extend)
             if parent is not None:
-                field = parent.resolve_field(field_name, accessor, allow_static)
+                field = parent.resolve_field(field_name, accessor, allow_static, orig_owner)
                 if field is not None:
-                    validate_field_access(field, accessor, allow_static)
+                    validate_field_access(field, accessor, allow_static, orig_owner)
                     return field
         return None
 
