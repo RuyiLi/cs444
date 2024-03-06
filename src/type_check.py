@@ -227,13 +227,13 @@ def resolve_refname(name: str, context: Context):
     if refs[0] == "":
         refs.pop(0)
 
+    start_idx = 0
     if ref_type is None:
         ref_type = resolve_bare_refname(refs[0], context)
-        for i in range(1, len(refs)):
-            ref_type = ref_type.resolve_field(refs[i]).resolved_sym_type
-    else:
-        for ref in refs:
-            ref_type = ref_type.resolve_field(ref).resolved_sym_type
+        start_idx = 1
+
+    for i in range(start_idx, len(refs)):
+        ref_type = ref_type.resolve_field(refs[i], type_decl).resolved_sym_type
 
     return ref_type
 
@@ -474,13 +474,15 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             return PrimitiveType("boolean")
 
         case "expression_name" | "type_name":
+            # expression_name actually handles a lot of the field access cases...
             name = extract_name(tree)
             return resolve_refname(name, context)
 
         case "field_access":
             left, field_name = tree.children
             left_type = resolve_expression(left, context)
-            field = left_type.resolve_field(field_name)
+            type_decl = get_enclosing_type_decl(context)
+            field = left_type.resolve_field(field_name, type_decl)
             return field.resolved_sym_type
 
         case "method_invocation":
@@ -522,7 +524,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             else:
                 arg_types = map(lambda c: resolve_expression(c, context), arg_list.children)
                 arg_types = [arg_type.name for arg_type in arg_types]
-            method = ref_type.resolve_method(method_name, arg_types)
+            method = ref_type.resolve_method(method_name, arg_types, type_decl)
 
             # if is_static_call and "static" not in method.modifiers:
             #     raise SemanticError(f"Cannot statically call non-static method {method_name}")

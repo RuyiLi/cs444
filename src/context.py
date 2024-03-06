@@ -106,7 +106,7 @@ class ArrayType(Symbol):
     def sym_id(self):
         return f"array_type^{self.name}"
 
-    def resolve_field(self, field_name: str) -> Optional[FieldDecl]:
+    def resolve_field(self, field_name: str, _accessor) -> Optional[FieldDecl]:
         if field_name == "length":
             # hardcode builtin property length for array types
             sym = Symbol(None, "length")
@@ -115,6 +115,19 @@ class ArrayType(Symbol):
             sym.modifiers = ["public", "final"]
             return sym
         return None
+
+
+def validate_field_access(field: FieldDecl | MethodDecl, accessor: ClassInterfaceDecl, static: bool):
+    if "static" in field.modifiers and not static:
+        raise SemanticError(f"Cannot access non-static name {field.name} from static context.")
+
+    if "protected" in field.modifiers:
+        container = field.context.parent_node.name
+        if not (
+            accessor.is_subclass_of(container)
+            or type_link.get_package_name(accessor.name) == type_link.get_package_name(container)
+        ):
+            raise SemanticError(f"Cannot access protected name {field.name} from unrelated context.")
 
 
 class ClassInterfaceDecl(Symbol):
@@ -180,45 +193,46 @@ class ClassInterfaceDecl(Symbol):
             )
 
     def resolve_method(
-        self, method_name: str, argtypes: List[str], allow_static: bool = False
+        self,
+        method_name: str,
+        argtypes: List[str],
+        accessor: ClassInterfaceDecl,
+        allow_static: bool = False,
     ) -> Optional[MethodDecl]:
         signature = method_name + "^" + ",".join(argtypes)
         for method in self.methods:
             if method.signature() == signature:
-                if not allow_static and "static" in method.modifiers:
-                    raise SemanticError(f"Cannot access non-static method {signature} from static context.")
+                validate_field_access(method, accessor, allow_static)
                 return method
 
         # TODO interfaces?
         for extend in self.extends:
             parent = self.resolve_name(extend)
             if parent is not None:
-                method = parent.resolve_method(method_name, argtypes, allow_static)
+                method = parent.resolve_method(method_name, argtypes, accessor, allow_static)
                 if method is not None:
-                    if not allow_static and "static" in method.modifiers:
-                        raise SemanticError(
-                            f"Cannot access non-static method {signature} from static context."
-                        )
+                    validate_field_access(method, accessor, allow_static)
                     return method
         return None
 
-    def resolve_field(self, field_name: str, allow_static: bool = False) -> Optional[FieldDecl]:
+    def resolve_field(
+        self,
+        field_name: str,
+        accessor: ClassInterfaceDecl,
+        allow_static: bool = False,
+    ) -> Optional[FieldDecl]:
         for field in self.fields:
             if field.name == field_name:
-                if not allow_static and "static" in field.modifiers:
-                    raise SemanticError(f"Cannot access non-static field {field_name} from static context.")
+                validate_field_access(field, accessor, allow_static)
                 return field
 
         # TODO interfaces?
         for extend in self.extends:
             parent = self.resolve_name(extend)
             if parent is not None:
-                field = parent.resolve_field(field_name, allow_static)
+                field = parent.resolve_field(field_name, accessor, allow_static)
                 if field is not None:
-                    if not allow_static and "static" in field.modifiers:
-                        raise SemanticError(
-                            f"Cannot access non-static field {field_name} from static context."
-                        )
+                    validate_field_access(field, accessor, allow_static)
                     return field
         return None
 
@@ -228,6 +242,8 @@ class ClassInterfaceDecl(Symbol):
                 method.return_symbol = self.resolve_name(method.return_type)
 
     def is_subclass_of(self, name: str):
+        if self.name == name:
+            return True
         for extend in self.extends:
             parent = self.resolve_name(extend)
             if name == parent.name or parent.is_subclass_of(name):
@@ -286,17 +302,16 @@ class ReferenceType(Symbol):
         super().__init__(None, f"reference_type^{type_decl.name}")
         self.referenced_type = type_decl
 
-    def resolve_field(self, field_name: str) -> Optional[FieldDecl]:
-        field = self.referenced_type.resolve_field(field_name, True)
-        if field and "static" not in field.modifiers:
-            raise SemanticError(f"Cannot access non-static field {field_name} from static context.")
-        return field
+    def resolve_field(self, field_name: str, accessor: ClassInterfaceDecl) -> Optional[FieldDecl]:
+        return self.referenced_type.resolve_field(field_name, accessor, True)
 
-    def resolve_method(self, method_name: str, argtypes: List[str]) -> Optional[FieldDecl]:
-        method = self.referenced_type.resolve_method(method_name, argtypes, True)
-        if method and "static" not in method.modifiers:
-            raise SemanticError(f"Cannot access non-static method {method.signature()} from static context.")
-        return method
+    def resolve_method(
+        self,
+        method_name: str,
+        argtypes: List[str],
+        accessor: ClassInterfaceDecl,
+    ) -> Optional[FieldDecl]:
+        return self.referenced_type.resolve_method(method_name, argtypes, accessor, True)
 
 
 class ConstructorDecl(Symbol):
