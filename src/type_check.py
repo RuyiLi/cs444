@@ -247,7 +247,8 @@ def resolve_refname(name: str, context: Context):
         if symbol is not None:
             # fully qualified name
             ref_type = ReferenceType(symbol)
-            name = name[len(prefix) :]
+            ref_type.name = symbol.name
+            name = name[len(prefix):]
             break
 
     refs = name.split(".")
