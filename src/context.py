@@ -39,13 +39,15 @@ class Context:
     parent_node: Symbol
     symbol_map: Dict[str, Symbol]
     tree: Tree
+    is_static: bool
 
-    def __init__(self, parent: Context, parent_node: Symbol, tree: Tree):
+    def __init__(self, parent: Context, parent_node: Symbol, tree: Tree, is_static: bool = False):
         self.parent = parent
         self.parent_node = parent_node
         self.children = []
         self.symbol_map = {}
         self.tree = tree
+        self.is_static = is_static
 
     def declare(self, symbol: Symbol):
         existing = self.resolve(symbol.sym_id())
@@ -259,6 +261,26 @@ class InterfaceDecl(ClassInterfaceDecl):
         imports: List[type_link.ImportDeclaration],
     ):
         super().__init__(context, name, modifiers, extends, imports)
+
+
+class ReferenceType(Symbol):
+    node_type = "reference_type"
+
+    def __init__(self, type_decl: ClassInterfaceDecl):
+        super().__init__(None, f"reference_type^{type_decl.name}")
+        self.referenced_type = type_decl
+
+    def resolve_field(self, field_name: str) -> Optional[FieldDecl]:
+        field = self.referenced_type.resolve_field(field_name)
+        if field and "static" not in field.modifiers:
+            raise SemanticError(f"Cannot access non-static field {field_name} from static context.")
+        return field
+
+    def resolve_method(self, method_name: str, argtypes: List[str]) -> Optional[FieldDecl]:
+        method = self.referenced_type.resolve_method(method_name, argtypes)
+        if method and "static" not in method.modifiers:
+            raise SemanticError(f"Cannot access non-static method {method.signature()} from static context.")
+        return method
 
 
 class ConstructorDecl(Symbol):
