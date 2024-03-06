@@ -171,6 +171,8 @@ VALID_PRIMITIVE_CONVERSIONS_SHORTENING = dict(
 
 
 def assignable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
+    "Returns true if s is assignable to t."
+
     if s.name == t.name:
         return True
 
@@ -183,7 +185,7 @@ def assignable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
 
     # s and t are both reference types
 
-    if t.name == "java.lang.Object" or t.name == "null":
+    if t.name == "java.lang.Object" or s.name == "null":
         return True
 
     if s.node_type == ClassDecl.node_type:
@@ -203,9 +205,15 @@ def assignable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
             case InterfaceDecl.node_type:
                 return t.name == "java.lang.Cloneable" or t.name == "java.io.Serializable"
             case ArrayType.node_type:
-                s = type_decl.resolve_name(s.name[:-2])
-                t = type_decl.resolve_name(t.name[:-2])
-                return assignable(s, t, type_decl)
+                s_type = type_decl.resolve_name(s.name[:-2])
+                t_type = type_decl.resolve_name(t.name[:-2])
+
+                if all(map(is_primitive_type, [s_type, t_type])):
+                    return s_type == t_type
+                elif all(isinstance(ty, ClassInterfaceDecl) for ty in [s_type, t_type]):
+                    return assignable(s_type, t_type, type_decl)
+                else:
+                    return False
 
     return False
 
