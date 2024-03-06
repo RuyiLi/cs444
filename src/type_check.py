@@ -272,8 +272,9 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
     return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
 
 
-def resolve_refname(name: str, context: Context, meta: Meta = None):
+def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_modifier=False):
     # assert non primitive type?
+    final_modifier = False
     type_decl = get_enclosing_type_decl(context)
     ref_type = None
     for prefix in reversed(get_prefixes(name)):
@@ -328,8 +329,18 @@ def resolve_refname(name: str, context: Context, meta: Meta = None):
                     raise SemanticError(
                         "Initializer of non-static field cannot use a non-static field declared later without explicit 'this'."
                     )
-        ref_type = ref_type.resolve_field(refs[i], type_decl).resolved_sym_type
+        old_ref_type = ref_type
+        
+        if (
+            get_final_modifier
+            and isinstance(old_ref_type, ArrayType)
+            and ref_type == "int"
+            and refs[i] == "length"
+        ):
+            final_modifier = True
 
+    if get_final_modifier and final_modifier:
+        return (ref_type, final_modifier)
     return ref_type
 
 
@@ -428,7 +439,9 @@ def castable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
     return False
 
 
-def resolve_expression(tree: ParseTree | Token, context: Context, meta: Meta = None) -> Symbol | None:
+def resolve_expression(
+    tree: ParseTree | Token, context: Context, meta: Meta = None, get_final_modifier: bool = False
+) -> Symbol | None:
     """
     Resolves the type of an expression tree.
     TODO fix arraytype
@@ -602,7 +615,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context, meta: Meta = N
         case "expression_name" | "type_name":
             # expression_name actually handles a lot of the field access cases...
             name = extract_name(tree)
-            return resolve_refname(name, context, meta)
+            return resolve_refname(name, context, meta, get_final_modifier)
 
         case "field_access":
             left, field_name = tree.children
@@ -714,9 +727,12 @@ def resolve_expression(tree: ParseTree | Token, context: Context, meta: Meta = N
 
         case "assignment":
             lhs_tree = next(tree.find_data("lhs")).children[0]
+            get_final_modifier = True
             lhs = resolve_expression(
-                lhs_tree, context
+                lhs_tree, context, None, get_final_modifier
             )  # We allow all left-hand operands, even if non-static and forward
+            if isinstance(lhs, tuple):
+                raise SemanticError("A final field must not be assigned to")
             expr = resolve_expression(tree.children[1], context, meta)
             if not assignable(expr, lhs, get_enclosing_type_decl(context)):
                 raise SemanticError(f"Cannot assign type {expr} to {lhs}")
