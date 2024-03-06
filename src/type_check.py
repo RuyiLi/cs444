@@ -556,7 +556,7 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             if is_primitive_type(ref_type):
                 raise SemanticError(f"Cannot call method {method_name} on simple type {ref_type}")
             arg_types = get_argument_types(context, tree)
-            method = ref_type.resolve_method(method_name, arg_types)
+            method = ref_type.resolve_method(method_name, arg_types, type_decl)
 
             # if is_static_call and "static" not in method.modifiers:
             #     raise SemanticError(f"Cannot statically call non-static method {method_name}")
