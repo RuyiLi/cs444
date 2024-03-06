@@ -65,6 +65,8 @@ def extract_type(tree: ParseTree | Token):
         return extract_type(tree.children[0]) + "[]"
     elif tree.data == "type_name":
         return extract_name(tree)
+    elif tree.data == "reference_type":
+        return extract_name(tree)
     return extract_type(tree.children[0])
 
 
@@ -104,16 +106,15 @@ def parse_node(tree: ParseTree, context: Context):
             type_decl = get_enclosing_type_decl(context)
             method_decl = get_enclosing_decl(context, MethodDecl)
             if method_decl.return_type == "void":
-                if tree.children:
+                if len(tree.children) > 1:
                     raise SemanticError(f"Method {method_decl.name} must not return a value")
                 return
 
-            if tree.children:
-                return_type = resolve_expression(tree.children[1], context)
-                if not assignable(return_type, method_decl.return_symbol, type_decl):
-                    raise SemanticError(
-                        f"Cannot return type {return_type.name} from method {method_decl.name} (expecting {method_decl.return_type})"
-                    )
+            return_type = resolve_expression(tree.children[1], context)
+            if not assignable(return_type, method_decl.return_symbol, type_decl):
+                raise SemanticError(
+                    f"Cannot return type {return_type.name} from method {method_decl.name} (expecting {method_decl.return_type})"
+                )
 
         case "field_declaration":
             type_decl = get_enclosing_type_decl(context)
@@ -612,8 +613,8 @@ def resolve_expression(tree: ParseTree | Token, context: Context, meta: Meta = N
 
         case "method_invocation":
             type_decl = get_enclosing_type_decl(context)
-
-            if tree.children[0].data == "method_name":
+            arg_types = None
+            if isinstance(tree.children[0], Tree) and tree.children[0].data == "method_name":
                 # method_name ( ... )
                 invocation_name = extract_name(tree.children[0])
                 *ref_name, method_name = invocation_name.split(".")
@@ -631,13 +632,21 @@ def resolve_expression(tree: ParseTree | Token, context: Context, meta: Meta = N
                     ref_type = type_decl
             else:
                 # lhs is expression
-                left, method_name, *_arg_list = tree.children
+                arg_list = None
+                if len(tree.children) == 2:
+                    # no args in method invocation
+                    left, method_name = tree.children
+                    arg_types = []
+                else:
+                    left, method_name, arg_list = tree.children
+                    arg_types = get_argument_types(context, arg_list, meta)
                 ref_type = resolve_expression(left, context, meta)
 
-            # print(ref_name, ref_type)
             if is_primitive_type(ref_type):
                 raise SemanticError(f"Cannot call method {method_name} on simple type {ref_type}")
-            arg_types = get_argument_types(context, tree, meta)
+
+            if arg_types is None:
+                arg_types = get_argument_types(context, tree, meta)
             method = ref_type.resolve_method(method_name, arg_types, type_decl)
 
             if method is None:
@@ -722,3 +731,54 @@ def resolve_expression(tree: ParseTree | Token, context: Context, meta: Meta = N
         case x:
             print("assdsd", x)
             logging.warn(f"Unknown tree data {x}")
+
+
+[
+    Tree(
+        Token("RULE", "expr"),
+        [
+            Tree(
+                "reference_type",
+                [
+                    Tree(
+                        Token("RULE", "name"),
+                        [
+                            Token("IDENTIFIER", "java"),
+                            Tree(
+                                Token("RULE", "name"),
+                                [
+                                    Token("IDENTIFIER", "util"),
+                                    Tree(Token("RULE", "name"), [Token("IDENTIFIER", "List")]),
+                                ],
+                            ),
+                        ],
+                    )
+                ],
+            )
+        ],
+    ),
+    Tree(
+        Token("RULE", "class_instance_creation"),
+        [
+            Token("NEW_KW", "new"),
+            Tree(
+                Token("RULE", "type_name"),
+                [
+                    Tree(
+                        Token("RULE", "name"),
+                        [
+                            Token("IDENTIFIER", "java"),
+                            Tree(
+                                Token("RULE", "name"),
+                                [
+                                    Token("IDENTIFIER", "util"),
+                                    Tree(Token("RULE", "name"), [Token("IDENTIFIER", "LinkedList")]),
+                                ],
+                            ),
+                        ],
+                    )
+                ],
+            ),
+        ],
+    ),
+]
