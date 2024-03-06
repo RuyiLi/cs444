@@ -200,7 +200,7 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
     if not is_static_context(context):
         # disallow implicit this in static context
         # assume no static imports
-        symbol = symbol or context.resolve(f"{FieldDecl.node_type}^{name}")
+        symbol = symbol or type_decl.resolve_field(name, type_decl)
     symbol = symbol or type_decl.resolve_name(name)
 
     if symbol is None:
@@ -213,7 +213,6 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
 def resolve_refname(name: str, context: Context):
     # assert non primitive type?
     type_decl = get_enclosing_type_decl(context)
-
     ref_type = None
     for prefix in reversed(get_prefixes(name)):
         symbol = type_decl.resolve_name(prefix)
@@ -315,8 +314,10 @@ def castable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
 
     if is_primitive_type(s):
         # s and t are both primitive types
-        return t.name in VALID_PRIMITIVE_CONVERSIONS_WIDENING[s.name] or \
-               t.name in VALID_PRIMITIVE_CONVERSIONS_NARROWING[s.name]
+        return (
+            t.name in VALID_PRIMITIVE_CONVERSIONS_WIDENING[s.name]
+            or t.name in VALID_PRIMITIVE_CONVERSIONS_NARROWING[s.name]
+        )
 
     if assignable(s, t, type_decl) or assignable(t, s, type_decl):
         return True
@@ -530,11 +531,9 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
                 raise SemanticError(f"Cannot call method {method_name} on simple type {ref_type}")
 
             arg_list = next(tree.find_data("argument_list"), None)
-            if arg_list is None:
-                arg_types = []
-            else:
-                arg_types = map(lambda c: resolve_expression(c, context), arg_list.children)
-                arg_types = [arg_type.name for arg_type in arg_types]
+            arg_types = []
+            if arg_list is not None:
+                arg_types = [resolve_expression(c, context).name for c in arg_list.children]
             method = ref_type.resolve_method(method_name, arg_types, type_decl)
 
             # if is_static_call and "static" not in method.modifiers:
@@ -609,23 +608,6 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             expr = resolve_expression(tree.children[1], context)
             if not assignable(expr, lhs, get_enclosing_type_decl(context)):
                 raise SemanticError(f"Cannot assign type {expr} to {lhs}")
-
-            # if lhs != expr:
-            #     if is_numeric_type(lhs):
-            #         if not (
-            #             (lhs == "int" and expr in ["char", "byte", "short"])
-            #             or (lhs == "short" and expr == "byte")
-            #         ):
-            #             raise SemanticError(f"Can't convert type {expr} to {lhs} in assignment.")
-            #     else:
-            #         if is_primitive_type(expr):
-            #             raise SemanticError(f"Can't convert type {expr} to {lhs} in assignment.")
-
-            #         if isinstance(expr, ArrayType):
-            #             # allow a widening conversion for reference types
-            #             if lhs not in ["java.lang.Object", "java.lang.Cloneable", "java.io.Serializable"]:
-            #                 pass
-
             return expr
 
         case "char_l":
