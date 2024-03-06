@@ -54,16 +54,9 @@ def parse_node(tree: ParseTree, context: Context):
             initialized_expr_type = resolve_expression(expr, context)
             type_decl = get_enclosing_type_decl(context)
 
-            # Make comparable to resolved expr
-            symbol.name = symbol.sym_type
-
             # Check if assignable
-            if not (assignable(symbol, initialized_expr_type, type_decl) or assignable(initialized_expr_type, symbol, type_decl)):
-                raise SemanticError(f"Cannot assign type {symbol.name} to {initialized_expr_type.name}")
-
-            if initialized_expr_type is None:
-                print(symbol.sym_type)
-                print()
+            if not assignable(initialized_expr_type, symbol.resolved_sym_type, type_decl):
+                raise SemanticError(f"Cannot assign type {initialized_expr_type.name} to {symbol.sym_type}")
 
         case "statement":
             child = tree.children[0]
@@ -72,7 +65,7 @@ def parse_node(tree: ParseTree, context: Context):
             if isinstance(child, Tree) and child.data not in scope_stmts:
                 parse_node(child, context)
 
-        case "assignment" | "method_invocation" | "field_access" | "array_access":
+        case "assignment" | "method_invocation" | "field_access" | "array_access" | "expr":
             return resolve_expression(tree, context)
 
         case _:
@@ -112,6 +105,10 @@ def resolve_token(token: Token, context: Context):
             return PrimitiveType("&")
         case "EAGER_OR":
             return PrimitiveType("|")
+        case "EQ":
+            return PrimitiveType("==")
+        case "NOT_EQ":
+            return PrimitiveType("!=")
         case x:
             raise SemanticError(f"Unknown token {x}")
 
@@ -182,8 +179,7 @@ def assignable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
 
     if is_primitive_type(s):
         # s and t are both primitive types
-        return t.name in VALID_PRIMITIVE_CONVERSIONS_WIDENING[s.name] or \
-               t.name in VALID_PRIMITIVE_CONVERSIONS_SHORTENING[s.name]
+        return t.name in VALID_PRIMITIVE_CONVERSIONS_WIDENING[s.name]
 
     # s and t are both reference types
 
@@ -311,9 +307,11 @@ def resolve_expression(tree: ParseTree | Token, context: Context) -> Symbol | No
             return PrimitiveType("boolean")
 
         case "eq_expr":
-            left_type, right_type = map(lambda c: resolve_expression(c, context), tree.children)
+            left_type, _, right_type = map(lambda c: resolve_expression(c, context), tree.children)
 
-            if left_type != right_type and not all(map(is_numeric_type, [left_type, right_type])):
+            if not (all(map(is_numeric_type, [left_type, right_type])) or
+                all(t.name == "boolean" for t in [left_type, right_type]) or
+                all(isinstance(t, ClassInterfaceDecl) or isinstance(t, NullReference) for t in [left_type, right_type])):
                 raise SemanticError(
                     f"Cannot use operands of type {left_type},{right_type} in equality expression"
                 )
