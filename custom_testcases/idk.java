@@ -6,9 +6,9 @@ public class idk {
     public idk() {}
 
     public static int testing() {
-    	String String = "Hello";
-    	String=(String)String+(String)((String)" "+(String)"World");
-    	return String.length()+112;
+        Object o = null;
+        Number k = new Number();
+        return 123;
     }
 
 }
