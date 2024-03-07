@@ -133,6 +133,20 @@ def parse_node(tree: ParseTree, context: Context):
                 if not assignable(rhs_type, field_type, type_decl):
                     raise SemanticError(f"Cannot assign type {rhs_type.name} to {field_type.name}")
 
+                # only allow self ref if appears as LHS in assignment expr
+                my_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
+                for expr in rhs.find_data("lhs"):
+                    if expr.children[0].data == "expression_name":
+                        name = extract_name(expr.children[0])
+                        if name == my_name:
+                            return
+
+                for expr in rhs.find_data("expression_name"):
+                    name = extract_name(expr)
+                    sym = context.resolve(f"{FieldDecl.node_type}^{name}")
+                    if sym and sym.name == my_name:
+                        raise SemanticError("Self-reference in field declaration")
+
         case "class_instance_creation":
             type_decl = get_enclosing_type_decl(context)
             arg_types = get_argument_types(context, tree)
@@ -354,7 +368,9 @@ def check_forward_reference(name: str, context: Context, meta: Meta, field: bool
             raise SemanticError(f"Local var {name} cannot be used before it was declared.")
 
 
-def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_modifier=False, arg_types=None, field=False):
+def resolve_refname(
+    name: str, context: Context, meta: Meta = None, get_final_modifier=False, arg_types=None, field=False
+):
     refs = name.split(".")
     expr_id = refs[-1]
 
@@ -519,7 +535,11 @@ def castable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
 
 
 def resolve_expression(
-    tree: ParseTree | Token, context: Context, meta: Meta = None, get_final_modifier: bool = False, field: bool = False
+    tree: ParseTree | Token,
+    context: Context,
+    meta: Meta = None,
+    get_final_modifier: bool = False,
+    field: bool = False,
 ) -> Symbol | None:
     """
     Resolves the type of an expression tree.
@@ -587,7 +607,9 @@ def resolve_expression(
             return ArrayType(f"{symbol.name}[]")
 
         case "mult_expr":
-            left_type, right_type = map(lambda c: resolve_expression(c, context, meta, field=field), tree.children)
+            left_type, right_type = map(
+                lambda c: resolve_expression(c, context, meta, field=field), tree.children
+            )
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in mult expression")
@@ -601,7 +623,9 @@ def resolve_expression(
             return PrimitiveType("int")
 
         case "add_expr":
-            left_type, right_type = map(lambda c: resolve_expression(c, context, meta, field=field), tree.children)
+            left_type, right_type = map(
+                lambda c: resolve_expression(c, context, meta, field=field), tree.children
+            )
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in add expression")
@@ -618,7 +642,9 @@ def resolve_expression(
             return PrimitiveType("int")
 
         case "sub_expr":
-            left_type, right_type = map(lambda c: resolve_expression(c, context, meta, field=field), tree.children)
+            left_type, right_type = map(
+                lambda c: resolve_expression(c, context, meta, field=field), tree.children
+            )
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in subtract expression")
@@ -661,7 +687,9 @@ def resolve_expression(
             return PrimitiveType("boolean")
 
         case "eq_expr":
-            left_type, _, right_type = map(lambda c: resolve_expression(c, context, meta, field=field), tree.children)
+            left_type, _, right_type = map(
+                lambda c: resolve_expression(c, context, meta, field=field), tree.children
+            )
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in equality expression")
@@ -684,7 +712,9 @@ def resolve_expression(
             return PrimitiveType("boolean")
 
         case "eager_and_expr" | "eager_or_expr" | "and_expr" | "or_expr":
-            left_type, _, right_type = map(lambda c: resolve_expression(c, context, meta, field=field), tree.children)
+            left_type, _, right_type = map(
+                lambda c: resolve_expression(c, context, meta, field=field), tree.children
+            )
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in and/or expression")
@@ -724,7 +754,11 @@ def resolve_expression(
                     # assert non primitive type?
                     ref_name = ".".join(ref_name)
                     ref_type = resolve_refname(
-                        invocation_name, context, meta, arg_types=get_argument_types(context, tree, meta), field=field
+                        invocation_name,
+                        context,
+                        meta,
+                        arg_types=get_argument_types(context, tree, meta),
+                        field=field,
                     )
 
                     if isinstance(ref_type.referenced_type, MethodDecl):
