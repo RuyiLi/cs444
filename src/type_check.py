@@ -273,7 +273,7 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
     return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
 
 
-def parse_ambiguous_name_with_types(context, ids, meta: Meta = None, get_final_modifier=False):
+def parse_ambiguous_name_with_types(context, ids, meta: Meta = None, get_final_modifier=False, arg_types=None):
     last_id = ids[-1]
     enclosing_type_decl = get_enclosing_type_decl(context)
 
@@ -291,7 +291,7 @@ def parse_ambiguous_name_with_types(context, ids, meta: Meta = None, get_final_m
         else:
             return ("package_name", None)
     else:
-        result, pre_symbol = parse_ambiguous_name_with_types(context, ids[:-1])
+        result, pre_symbol = parse_ambiguous_name_with_types(context, ids[:-1], meta, get_final_modifier, arg_types)
         pre_name = ".".join(ids[:-1])
 
         if result == "package_name":
@@ -301,7 +301,7 @@ def parse_ambiguous_name_with_types(context, ids, meta: Meta = None, get_final_m
                 return ("package_name", None)
 
         elif result == "type_name":
-            if symbol := next((method for method in pre_symbol.methods if last_id == method.name), None):
+            if symbol := pre_symbol.resolve_method(last_id, arg_types or [], enclosing_type_decl, True):
                 return ("expression_name", symbol)
 
             if symbol := pre_symbol.resolve_field(last_id, enclosing_type_decl, True):
@@ -311,9 +311,8 @@ def parse_ambiguous_name_with_types(context, ids, meta: Meta = None, get_final_m
 
         elif result == "expression_name":
             symbol_type = getattr(pre_symbol, "resolved_sym_type", ReferenceType(pre_symbol))
-
             if not isinstance(symbol_type, ArrayType) and (
-                symbol := next((method for method in symbol_type.methods if last_id == method.name), None)
+                symbol := symbol_type.resolve_method(last_id, arg_types or [], enclosing_type_decl)
             ):
                 return ("expression_name", symbol)
 
@@ -348,7 +347,7 @@ def check_forward_reference(name: str, context: Context, meta: Meta):
             raise SemanticError(f"Local var {name} cannot be used before it was declared.")
 
 
-def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_modifier=False):
+def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_modifier=False, arg_types=None):
     refs = name.split(".")
     expr_id = refs[-1]
 
@@ -370,7 +369,7 @@ def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_mo
 
         return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
     else:
-        name_type, symbol = parse_ambiguous_name_with_types(context, refs, meta, get_final_modifier)
+        name_type, symbol = parse_ambiguous_name_with_types(context, refs, meta, get_final_modifier, arg_types)
         return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
 
 
@@ -577,7 +576,7 @@ def resolve_expression(
                     # construction using new keyword is only allowed if
                     # 1) calling class is a subclass of the class being constructed
                     # 2) they are in the same package
-                    print(constructor.modifiers)
+                    # print(constructor.modifiers)
                     if "protected" in constructor.modifiers:
                         if not (
                             type_decl.is_subclass_of(ref_type.name) and type_decl.package == ref_type.package
@@ -749,7 +748,7 @@ def resolve_expression(
                 if ref_name:
                     # assert non primitive type?
                     ref_name = ".".join(ref_name)
-                    ref_type = resolve_refname(invocation_name, context)
+                    ref_type = resolve_refname(invocation_name, context, meta, arg_types=get_argument_types(context, tree, meta))
 
                     if isinstance(ref_type.referenced_type, MethodDecl):
                         return ref_type.referenced_type.return_symbol
