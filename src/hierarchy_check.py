@@ -1,5 +1,6 @@
+from collections import defaultdict
 from typing import Set
-from context import ClassDecl, ClassInterfaceDecl, Context, InterfaceDecl, SemanticError
+from context import ClassDecl, ClassInterfaceDecl, Context, InterfaceDecl, MethodDecl, SemanticError
 
 import type_link
 
@@ -23,9 +24,9 @@ def check_cycle(symbol: ClassInterfaceDecl, visited: Set[str]):
         check_cycle(next_sym, visited.copy())
 
 
-def inherit_methods(symbol: ClassInterfaceDecl, inherited_sym: ClassInterfaceDecl):
+def inherit_methods(symbol: ClassInterfaceDecl, methods: list[MethodDecl]):
     inherited_methods = []
-    for method in inherited_sym.methods:
+    for method in methods:
         # method is the method from the parent class/interface that we're about to replace
         replacing = next(filter(lambda m: m.signature() == method.signature(), symbol.methods), None)
 
@@ -83,12 +84,32 @@ def class_interface_hierarchy_check(symbol: ClassInterfaceDecl):
     symbol.check_repeated_parents(symbol.extends)
     check_cycle(symbol, set())
 
+def merge_methods(method_dict: dict[str, list[MethodDecl]]):
+    methods_to_return = []
+
+    for signature, methods in method_dict.items():
+        if (non_abstract := next((m for m in methods if "abstract" not in m.modifiers), None)):
+            if any(m.return_type != non_abstract.return_type for m in methods):
+                raise SemanticError(f"Return types of multiple-inherited functions with signature {signature} don't match.")
+
+            methods_to_return.append(non_abstract)
+        else:
+            if any(m.return_type != n.return_type for m in methods for n in methods):
+                raise SemanticError(f"Return types of multiple-abstract-inherited functions with signature {signature} don't match.")
+
+            # Append the public one since it's the most strict
+            methods_to_return.append(next((m for m in methods if "public" in m.modifiers), methods[0]))
+
+    return methods_to_return
+
 
 def class_hierarchy_check(symbol: ClassDecl):
     if symbol._checked:
         return
 
     symbol.resolve_method_return_types()
+
+    methods_to_inherit = defaultdict(list)
 
     for extend in symbol.extends:
         if extend == type_link.get_simple_name(symbol.name):
@@ -110,7 +131,10 @@ def class_hierarchy_check(symbol: ClassDecl):
         if "final" in exist_sym.modifiers:
             raise SemanticError(f"Class {symbol.name} cannot extend a final class ({extend}).")
 
-        symbol.methods += inherit_methods(symbol, exist_sym)
+        for method in exist_sym.methods:
+            methods_to_inherit[method.signature()].append(method)
+
+        # symbol.methods += inherit_methods(symbol, exist_sym)
         symbol.fields += inherit_fields(symbol, exist_sym)
 
     for implement in symbol.implements:
@@ -129,8 +153,13 @@ def class_hierarchy_check(symbol: ClassDecl):
         # Ensure parents have inherited their methods first
         interface_hierarchy_check(exist_sym)
 
-        symbol.methods += inherit_methods(symbol, exist_sym)
+        for method in exist_sym.methods:
+            methods_to_inherit[method.signature()].append(method)
+
+        # symbol.methods += inherit_methods(symbol, exist_sym)
         symbol.fields += inherit_fields(symbol, exist_sym)
+
+    symbol.methods += inherit_methods(symbol, merge_methods(methods_to_inherit))
 
     symbol.check_repeated_parents(symbol.implements)
     symbol._checked = True
@@ -161,7 +190,7 @@ def interface_hierarchy_check(symbol: InterfaceDecl):
         # Ensure parents have inherited their methods first
         interface_hierarchy_check(exist_sym)
 
-        symbol.methods += inherit_methods(symbol, exist_sym)
+        symbol.methods += inherit_methods(symbol, exist_sym.methods)
         symbol.fields += inherit_fields(symbol, exist_sym)
 
     # Interfaces do not actually extend from Object but rather implicitly
@@ -170,7 +199,7 @@ def interface_hierarchy_check(symbol: InterfaceDecl):
     exist_sym = symbol.resolve_name("Object")
     assert exist_sym is not None
 
-    inherit_methods(symbol, exist_sym)
+    inherit_methods(symbol, exist_sym.methods)
 
     symbol.check_repeated_parents(symbol.extends)
     symbol._checked = True
