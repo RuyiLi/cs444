@@ -273,16 +273,19 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
     return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
 
 
-def parse_ambiguous_name_with_types(context, ids, meta: Meta = None, get_final_modifier=False, arg_types=None):
+def parse_ambiguous_name_with_types(
+    context, ids, meta: Meta = None, get_final_modifier=False, arg_types=None
+):
     last_id = ids[-1]
     enclosing_type_decl = get_enclosing_type_decl(context)
 
     # print("parsing amb name", ids)
 
     if len(ids) == 1:
-        if symbol := context.resolve(f"{LocalVarDecl.node_type}^{last_id}") or context.resolve(
+        symbol = context.resolve(f"{LocalVarDecl.node_type}^{last_id}") or context.resolve(
             f"{FieldDecl.node_type}^{last_id}"
-        ):
+        )
+        if symbol is not None:
             if meta is not None:
                 check_forward_reference(last_id, context, meta)
             return ("expression_name", symbol)
@@ -291,7 +294,9 @@ def parse_ambiguous_name_with_types(context, ids, meta: Meta = None, get_final_m
         else:
             return ("package_name", None)
     else:
-        result, pre_symbol = parse_ambiguous_name_with_types(context, ids[:-1], meta, get_final_modifier, arg_types)
+        result, pre_symbol = parse_ambiguous_name_with_types(
+            context, ids[:-1], meta, get_final_modifier, arg_types
+        )
         pre_name = ".".join(ids[:-1])
 
         if result == "package_name":
@@ -369,7 +374,9 @@ def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_mo
 
         return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
     else:
-        name_type, symbol = parse_ambiguous_name_with_types(context, refs, meta, get_final_modifier, arg_types)
+        name_type, symbol = parse_ambiguous_name_with_types(
+            context, refs, meta, get_final_modifier, arg_types
+        )
         return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
 
 
@@ -562,9 +569,7 @@ def resolve_expression(
             ref_type = resolve_refname2(new_type, context).referenced_type
 
             if "abstract" in ref_type.modifiers:
-                raise SemanticError(
-                    f"Cannot create object of {ref_type.name} due to abstract class"
-                )
+                raise SemanticError(f"Cannot create object of {ref_type.name} due to abstract class")
 
             type_decl = get_enclosing_type_decl(context)
             arg_types = get_argument_types(context, tree)
@@ -748,7 +753,9 @@ def resolve_expression(
                 if ref_name:
                     # assert non primitive type?
                     ref_name = ".".join(ref_name)
-                    ref_type = resolve_refname(invocation_name, context, meta, arg_types=get_argument_types(context, tree, meta))
+                    ref_type = resolve_refname(
+                        invocation_name, context, meta, arg_types=get_argument_types(context, tree, meta)
+                    )
 
                     if isinstance(ref_type.referenced_type, MethodDecl):
                         return ref_type.referenced_type.return_symbol

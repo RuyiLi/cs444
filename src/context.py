@@ -197,7 +197,11 @@ class ClassInterfaceDecl(Symbol):
             type_link.resolve_type(self.context, type_name, self)
             return self.type_names[type_name]
         except SemanticError:
-            return self.context.resolve(f"{ClassInterfaceDecl.node_type}^{type_name}")
+            type_decl = self.context.resolve(f"{ClassInterfaceDecl.node_type}^{type_name}")
+            if type_decl is not None and type_decl.package == "" and self.package != "":
+                # type_decl is in default package, but accessor (self) is not
+                return None
+            return type_decl
 
     def check_declare_same_signature(self):
         for i in range(len(self.methods)):
