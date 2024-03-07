@@ -273,7 +273,7 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
     return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
 
 
-def parse_ambiguous_name_with_types(context, ids, meta: Meta = None, get_final_modifier = False):
+def parse_ambiguous_name_with_types(context, ids, meta: Meta = None, get_final_modifier=False):
     last_id = ids[-1]
     enclosing_type_decl = get_enclosing_type_decl(context)
 
@@ -295,30 +295,29 @@ def parse_ambiguous_name_with_types(context, ids, meta: Meta = None, get_final_m
         pre_name = ".".join(ids[:-1])
 
         if result == "package_name":
-            if (type_name := enclosing_type_decl.resolve_name(".".join(ids))):
+            if type_name := enclosing_type_decl.resolve_name(".".join(ids)):
                 return ("type_name", type_name)
             else:
                 return ("package_name", None)
+
         elif result == "type_name":
             if symbol := next((method for method in pre_symbol.methods if last_id == method.name), None):
                 return ("expression_name", symbol)
 
-            if symbol := next((field for field in pre_symbol.fields if last_id == field.name), None):
+            if symbol := pre_symbol.resolve_field(last_id, enclosing_type_decl, True):
                 return ("expression_name", symbol)
 
             raise SemanticError(f"'{last_id}' is not the name of a field or method in type '{pre_name}'.")
+
         elif result == "expression_name":
             symbol_type = getattr(pre_symbol, "resolved_sym_type", ReferenceType(pre_symbol))
 
             if not isinstance(symbol_type, ArrayType) and (
                 symbol := next((method for method in symbol_type.methods if last_id == method.name), None)
             ):
-                validate_field_access(symbol, enclosing_type_decl, False, symbol_type)
                 return ("expression_name", symbol)
 
-            if symbol := next((field for field in symbol_type.fields if last_id == field.name), None):
-                validate_field_access(symbol, enclosing_type_decl, False, symbol_type)
-
+            if symbol := symbol_type.resolve_field(last_id, enclosing_type_decl):
                 if get_final_modifier and isinstance(symbol_type, ArrayType) and symbol.name == "length":
                     raise SemanticError("A final field cannot be assigned to.")
 
@@ -327,8 +326,10 @@ def parse_ambiguous_name_with_types(context, ids, meta: Meta = None, get_final_m
             raise SemanticError(
                 f"'{last_id}' is not the name of a field or method in expression '{pre_name}' of type '{symbol_type}'."
             )
+
         else:
             raise SemanticError("how did you get here")
+
 
 def check_forward_reference(name: str, context: Context, meta: Meta):
     if declare := context.resolve(f"{FieldDecl.node_type}^{name}"):
@@ -344,9 +345,7 @@ def check_forward_reference(name: str, context: Context, meta: Meta):
         if declare.meta.line > meta.line or (
             declare.meta.line == meta.line and declare.meta.column >= meta.column
         ):
-            raise SemanticError(
-                f"Local var {name} cannot be used before it was declared."
-            )
+            raise SemanticError(f"Local var {name} cannot be used before it was declared.")
 
 
 def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_modifier=False):
@@ -361,9 +360,9 @@ def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_mo
         symbol = context.resolve(f"{LocalVarDecl.node_type}^{expr_id}")
 
         if symbol is None and not is_static_context(context):
-            symbol = (
-                context.resolve(f"{FieldDecl.node_type}^{expr_id}") or
-                next((field for field in get_enclosing_type_decl(context).fields if field.name == expr_id), None)
+            type_decl = get_enclosing_type_decl(context)
+            symbol = context.resolve(f"{FieldDecl.node_type}^{expr_id}") or type_decl.resolve_field(
+                expr_id, type_decl
             )
 
         if symbol is None:
@@ -373,6 +372,7 @@ def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_mo
     else:
         name_type, symbol = parse_ambiguous_name_with_types(context, refs, meta, get_final_modifier)
         return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
+
 
 def resolve_refname2(name: str, context: Context, meta: Meta = None, get_final_modifier=False):
     # assert non primitive type?

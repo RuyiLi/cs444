@@ -113,7 +113,7 @@ class ArrayType(Symbol):
     def sym_id(self):
         return f"array_type^{self.name}"
 
-    def resolve_field(self, field_name: str, _accessor) -> Optional[FieldDecl]:
+    def resolve_field(self, field_name: str, _accessor, _static=False) -> Optional[FieldDecl]:
         if field_name == "length":
             # hardcode builtin property length for array types
             sym = Symbol(None, "length")
@@ -137,11 +137,11 @@ def validate_field_access(
         raise SemanticError(f"Cannot access static name {field.name} from non-static context.")
 
     if "protected" in field.modifiers:
-        container = field.context.parent_node.name
+        container = field.context.parent_node
         if not (
             (
                 # accessor must always be a subclass of the declaring class
-                accessor.is_subclass_of(container)
+                accessor.is_subclass_of(container.name)
                 # if the field is not static (ie instance), the ref type of the field access
                 # must be a subclass of the accessor
                 and ("static" in field.modifiers or orig_owner.is_subclass_of(accessor.name))
