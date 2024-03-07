@@ -272,13 +272,15 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
     # default to symbol itself (not localvar/field)
     return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
 
+
 def parse_ambiguous_name_with_types(context, ids):
     last_id = ids[-1]
     enclosing_type_decl = get_enclosing_type_decl(context)
 
     if len(ids) == 1:
-        if symbol := context.resolve(f"{LocalVarDecl.node_type}^{last_id}") or \
-                     context.resolve(f"{FieldDecl.node_type}^{last_id}"):
+        if symbol := context.resolve(f"{LocalVarDecl.node_type}^{last_id}") or context.resolve(
+            f"{FieldDecl.node_type}^{last_id}"
+        ):
             return ("expression_name", symbol)
         elif type_name := enclosing_type_decl.resolve_name(last_id):
             return ("type_name", type_name)
@@ -306,16 +308,21 @@ def parse_ambiguous_name_with_types(context, ids):
         elif result == "expression_name":
             symbol_type = getattr(pre_symbol, "resolved_sym_type", ReferenceType(pre_symbol))
 
-            if not isinstance(symbol_type, ArrayType) and (symbol := next((method for method in symbol_type.methods if last_id == method.name), None)):
+            if not isinstance(symbol_type, ArrayType) and (
+                symbol := next((method for method in symbol_type.methods if last_id == method.name), None)
+            ):
                 return ("expression_name", symbol)
 
             if symbol := next((field for field in symbol_type.fields if last_id == field.name), None):
                 validate_field_access(symbol, enclosing_type_decl, False, symbol_type)
                 return ("expression_name", symbol)
 
-            raise SemanticError(f"'{last_id}' is not the name of a field or method in expression '{pre_name}' of type '{symbol_type}'.")
+            raise SemanticError(
+                f"'{last_id}' is not the name of a field or method in expression '{pre_name}' of type '{symbol_type}'."
+            )
         else:
             raise SemanticError("how did you get here")
+
 
 def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_modifier=False):
     refs = name.split(".")
@@ -333,23 +340,23 @@ def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_mo
                         "Initializer of non-static field cannot use a non-static field declared later without explicit 'this'."
                     )
             if declare := context.resolve(f"{LocalVarDecl.node_type}^{name}"):
-                if (
-                    declare.meta.line > meta.line
-                    or (declare.meta.line == meta.line and declare.meta.column >= meta.column)
+                if declare.meta.line > meta.line or (
+                    declare.meta.line == meta.line and declare.meta.column >= meta.column
                 ):
-                    raise SemanticError(
-                        f"Local var {name} cannot be used before it was declared."
-                    )
+                    raise SemanticError(f"Local var {name} cannot be used before it was declared.")
         symbol = (
-            context.resolve(f"{LocalVarDecl.node_type}^{expr_id}") or
-            context.resolve(f"{FieldDecl.node_type}^{expr_id}") or
-            next((field for field in get_enclosing_type_decl(context).fields if field.name == expr_id), None)
+            context.resolve(f"{LocalVarDecl.node_type}^{expr_id}")
+            or context.resolve(f"{FieldDecl.node_type}^{expr_id}")
+            or next(
+                (field for field in get_enclosing_type_decl(context).fields if field.name == expr_id), None
+            )
         )
 
         return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
-    else:
-        name_type, symbol = parse_ambiguous_name_with_types(context, refs)
-        return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
+
+    name_type, symbol = parse_ambiguous_name_with_types(context, refs)
+    return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
+
 
 def resolve_refname2(name: str, context: Context, meta: Meta = None, get_final_modifier=False):
     # assert non primitive type?
@@ -820,7 +827,7 @@ def resolve_expression(
             expr = resolve_expression(tree.children[1], context, meta)
             if not assignable(expr, lhs, get_enclosing_type_decl(context)):
                 raise SemanticError(f"Cannot assign type {expr} to {lhs}")
-            return expr
+            return lhs
 
         case "char_l":
             return PrimitiveType("char")
