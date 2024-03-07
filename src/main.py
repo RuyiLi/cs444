@@ -146,6 +146,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
             else:
                 print(f"Failed {test_files_list} (should not have thrown an error):", e)
                 failed_tests.append(str(test_files_list))
+                # raise e
 
     print()
     print("=" * 50)

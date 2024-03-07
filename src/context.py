@@ -428,9 +428,10 @@ class MethodDecl(Symbol):
 class LocalVarDecl(Symbol):
     node_type = "local_var_decl"
 
-    def __init__(self, context, name, var_type):
+    def __init__(self, context, name, var_type, meta):
         super().__init__(context, name)
         self.sym_type = var_type
+        self.meta = meta
 
     @property
     def resolved_sym_type(self):

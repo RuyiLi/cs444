@@ -175,7 +175,7 @@ def parse_node(tree: ParseTree, context: Context):
                 context.children.append(nested_context)
 
                 for p_type, p_name in zip(formal_param_types, formal_param_names):
-                    nested_context.declare(LocalVarDecl(nested_context, p_name, p_type))
+                    nested_context.declare(LocalVarDecl(nested_context, p_name, p_type, tree.meta))
 
                 build_environment(nested_tree, nested_context)
 
@@ -201,7 +201,7 @@ def parse_node(tree: ParseTree, context: Context):
                 context.children.append(nested_context)
 
                 for p_type, p_name in zip(formal_param_types, formal_param_names):
-                    nested_context.declare(LocalVarDecl(nested_context, p_name, p_type))
+                    nested_context.declare(LocalVarDecl(nested_context, p_name, p_type, tree.meta))
 
                 build_environment(nested_tree, nested_context)
 
@@ -218,7 +218,7 @@ def parse_node(tree: ParseTree, context: Context):
             var_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
 
             logging.debug(f"local_var_declaration {var_name} {var_type}")
-            context.declare(LocalVarDecl(context, var_name, var_type))
+            context.declare(LocalVarDecl(context, var_name, var_type, tree.meta))
 
         case "statement":
             scope_stmts = ["block", "if_st", "if_else_st", "for_st", "while_st"]
