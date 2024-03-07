@@ -273,14 +273,18 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
     return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
 
 
-def parse_ambiguous_name_with_types(context, ids):
+def parse_ambiguous_name_with_types(context, ids, meta: Meta = None, get_final_modifier = False):
     last_id = ids[-1]
     enclosing_type_decl = get_enclosing_type_decl(context)
+
+    # print("parsing amb name", ids)
 
     if len(ids) == 1:
         if symbol := context.resolve(f"{LocalVarDecl.node_type}^{last_id}") or context.resolve(
             f"{FieldDecl.node_type}^{last_id}"
         ):
+            if meta is not None:
+                check_forward_reference(last_id, context, meta)
             return ("expression_name", symbol)
         elif type_name := enclosing_type_decl.resolve_name(last_id):
             return ("type_name", type_name)
@@ -291,12 +295,10 @@ def parse_ambiguous_name_with_types(context, ids):
         pre_name = ".".join(ids[:-1])
 
         if result == "package_name":
-            raise SemanticError(f"COULDN'T RESOLVE PACKAGE FROM FIRST IDENTIFIER {ids} {pre_name}")
-            # if (type_name := enclosing_type_decl.resolve_name(".".join(ids))):
-            #     print(type_name)
-            #     return ("type_name", type_name)
-            # else:
-            #     return ("package_name", None)
+            if (type_name := enclosing_type_decl.resolve_name(".".join(ids))):
+                return ("type_name", type_name)
+            else:
+                return ("package_name", None)
         elif result == "type_name":
             if symbol := next((method for method in pre_symbol.methods if last_id == method.name), None):
                 return ("expression_name", symbol)
@@ -311,10 +313,15 @@ def parse_ambiguous_name_with_types(context, ids):
             if not isinstance(symbol_type, ArrayType) and (
                 symbol := next((method for method in symbol_type.methods if last_id == method.name), None)
             ):
+                validate_field_access(symbol, enclosing_type_decl, False, symbol_type)
                 return ("expression_name", symbol)
 
             if symbol := next((field for field in symbol_type.fields if last_id == field.name), None):
                 validate_field_access(symbol, enclosing_type_decl, False, symbol_type)
+
+                if get_final_modifier and isinstance(symbol_type, ArrayType) and symbol.name == "length":
+                    raise SemanticError("A final field cannot be assigned to.")
+
                 return ("expression_name", symbol)
 
             raise SemanticError(
@@ -323,40 +330,49 @@ def parse_ambiguous_name_with_types(context, ids):
         else:
             raise SemanticError("how did you get here")
 
+def check_forward_reference(name: str, context: Context, meta: Meta):
+    if declare := context.resolve(f"{FieldDecl.node_type}^{name}"):
+        if (
+            "static" not in declare.modifiers
+            and declare.meta.line > meta.line
+            or (declare.meta.line == meta.line and declare.meta.column >= meta.column)
+        ):
+            raise SemanticError(
+                "Initializer of non-static field cannot use a non-static field declared later without explicit 'this'."
+            )
+    if declare := context.resolve(f"{LocalVarDecl.node_type}^{name}"):
+        if declare.meta.line > meta.line or (
+            declare.meta.line == meta.line and declare.meta.column >= meta.column
+        ):
+            raise SemanticError(
+                f"Local var {name} cannot be used before it was declared."
+            )
+
 
 def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_modifier=False):
     refs = name.split(".")
     expr_id = refs[-1]
 
+    # print("resolving", refs, meta)
+
     if len(refs) == 1:
         if meta is not None:
-            if declare := context.resolve(f"{FieldDecl.node_type}^{name}"):
-                if (
-                    "static" not in declare.modifiers
-                    and declare.meta.line > meta.line
-                    or (declare.meta.line == meta.line and declare.meta.column >= meta.column)
-                ):
-                    raise SemanticError(
-                        "Initializer of non-static field cannot use a non-static field declared later without explicit 'this'."
-                    )
-            if declare := context.resolve(f"{LocalVarDecl.node_type}^{name}"):
-                if declare.meta.line > meta.line or (
-                    declare.meta.line == meta.line and declare.meta.column >= meta.column
-                ):
-                    raise SemanticError(f"Local var {name} cannot be used before it was declared.")
-        symbol = (
-            context.resolve(f"{LocalVarDecl.node_type}^{expr_id}")
-            or context.resolve(f"{FieldDecl.node_type}^{expr_id}")
-            or next(
-                (field for field in get_enclosing_type_decl(context).fields if field.name == expr_id), None
+            check_forward_reference(name, context, meta)
+        symbol = context.resolve(f"{LocalVarDecl.node_type}^{expr_id}")
+
+        if symbol is None and not is_static_context(context):
+            symbol = (
+                context.resolve(f"{FieldDecl.node_type}^{expr_id}") or
+                next((field for field in get_enclosing_type_decl(context).fields if field.name == expr_id), None)
             )
-        )
+
+        if symbol is None:
+            raise SemanticError(f"Couldn't resolve symbol {refs}")
 
         return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
-
-    name_type, symbol = parse_ambiguous_name_with_types(context, refs)
-    return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
-
+    else:
+        name_type, symbol = parse_ambiguous_name_with_types(context, refs, meta, get_final_modifier)
+        return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
 
 def resolve_refname2(name: str, context: Context, meta: Meta = None, get_final_modifier=False):
     # assert non primitive type?
@@ -726,7 +742,12 @@ def resolve_expression(
                 if ref_name:
                     # assert non primitive type?
                     ref_name = ".".join(ref_name)
-                    ref_type = resolve_refname2(ref_name, context)
+                    ref_type = resolve_refname(invocation_name, context)
+
+                    if isinstance(ref_type.referenced_type, MethodDecl):
+                        return ref_type.referenced_type.return_symbol
+                    else:
+                        ref_type = resolve_refname2(ref_name, context)
                 else:
                     # assume no static imports
                     if is_static_context(context):
