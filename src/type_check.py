@@ -562,8 +562,14 @@ def resolve_expression(
             new_type = extract_name(tree.children[1])
             ref_type = resolve_refname2(new_type, context).referenced_type
 
+            if "abstract" in ref_type.modifiers:
+                raise SemanticError(
+                    f"Cannot create object of {ref_type.name} due to abstract class"
+                )
+
             type_decl = get_enclosing_type_decl(context)
             arg_types = get_argument_types(context, tree)
+
             for constructor in ref_type.constructors:
                 # find matching constructor
                 ctor_param_names = [param.name for param in constructor.resolved_param_types]
@@ -571,6 +577,7 @@ def resolve_expression(
                     # construction using new keyword is only allowed if
                     # 1) calling class is a subclass of the class being constructed
                     # 2) they are in the same package
+                    print(constructor.modifiers)
                     if "protected" in constructor.modifiers:
                         if not (
                             type_decl.is_subclass_of(ref_type.name) and type_decl.package == ref_type.package
