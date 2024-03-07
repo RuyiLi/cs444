@@ -104,6 +104,11 @@ class ArrayType(Symbol):
 
     def __init__(self, name: str):
         super().__init__(None, name)
+        sym = Symbol(None, "length")
+        sym.sym_type = "int"
+        sym.resolved_sym_type = PrimitiveType("int")
+        sym.modifiers = ["public", "final"]
+        self.fields = [sym]
 
     def sym_id(self):
         return f"array_type^{self.name}"

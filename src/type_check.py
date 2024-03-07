@@ -17,6 +17,7 @@ from context import (
     Symbol,
     MethodDecl,
     ReferenceType,
+    validate_field_access,
 )
 
 from build_environment import extract_name, get_tree_token, get_modifiers, get_formal_params
@@ -271,8 +272,86 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
     # default to symbol itself (not localvar/field)
     return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
 
+def parse_ambiguous_name_with_types(context, ids):
+    last_id = ids[-1]
+    enclosing_type_decl = get_enclosing_type_decl(context)
+
+    if len(ids) == 1:
+        if symbol := context.resolve(f"{LocalVarDecl.node_type}^{last_id}") or \
+                     context.resolve(f"{FieldDecl.node_type}^{last_id}"):
+            return ("expression_name", symbol)
+        elif type_name := enclosing_type_decl.resolve_name(last_id):
+            return ("type_name", type_name)
+        else:
+            return ("package_name", None)
+    else:
+        result, pre_symbol = parse_ambiguous_name_with_types(context, ids[:-1])
+        pre_name = ".".join(ids[:-1])
+
+        if result == "package_name":
+            raise SemanticError(f"COULDN'T RESOLVE PACKAGE FROM FIRST IDENTIFIER {ids} {pre_name}")
+            # if (type_name := enclosing_type_decl.resolve_name(".".join(ids))):
+            #     print(type_name)
+            #     return ("type_name", type_name)
+            # else:
+            #     return ("package_name", None)
+        elif result == "type_name":
+            if symbol := next((method for method in pre_symbol.methods if last_id == method.name), None):
+                return ("expression_name", symbol)
+
+            if symbol := next((field for field in pre_symbol.fields if last_id == field.name), None):
+                return ("expression_name", symbol)
+
+            raise SemanticError(f"'{last_id}' is not the name of a field or method in type '{pre_name}'.")
+        elif result == "expression_name":
+            symbol_type = getattr(pre_symbol, "resolved_sym_type", ReferenceType(pre_symbol))
+
+            if not isinstance(symbol_type, ArrayType) and (symbol := next((method for method in symbol_type.methods if last_id == method.name), None)):
+                return ("expression_name", symbol)
+
+            if symbol := next((field for field in symbol_type.fields if last_id == field.name), None):
+                validate_field_access(symbol, enclosing_type_decl, False, symbol_type)
+                return ("expression_name", symbol)
+
+            raise SemanticError(f"'{last_id}' is not the name of a field or method in expression '{pre_name}' of type '{symbol_type}'.")
+        else:
+            raise SemanticError("how did you get here")
 
 def resolve_refname(name: str, context: Context, meta: Meta = None, get_final_modifier=False):
+    refs = name.split(".")
+    expr_id = refs[-1]
+
+    if len(refs) == 1:
+        if meta is not None:
+            if declare := context.resolve(f"{FieldDecl.node_type}^{name}"):
+                if (
+                    "static" not in declare.modifiers
+                    and declare.meta.line > meta.line
+                    or (declare.meta.line == meta.line and declare.meta.column >= meta.column)
+                ):
+                    raise SemanticError(
+                        "Initializer of non-static field cannot use a non-static field declared later without explicit 'this'."
+                    )
+            if declare := context.resolve(f"{LocalVarDecl.node_type}^{name}"):
+                if (
+                    declare.meta.line > meta.line
+                    or (declare.meta.line == meta.line and declare.meta.column >= meta.column)
+                ):
+                    raise SemanticError(
+                        f"Local var {name} cannot be used before it was declared."
+                    )
+        symbol = (
+            context.resolve(f"{LocalVarDecl.node_type}^{expr_id}") or
+            context.resolve(f"{FieldDecl.node_type}^{expr_id}") or
+            next((field for field in get_enclosing_type_decl(context).fields if field.name == expr_id), None)
+        )
+
+        return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
+    else:
+        name_type, symbol = parse_ambiguous_name_with_types(context, refs)
+        return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
+
+def resolve_refname2(name: str, context: Context, meta: Meta = None, get_final_modifier=False):
     # assert non primitive type?
     final_modifier = False
     type_decl = get_enclosing_type_decl(context)
@@ -458,7 +537,7 @@ def resolve_expression(
 
         case "class_instance_creation":
             new_type = extract_name(tree.children[1])
-            ref_type = resolve_refname(new_type, context).referenced_type
+            ref_type = resolve_refname2(new_type, context).referenced_type
 
             type_decl = get_enclosing_type_decl(context)
             arg_types = get_argument_types(context, tree)
@@ -613,7 +692,11 @@ def resolve_expression(
 
             return PrimitiveType("boolean")
 
-        case "expression_name" | "type_name":
+        case "type_name":
+            name = extract_name(tree)
+            return resolve_refname2(name, context, meta, get_final_modifier)
+
+        case "expression_name":
             # expression_name actually handles a lot of the field access cases...
             name = extract_name(tree)
             return resolve_refname(name, context, meta, get_final_modifier)
@@ -636,7 +719,7 @@ def resolve_expression(
                 if ref_name:
                     # assert non primitive type?
                     ref_name = ".".join(ref_name)
-                    ref_type = resolve_refname(ref_name, context)
+                    ref_type = resolve_refname2(ref_name, context)
                 else:
                     # assume no static imports
                     if is_static_context(context):
