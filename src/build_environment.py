@@ -1,8 +1,9 @@
 import logging
 from itertools import chain
 from typing import List
+import warnings
 
-from lark import Token, Tree, ParseTree
+from lark import Tree, ParseTree
 
 from type_link import ImportDeclaration, SingleTypeImport, OnDemandImport
 from context import (
@@ -24,7 +25,7 @@ from helper import (
     get_modifiers,
     get_nested_token,
     get_tree_token,
-    get_return_type
+    get_return_type,
 )
 
 
@@ -176,8 +177,8 @@ def parse_node(tree: ParseTree, context: Context):
 
         case "statement":
             scope_stmts = ["block", "if_st", "if_else_st", "for_st", "while_st"]
-            if (
-                nested_block := next((c for c in tree.children if isinstance(c, Tree) and c.data in scope_stmts), None)
+            if nested_block := next(
+                (c for c in tree.children if isinstance(c, Tree) and c.data in scope_stmts), None
             ):
                 # Blocks inside blocks have the same parent node
                 nested_context = Context(context, context.parent_node, nested_block)
