@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from typing import Dict, List, Optional, Set
 from collections import defaultdict
 from lark import Tree
@@ -7,12 +8,14 @@ from lark.tree import Meta
 
 import type_link
 
+
 class SemanticError(Exception):
     pass
 
 
 PRIMITIVE_TYPES = {"byte", "short", "int", "char", "void", "boolean", "void"}
 NUMERIC_TYPES = {"byte", "short", "int", "char"}
+
 
 def is_primitive_type(type_name: Symbol | str):
     if isinstance(type_name, PrimitiveType):
