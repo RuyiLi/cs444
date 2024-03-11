@@ -30,6 +30,9 @@ case $$? in
         echo "Error: One or more input files are not lexically or syntactically valid Joos 1W."
         exit 42
         ;;
+    43)
+        echo "Warning: One or more input files have warnings but are still lexically and syntactically valid Joos 1W."
+        ;;
     *)
         echo "Error: Your compiler crashed while processing the input files."
         exit 2
