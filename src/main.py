@@ -33,7 +33,7 @@ logging.basicConfig(
     level=logging.ERROR,
 )
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
-STDLIB_VERSION = 3.0
+STDLIB_VERSION = 4.0
 stdlib_files = glob.glob(f"stdlib/{STDLIB_VERSION}/java/**/*.java")
 global_context_with_stdlib = GlobalContext()
 for file in stdlib_files:
