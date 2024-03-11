@@ -1,17 +1,17 @@
-import os
 import glob
 import logging
-from typing import List
+import os
+import warnings
 from copy import deepcopy
-
-from lark import Lark, logger
+from typing import List
 
 from build_environment import build_environment
-from context import Context, GlobalContext
+from context import GlobalContext
 from hierarchy_check import hierarchy_check
+from lark import Lark, logger
+from name_disambiguation import disambiguate_names
 from type_check import type_check
 from type_link import type_link
-from name_disambiguation import disambiguate_names
 from weeder import Weeder
 
 grammar = ""
@@ -43,7 +43,7 @@ for file in stdlib_files:
         build_environment(res, global_context_with_stdlib)
 
 
-def static_check(context: GlobalContext, quiet = False):
+def static_check(context: GlobalContext, quiet=False):
     try:
         type_link(context)
     except Exception as e:
@@ -73,8 +73,30 @@ def static_check(context: GlobalContext, quiet = False):
         raise e
 
 
-def should_error(path_name: str):
-    return path_name[:2] == "Je"
+ERROR = 42
+WARNING = 43
+SUCCESS = 0
+
+
+def get_result_string(result: int):
+    if result == ERROR:
+        return "error"
+    elif result == WARNING:
+        return "warning"
+    elif result == SUCCESS:
+        return "success"
+    else:
+        return "unrecognized result"
+
+
+def get_expected_result(path_name: str):
+    match path_name[:2]:
+        case "Je":
+            return ERROR
+        case "Jw":
+            return WARNING
+        case _:
+            return SUCCESS
 
 
 def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: List[str]):
@@ -108,50 +130,59 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                         seen_custom_test_names_set.add(entry)
                 else:
                     test_files_lists.append(test_files_list)
-    
+
     if custom_test_names_set:
         missed_tests = custom_test_names_set.difference(seen_custom_test_names_set)
         for test_name in missed_tests:
-            print(f"Could not find test file or folder in assignment {assignment} with name {test_name}, skipping...")
+            print(
+                f"Could not find test file or folder in assignment {assignment} with name {test_name}, skipping..."
+            )
 
     passed = 0
     failed_tests = []
+    actual_result = SUCCESS
+    error = ""
     for test_files_list in test_files_lists:
+        expected_result = get_expected_result(test_files_list[0])
         try:
-            global_context = deepcopy(global_context_with_stdlib)
-
-            for test_file in test_files_list:
-                if not quiet:
-                    print(f"Testing {test_file}")
-                with open(os.path.join(test_directory, test_file), "r") as f:
-                    test_file_contents = f.read()
-                    res = lark.parse(test_file_contents)
-                    Weeder(f.name).visit(res)
-                    build_environment(res, global_context)
-
+            with warnings.catch_warnings(record=True) as warning_list:
+                global_context = deepcopy(global_context_with_stdlib)
+                for test_file in test_files_list:
                     if not quiet:
-                        print(res.pretty())
-
-            static_check(global_context, quiet)
-
-            if should_error(test_files_list[0]):
-                print(f"Failed {test_files_list} (should have thrown an error):")
-                failed_tests.append(str(test_files_list))
+                        print(f"Testing {test_file}")
+                    with open(os.path.join(test_directory, test_file), "r") as f:
+                        test_file_contents = f.read()
+                        res = lark.parse(test_file_contents)
+                        Weeder(f.name).visit(res)
+                        build_environment(res, global_context)
+                        if not quiet:
+                            print(res.pretty())
+                static_check(global_context, quiet)
+            if warning_list:
+                actual_result = WARNING
             else:
-                if not quiet:
-                    print(f"Passed {test_files_list} (correctly did not throw an error):")
-                passed += 1
-
+                actual_result = SUCCESS
         except Exception as e:
-            if should_error(test_files_list[0]):
-                if not quiet:
-                    print(f"Passed {test_files_list} (correctly threw an error):")
-                passed += 1
-            else:
-                print(f"Failed {test_files_list} (should not have thrown an error):", e)
-                failed_tests.append(str(test_files_list))
-                # raise e
+            actual_result = ERROR
+            error = e
 
+        if actual_result == expected_result:
+            if not quiet:
+                print(f"Passed: {test_files_list} (correctly returned {get_result_string(expected_result)})")
+            passed += 1
+        else:
+            print(
+                actual_result,
+                expected_result,
+                get_result_string(actual_result),
+                get_result_string(expected_result),
+            )
+            print(
+                f"Failed: {test_files_list} (returned {get_result_string(actual_result)} instead of {get_result_string(expected_result)})"
+            )
+            if error:
+                print(f"Threw: {error}")
+            failed_tests.append(str(test_files_list))
     print()
     print("=" * 50)
     print(f"Total passed: {passed}/{len(test_files_lists)}")
