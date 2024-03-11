@@ -1,10 +1,8 @@
 import os
-from typing import List, Union
 
-from lark import Visitor, Token, ParseTree, Tree
-
+from helper import get_formal_params, get_modifiers, get_return_type
 from interpreter import JoosInterpreter
-from helper import get_formal_params, get_return_type, get_modifiers
+from lark import ParseTree, Token, Tree, Visitor
 
 
 class WeedError(Exception):
@@ -236,7 +234,9 @@ class Weeder(Visitor):
     def field_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
 
-        if invalid_modifier := next((m for m in modifiers if m not in ["public", "protected", "static"]), None):
+        if invalid_modifier := next(
+            (m for m in modifiers if m not in ["public", "protected", "static"]), None
+        ):
             format_error(
                 f'Invalid modifier "{invalid_modifier}" used in field declaration.', invalid_modifier.line
             )

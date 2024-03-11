@@ -1,6 +1,8 @@
 from typing import List, Type, TypeVar, Union
+
+from context import ClassInterfaceDecl, Context, FieldDecl, MethodDecl, Symbol
 from lark import ParseTree, Token, Tree
-from context import Context, Symbol, ClassInterfaceDecl, MethodDecl, FieldDecl, PrimitiveType
+
 
 def get_child_tree(tree: ParseTree, name: str) -> Tree:
     return next(filter(lambda c: isinstance(c, Tree) and c.data == name, tree.children), None)
@@ -63,6 +65,7 @@ def get_formal_params(tree: ParseTree):
 
 
 T = TypeVar("T", bound=Symbol)
+
 
 def get_enclosing_decl(context: Context, decl_type: Type[T]) -> T:
     # Go up contexts until we reach the desired type

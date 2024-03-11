@@ -1,8 +1,6 @@
-import logging
 import copy
+import logging
 
-from lark import ParseTree, Token, Tree
-from lark.tree import Meta
 from context import (
     ArrayType,
     ClassDecl,
@@ -11,17 +9,15 @@ from context import (
     FieldDecl,
     InterfaceDecl,
     LocalVarDecl,
-    NullReference,
-    SemanticError,
-    PrimitiveType,
-    Symbol,
     MethodDecl,
+    NullReference,
+    PrimitiveType,
     ReferenceType,
-    is_primitive_type,
+    SemanticError,
+    Symbol,
     is_numeric_type,
+    is_primitive_type,
 )
-
-from type_link import get_simple_name, get_prefixes
 from helper import (
     extract_name,
     extract_type,
@@ -32,6 +28,10 @@ from helper import (
     get_tree_token,
     is_static_context,
 )
+from lark import ParseTree, Token, Tree
+from lark.tree import Meta
+from type_link import get_prefixes, get_simple_name
+
 
 def type_check(context: Context):
     for child_context in context.children:
@@ -839,4 +839,3 @@ def resolve_expression(
 
         case x:
             logging.warn(f"Unknown tree data {x}")
-

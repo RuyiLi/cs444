@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import warnings
-from typing import Dict, List, Optional
 from collections import defaultdict
-from lark import Tree
-from lark.tree import Meta
+from typing import Dict, List, Optional
 
 import type_link
+from lark import Tree
+from lark.tree import Meta
 
 
 class SemanticError(Exception):

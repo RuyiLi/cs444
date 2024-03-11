@@ -1,8 +1,7 @@
 import logging
 from typing import List
 
-from context import ClassInterfaceDecl, GlobalContext, SemanticError, Symbol, PrimitiveType
-
+from context import ClassInterfaceDecl, GlobalContext, SemanticError
 
 """
 Terminology:

@@ -1,18 +1,16 @@
 import logging
 from itertools import chain
 from typing import List
-import warnings
 
-from lark import Tree, ParseTree
+from type_link import ImportDeclaration, OnDemandImport, SingleTypeImport
 
-from type_link import ImportDeclaration, SingleTypeImport, OnDemandImport
 from context import (
-    Context,
-    GlobalContext,
     ClassDecl,
     ClassInterfaceDecl,
     ConstructorDecl,
+    Context,
     FieldDecl,
+    GlobalContext,
     InterfaceDecl,
     LocalVarDecl,
     MethodDecl,
@@ -24,9 +22,10 @@ from helper import (
     get_formal_params,
     get_modifiers,
     get_nested_token,
-    get_tree_token,
     get_return_type,
+    get_tree_token,
 )
+from lark import ParseTree, Tree
 
 
 def build_environment(tree: ParseTree, context: Context):

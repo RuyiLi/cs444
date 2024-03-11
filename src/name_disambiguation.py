@@ -1,4 +1,3 @@
-from lark import ParseTree, Tree
 from context import (
     ClassDecl,
     ClassInterfaceDecl,
@@ -8,8 +7,8 @@ from context import (
     LocalVarDecl,
     SemanticError,
 )
-
 from helper import get_enclosing_type_decl, get_identifiers
+from lark import ParseTree, Tree
 
 
 def disambiguate_names(context: Context):

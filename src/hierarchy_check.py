@@ -1,8 +1,8 @@
 from collections import defaultdict
 from typing import Set
-from context import ClassDecl, ClassInterfaceDecl, Context, InterfaceDecl, MethodDecl, SemanticError
 
 import type_link
+from context import ClassDecl, ClassInterfaceDecl, Context, InterfaceDecl, MethodDecl, SemanticError
 
 
 def hierarchy_check(context: Context):
@@ -84,18 +84,23 @@ def class_interface_hierarchy_check(symbol: ClassInterfaceDecl):
     symbol.check_repeated_parents(symbol.extends)
     check_cycle(symbol, set())
 
+
 def merge_methods(method_dict: dict[str, list[MethodDecl]]):
     methods_to_return = []
 
     for signature, methods in method_dict.items():
-        if (non_abstract := next((m for m in methods if "abstract" not in m.modifiers), None)):
+        if non_abstract := next((m for m in methods if "abstract" not in m.modifiers), None):
             if any(m.return_type != non_abstract.return_type for m in methods):
-                raise SemanticError(f"Return types of multiple-inherited functions with signature {signature} don't match.")
+                raise SemanticError(
+                    f"Return types of multiple-inherited functions with signature {signature} don't match."
+                )
 
             methods_to_return.append(non_abstract)
         else:
             if any(m.return_type != n.return_type for m in methods for n in methods):
-                raise SemanticError(f"Return types of multiple-abstract-inherited functions with signature {signature} don't match.")
+                raise SemanticError(
+                    f"Return types of multiple-abstract-inherited functions with signature {signature} don't match."
+                )
 
             # Append the public one since it's the most strict
             methods_to_return.append(next((m for m in methods if "public" in m.modifiers), methods[0]))
