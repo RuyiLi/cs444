@@ -4,14 +4,11 @@ from typing import List, Union
 from lark import Visitor, Token, ParseTree, Tree
 
 from interpreter import JoosInterpreter
+from helper import get_formal_params, get_return_type, get_modifiers
 
 
 class WeedError(Exception):
     pass
-
-
-def get_modifiers(trees_or_tokens: List[Union[Token, Tree[Token]]]):
-    return [c for c in trees_or_tokens if isinstance(c, Token) and c.type == "MODIFIER"]
 
 
 def format_error(msg: str, line=None):
@@ -31,9 +28,7 @@ class Weeder(Visitor):
         modifiers = get_modifiers(tree.children)
 
         # shouldn't raise stopiteration, grammar should catch anonymous classes
-        interface_name = next(
-            filter(lambda c: isinstance(c, Token) and c.type == "IDENTIFIER", tree.children)
-        )
+        interface_name = next(c for c in tree.children if isinstance(c, Token) and c.type == "IDENTIFIER")
         if "public" in modifiers and interface_name != self.file_name:
             raise WeedError(
                 f"interface {interface_name} is public, should be declared in a file named {interface_name}.java"
@@ -43,7 +38,7 @@ class Weeder(Visitor):
         modifiers = get_modifiers(tree.children)
 
         # shouldn't raise stopiteration, grammar should catch anonymous classes
-        class_name = next(filter(lambda c: isinstance(c, Token) and c.type == "IDENTIFIER", tree.children))
+        class_name = next(c for c in tree.children if isinstance(c, Token) and c.type == "IDENTIFIER")
         if "public" in modifiers and class_name != self.file_name:
             raise WeedError(
                 f"class {class_name} is public, should be declared in a file named {class_name}.java"
@@ -76,48 +71,13 @@ class Weeder(Visitor):
                 abstract_method.meta.line,
             )
 
-        def get_signature(md: Tree[Token]):
-            identifier = next(
-                filter(lambda c: isinstance(c, Tree) and c.data == "method_declarator", md.children)
-            ).children[0]
-            formal_params = next(md.find_pred(lambda c: c.data == "formal_param_list")).children
-            formal_param_types = list(
-                map(
-                    lambda fp: next(
-                        map(
-                            lambda t: next(t.scan_values(lambda v: isinstance(v, Token))),
-                            fp.find_pred(lambda c: c.data == "type"),
-                        )
-                    ),
-                    formal_params,
-                )
-            )
-            return (identifier, formal_param_types)
-
-        method_signatures = list(map(get_signature, method_declarations))
-
-        for i in range(len(method_signatures)):
-            for j in range(i + 1, len(method_signatures)):
-                if method_signatures[i] == method_signatures[j]:
-                    [m1_l, m2_l] = [method_declarations[i].meta.line, method_declarations[j].meta.line]
-                    format_error(f"Two methods cannot have the same signature. (lines {m1_l} and {m2_l})")
-
     def method_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
-        return_type = (
-            "void"
-            if any(isinstance(x, Token) and x.type == "VOID_KW" for x in tree.children)
-            else next(filter(lambda c: isinstance(c, Tree) and c.data == "type", tree.children)).children[0]
-        )
+        return_type = get_return_type(tree)
 
-        invalid_modifier = next(
-            filter(
-                lambda c: c not in ["public", "protected", "abstract", "static", "final", "native"],
-                modifiers,
-            ),
-            None,
-        )
-        if invalid_modifier is not None:
+        valid_modifiers = ["public", "protected", "abstract", "static", "final", "native"]
+
+        if invalid_modifier := next((c for c in modifiers if c not in valid_modifiers), None):
             format_error(
                 f'Invalid modifier "{invalid_modifier}" used in method declaration.',
                 invalid_modifier.line,
@@ -159,23 +119,9 @@ class Weeder(Visitor):
                     f"Native methods are restricted to int return type, found '{return_type}'", tree.meta.line
                 )
 
-            formal_params = next(tree.find_pred(lambda c: c.data == "formal_param_list"), None)
-            if formal_params is None:
-                format_error("Native methods must have exactly one int parameter.", tree.meta.line)
+            formal_param_types, _ = get_formal_params(tree)
 
-            formal_param_types = list(
-                map(
-                    lambda fp: next(
-                        map(
-                            lambda t: next(t.scan_values(lambda v: isinstance(v, Token))),
-                            fp.find_pred(lambda c: c.data == "type"),
-                        )
-                    ),
-                    formal_params.children,
-                )
-            )
-
-            if len(formal_param_types) > 1 or formal_param_types[0] != "int":
+            if len(formal_param_types) == 0 or len(formal_param_types) > 1 or formal_param_types[0] != "int":
                 format_error("Native methods must have exactly one int parameter.", tree.meta.line)
 
         if "public" not in modifiers and "protected" not in modifiers:
@@ -242,8 +188,7 @@ class Weeder(Visitor):
     def constructor_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
 
-        invalid_modifier = next(filter(lambda c: c not in ["public", "protected"], modifiers), None)
-        if invalid_modifier is not None:
+        if invalid_modifier := next((m for m in modifiers if m not in ["public", "protected"]), None):
             format_error(
                 f'Invalid modifier "{invalid_modifier}" used in constructor declaration.',
                 invalid_modifier.line,
@@ -291,8 +236,7 @@ class Weeder(Visitor):
     def field_declaration(self, tree: ParseTree):
         modifiers = get_modifiers(tree.children)
 
-        invalid_modifier = next(filter(lambda c: c not in ["public", "protected", "static"], modifiers), None)
-        if invalid_modifier is not None:
+        if invalid_modifier := next((m for m in modifiers if m not in ["public", "protected", "static"]), None):
             format_error(
                 f'Invalid modifier "{invalid_modifier}" used in field declaration.', invalid_modifier.line
             )
@@ -327,6 +271,3 @@ class Weeder(Visitor):
             else:
                 expr.data = "reference_type"
                 pass
-
-    # def __default__(self, tree: ParseTree):
-    # print(tree.data, tree.children)

@@ -4,7 +4,6 @@ from typing import List
 
 from lark import Token, Tree, ParseTree
 
-from weeder import get_modifiers
 from type_link import ImportDeclaration, SingleTypeImport, OnDemandImport
 from context import (
     Context,
@@ -17,6 +16,16 @@ from context import (
     LocalVarDecl,
     MethodDecl,
 )
+from helper import (
+    extract_name,
+    extract_type,
+    get_child_tree,
+    get_formal_params,
+    get_modifiers,
+    get_nested_token,
+    get_tree_token,
+    get_return_type
+)
 
 
 def build_environment(tree: ParseTree, context: Context):
@@ -27,57 +36,6 @@ def build_environment(tree: ParseTree, context: Context):
     for child in tree.children:
         if isinstance(child, Tree):
             parse_node(child, context)
-
-
-def get_child_tree(tree: ParseTree, name: str) -> Tree:
-    return next(filter(lambda c: isinstance(c, Tree) and c.data == name, tree.children), None)
-
-
-def get_nested_token(tree: ParseTree, name: str) -> str:
-    return next(tree.scan_values(lambda v: isinstance(v, Token) and v.type == name)).value
-
-
-def get_tree_token(tree: ParseTree, tree_name: str, token_name: str):
-    return get_nested_token(next(tree.find_data(tree_name)), token_name)
-
-
-def get_identifiers(tree: ParseTree):
-    tokens = tree.scan_values(lambda v: isinstance(v, Token) and v.type == "IDENTIFIER")
-    return (token.value for token in tokens)
-
-
-def extract_name(tree: ParseTree):
-    return ".".join(get_identifiers(tree))
-
-
-def extract_type(tree: ParseTree):
-    assert tree.data == "type"
-
-    child = tree.children[0]
-    if isinstance(child, Token):
-        return child.value
-    elif child.data == "array_type":
-        element_type = child.children[0]
-        return (element_type.value if isinstance(element_type, Token) else extract_name(element_type)) + "[]"
-    else:
-        return extract_name(child)
-
-
-def get_formal_params(tree: ParseTree):
-    formal_params = next(tree.find_data("formal_param_list"), None)
-
-    formal_param_types = []
-    formal_param_names = []
-
-    if formal_params is not None:
-        for child in formal_params.children:
-            if isinstance(child, Token):
-                continue
-
-            formal_param_types.append(extract_type(next(child.find_data("type"))))
-            formal_param_names.append(get_tree_token(child, "var_declarator_id", "IDENTIFIER"))
-
-    return (formal_param_types, formal_param_names)
 
 
 def build_compilation_unit(tree: ParseTree, context: Context):
@@ -186,11 +144,7 @@ def parse_node(tree: ParseTree, context: Context):
             method_name = get_nested_token(method_declarator, "IDENTIFIER")
             formal_param_types, formal_param_names = get_formal_params(tree)
 
-            return_type = (
-                "void"
-                if any(isinstance(x, Token) and x.type == "VOID_KW" for x in tree.children)
-                else extract_type(get_child_tree(tree, "type"))
-            )
+            return_type = get_return_type(tree)
 
             symbol = MethodDecl(context, method_name, formal_param_types, modifiers, return_type)
             context.declare(symbol)
@@ -223,10 +177,8 @@ def parse_node(tree: ParseTree, context: Context):
         case "statement":
             scope_stmts = ["block", "if_st", "if_else_st", "for_st", "while_st"]
             if (
-                nested_block := next(
-                    filter(lambda c: isinstance(c, Tree) and c.data in scope_stmts, tree.children), None
-                )
-            ) is not None:
+                nested_block := next((c for c in tree.children if isinstance(c, Tree) and c.data in scope_stmts), None)
+            ):
                 # Blocks inside blocks have the same parent node
                 nested_context = Context(context, context.parent_node, nested_block)
                 context.children.append(nested_context)

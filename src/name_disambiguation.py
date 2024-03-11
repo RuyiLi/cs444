@@ -9,25 +9,13 @@ from context import (
     SemanticError,
 )
 
-from build_environment import get_identifiers
+from helper import get_enclosing_type_decl, get_identifiers
 
 
 def disambiguate_names(context: Context):
     for child_context in context.children:
         parse_node(child_context.tree, child_context)
         disambiguate_names(child_context)
-
-
-def get_enclosing_type_decl(context):
-    # Go up contexts until we reach a class/interface
-    new_context = context
-    while not isinstance(new_context.parent_node, ClassInterfaceDecl):
-        new_context = new_context.parent
-
-    enclosing_type_decl = new_context.parent_node
-    assert isinstance(enclosing_type_decl, ClassInterfaceDecl)
-
-    return enclosing_type_decl
 
 
 def parse_node(tree: ParseTree, context: Context):
@@ -60,7 +48,7 @@ def parse_node(tree: ParseTree, context: Context):
                     context.resolve(f"{LocalVarDecl.node_type}^{expr_id}")
                     or context.resolve(f"{FieldDecl.node_type}^{expr_id}")
                     or next(
-                        filter(lambda field: field.name == expr_id, get_enclosing_type_decl(context).fields),
+                        (field for field in get_enclosing_type_decl(context).fields if field.name == expr_id),
                         None,
                     )
                 )
@@ -75,7 +63,7 @@ def parse_node(tree: ParseTree, context: Context):
 
                     assert isinstance(type_decl, ClassInterfaceDecl)
 
-                    field_symbol = next(filter(lambda f: f.name == expr_id, type_decl.fields), None)
+                    field_symbol = next((field for field in type_decl.fields if field.name == expr_id), None)
 
                     if field_symbol is not None and "static" not in field_symbol.modifiers:
                         raise SemanticError(
@@ -147,7 +135,7 @@ def parse_ambiguous_name(context, ids):
         pre_name = ".".join(ids[:-1])
 
         if result == "package_name":
-            if pre_name in get_enclosing_type_decl(context).type_names:
+            if ".".join(ids) in get_enclosing_type_decl(context).type_names:
                 return "type_name"
             else:
                 return "package_name"
@@ -163,5 +151,4 @@ def parse_ambiguous_name(context, ids):
             else:
                 raise SemanticError(f"'{last_id}' is not the name of a field or method in type '{pre_name}'.")
         elif result == "expression_name":
-            # Need to somehow resolve type of expression??
             return "expression_name"

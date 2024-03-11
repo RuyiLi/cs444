@@ -7,9 +7,22 @@ from lark.tree import Meta
 
 import type_link
 
-
 class SemanticError(Exception):
     pass
+
+
+PRIMITIVE_TYPES = {"byte", "short", "int", "char", "void", "boolean", "void"}
+NUMERIC_TYPES = {"byte", "short", "int", "char"}
+
+def is_primitive_type(type_name: Symbol | str):
+    if isinstance(type_name, PrimitiveType):
+        type_name = type_name.name
+    return type_name in PRIMITIVE_TYPES
+
+
+def is_numeric_type(type_name: Symbol | str):
+    name = type_name.name if isinstance(type_name, PrimitiveType) else type_name
+    return name in NUMERIC_TYPES
 
 
 class Symbol:
@@ -182,7 +195,7 @@ class ClassInterfaceDecl(Symbol):
         return f"class_interface^{self.name}"
 
     def resolve_name(self, type_name: str) -> Optional[Symbol]:
-        if type_link.is_primitive_type(type_name):
+        if is_primitive_type(type_name):
             return type_name if isinstance(type_name, PrimitiveType) else PrimitiveType(type_name)
 
         if type_name[-2:] == "[]":
@@ -402,7 +415,7 @@ class MethodDecl(Symbol):
         self.raw_param_types = param_types
         self.modifiers = modifiers
         self.return_type = return_type
-        self.return_symbol = PrimitiveType(return_type) if return_type in type_link.PRIMITIVE_TYPES else None
+        self.return_symbol = PrimitiveType(return_type) if is_primitive_type(return_type) else None
 
         if self.context.parent_node.node_type == "interface_decl" and "abstract" not in self.modifiers:
             self.modifiers.append("abstract")

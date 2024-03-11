@@ -43,29 +43,33 @@ for file in stdlib_files:
         build_environment(res, global_context_with_stdlib)
 
 
-def static_check(context: GlobalContext):
+def static_check(context: GlobalContext, quiet = False):
     try:
         type_link(context)
     except Exception as e:
-        logging.error("Failed type_link")
+        if not quiet:
+            logging.error("Failed type_link")
         raise e
 
     try:
         hierarchy_check(context)
     except Exception as e:
-        logging.error("Failed hierarchy_check")
+        if not quiet:
+            logging.error("Failed hierarchy_check")
         raise e
 
     try:
         disambiguate_names(context)
     except Exception as e:
-        logging.error("Failed name disambiguation")
+        if not quiet:
+            logging.error("Failed name disambiguation")
         raise e
 
     try:
         type_check(context)
     except Exception as e:
-        logging.error("Failed type check")
+        if not quiet:
+            logging.error("Failed type check")
         raise e
 
 
@@ -128,7 +132,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                     if not quiet:
                         print(res.pretty())
 
-            static_check(global_context)
+            static_check(global_context, quiet)
 
             if should_error(test_files_list[0]):
                 print(f"Failed {test_files_list} (should have thrown an error):")

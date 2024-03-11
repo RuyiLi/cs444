@@ -17,58 +17,26 @@ from context import (
     Symbol,
     MethodDecl,
     ReferenceType,
-    validate_field_access,
+    is_primitive_type,
+    is_numeric_type,
 )
 
-from build_environment import extract_name, get_tree_token, get_modifiers, get_formal_params
-from name_disambiguation import get_enclosing_type_decl
-from type_link import is_primitive_type, get_simple_name, get_prefixes
-
-NUMERIC_TYPES = {"byte", "short", "int", "char"}
-
-
-def get_enclosing_decl(context: Context, decl_type: Symbol):
-    while context and not isinstance(context.parent_node, decl_type):
-        context = context.parent
-    if context is None:
-        return None
-    return context.parent_node
-
-
-def is_static_context(context: Context):
-    if context.is_static:
-        return True
-    function_decl = get_enclosing_decl(context, MethodDecl)
-    if function_decl is not None:
-        return "static" in function_decl.modifiers
-    field_decl = get_enclosing_decl(context, FieldDecl)
-    return field_decl is not None and "static" in field_decl.modifiers
-
-
-def is_numeric_type(type_name: Symbol | str):
-    # we prolly need to clean up these random helper functions
-    if isinstance(type_name, PrimitiveType):
-        type_name = type_name.name
-    return type_name in NUMERIC_TYPES
-
+from type_link import get_simple_name, get_prefixes
+from helper import (
+    extract_name,
+    extract_type,
+    get_enclosing_decl,
+    get_enclosing_type_decl,
+    get_formal_params,
+    get_modifiers,
+    get_tree_token,
+    is_static_context,
+)
 
 def type_check(context: Context):
     for child_context in context.children:
         parse_node(child_context.tree, child_context)
         type_check(child_context)
-
-
-def extract_type(tree: ParseTree | Token):
-    if isinstance(tree, Token):
-        # primitive
-        return tree.value
-    elif tree.data == "array_type":
-        return extract_type(tree.children[0]) + "[]"
-    elif tree.data == "type_name":
-        return extract_name(tree)
-    elif tree.data == "reference_type":
-        return extract_name(tree)
-    return extract_type(tree.children[0])
 
 
 def get_argument_types(context: Context, tree: Tree, meta: Meta = None):
@@ -293,8 +261,6 @@ def parse_ambiguous_name_with_types(
     last_id = ids[-1]
     enclosing_type_decl = get_enclosing_type_decl(context)
 
-    # print("parsing amb name", ids, field)
-
     if len(ids) == 1:
         symbol = context.resolve(f"{LocalVarDecl.node_type}^{last_id}") or context.resolve(
             f"{FieldDecl.node_type}^{last_id}"
@@ -373,8 +339,6 @@ def resolve_refname(
 ):
     refs = name.split(".")
     expr_id = refs[-1]
-
-    # print("resolving", refs, meta)
 
     if len(refs) == 1:
         symbol = context.resolve(f"{LocalVarDecl.node_type}^{expr_id}")
@@ -521,10 +485,10 @@ def castable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
             or t.name in VALID_PRIMITIVE_CONVERSIONS_NARROWING[s.name]
         )
 
-    if assignable(s, t, type_decl) or assignable(t, s, type_decl):
-        return True
-
     for a, b in (s, t), (t, s):
+        if assignable(a, b, type_decl):
+            return True
+
         if a.node_type == InterfaceDecl.node_type:
             if b.node_type == InterfaceDecl.node_type or (
                 b.node_type == ClassDecl.node_type and "final" not in b.modifiers
@@ -803,7 +767,7 @@ def resolve_expression(
                 raise SemanticError("Operand cannot have type void in unary negative expression")
 
             if not is_numeric_type(expr_type):
-                raise SemanticError("Cannot use operand of type {expr_type} in unary negative expression")
+                raise SemanticError(f"Cannot use operand of type {expr_type} in unary negative expression")
             return expr_type
 
         case "unary_complement_expr":
@@ -813,7 +777,7 @@ def resolve_expression(
                 raise SemanticError("Operand cannot have type void in unary complement expression")
 
             if expr_type != "boolean":
-                raise SemanticError("Cannot use operand of type {expr_type} in unary complement expression")
+                raise SemanticError(f"Cannot use operand of type {expr_type} in unary complement expression")
             return expr_type
 
         case "array_access":
@@ -874,56 +838,5 @@ def resolve_expression(
             return context.resolve(f"{ClassInterfaceDecl.node_type}^java.lang.String")
 
         case x:
-            print("assdsd", x)
             logging.warn(f"Unknown tree data {x}")
 
-
-[
-    Tree(
-        Token("RULE", "expr"),
-        [
-            Tree(
-                "reference_type",
-                [
-                    Tree(
-                        Token("RULE", "name"),
-                        [
-                            Token("IDENTIFIER", "java"),
-                            Tree(
-                                Token("RULE", "name"),
-                                [
-                                    Token("IDENTIFIER", "util"),
-                                    Tree(Token("RULE", "name"), [Token("IDENTIFIER", "List")]),
-                                ],
-                            ),
-                        ],
-                    )
-                ],
-            )
-        ],
-    ),
-    Tree(
-        Token("RULE", "class_instance_creation"),
-        [
-            Token("NEW_KW", "new"),
-            Tree(
-                Token("RULE", "type_name"),
-                [
-                    Tree(
-                        Token("RULE", "name"),
-                        [
-                            Token("IDENTIFIER", "java"),
-                            Tree(
-                                Token("RULE", "name"),
-                                [
-                                    Token("IDENTIFIER", "util"),
-                                    Tree(Token("RULE", "name"), [Token("IDENTIFIER", "LinkedList")]),
-                                ],
-                            ),
-                        ],
-                    )
-                ],
-            ),
-        ],
-    ),
-]
