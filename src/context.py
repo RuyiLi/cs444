@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 from collections import defaultdict
 from lark import Tree
 from lark.tree import Meta
