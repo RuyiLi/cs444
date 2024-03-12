@@ -192,6 +192,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
 
 def load_custom_testcases(test_names: List[str]):
     global_context = deepcopy(global_context_with_stdlib)
+    warning_list = []
 
     for test_name in test_names:
         logging.info(f"Testing {test_name}")
@@ -200,25 +201,36 @@ def load_custom_testcases(test_names: List[str]):
         except FileNotFoundError:
             print(f"Could not find test with name {test_name}.java, skipping...")
         else:
-            with f:
-                test_file_contents = f.read()
-                try:
-                    res = lark.parse(test_file_contents)
-                    logging.debug(res.pretty())
-                    Weeder(f.name).visit(res)
-                    print(res.pretty())
-                    build_environment(res, global_context)
+            with warnings.catch_warnings(record=True) as w:
+                with f:
+                    test_file_contents = f.read()
+                    try:
+                        res = lark.parse(test_file_contents)
+                        logging.debug(res.pretty())
+                        Weeder(f.name).visit(res)
+                        print(res.pretty())
+                        build_environment(res, global_context)
+                    except Exception as e:
+                        print(f"Failed {test_name}:", e)
+                        raise e
+            warning_list.extend(w)
 
-                    print(f"Passed {test_name}")
-                except Exception as e:
-                    print(f"Failed {test_name}:", e)
-                    raise e
+    with warnings.catch_warnings(record=True) as w:
+        try:
+            static_check(global_context)
+        except Exception as e:
+            print(f"Failed {test_name}:", e)
+            raise e
+    warning_list.extend(w)
 
-    static_check(global_context)
-
+    if warning_list:
+        print(f"Warned {test_name}")
+    else:
+        print(f"Succeded {test_name}")
 
 def load_path_testcases(paths: List[str]):
     global_context = deepcopy(global_context_with_stdlib)
+    warning_list = []
 
     for path in paths:
         try:
@@ -226,22 +238,31 @@ def load_path_testcases(paths: List[str]):
         except FileNotFoundError:
             print(f"Could not find test with name {path}, skipping...")
         else:
-            with f:
-                test_file_contents = f.read()
-                try:
-                    res = lark.parse(test_file_contents)
-                    logging.debug(res.pretty())
-                    Weeder(f.name).visit(res)
-                    build_environment(res, global_context)
-                except Exception as e:
-                    logging.exception(e)
-                    exit(42)
+            with warnings.catch_warnings(record=True) as w:
+                with f:
+                    test_file_contents = f.read()
+                    try:
+                        res = lark.parse(test_file_contents)
+                        logging.debug(res.pretty())
+                        Weeder(f.name).visit(res)
+                        build_environment(res, global_context)
+                    except Exception as e:
+                        logging.exception(e)
+                        exit(42)
+            warning_list.extend(w)
 
-    try:
-        static_check(global_context)
-    except Exception as e:
-        logging.exception(e)
-        exit(42)
+    with warnings.catch_warnings(record=True) as w:
+        try:
+            static_check(global_context)
+        except Exception as e:
+            logging.exception(e)
+            exit(42)
+    warning_list.extend(w)
+    
+    if warning_list:
+        exit(43)
+    else:
+        exit(0)
 
 
 def load_parse_trees(paths: List[str]):
