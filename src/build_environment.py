@@ -85,8 +85,8 @@ def build_class_interface_decl(
     class_name = package_prefix + get_nested_token(tree, "IDENTIFIER")
     modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
     extends = list(map(extract_name, tree.find_data("class_type")))
-    if not extends and class_name != "java.lang.Object":
-        extends = ["Object"]
+    # if not extends and class_name != "java.lang.Object":
+    #     extends = ["Object"]
     inherited_interfaces = next(tree.find_data("interface_type_list"), [])
 
     if isinstance(inherited_interfaces, Tree):
@@ -145,12 +145,14 @@ def parse_node(tree: ParseTree, context: Context):
             formal_param_types, formal_param_names = get_formal_params(tree)
 
             return_type = get_return_type(tree)
+            nested_tree = next(tree.find_data("method_body"), None)
+            has_body = nested_tree is not None and isinstance(nested_tree.children[0], Tree)
 
-            symbol = MethodDecl(context, method_name, formal_param_types, modifiers, return_type)
+            symbol = MethodDecl(context, method_name, formal_param_types, modifiers, return_type, has_body)
             context.declare(symbol)
             logging.debug(f"method_declaration {method_name} {formal_param_types} {modifiers} {return_type}")
 
-            if (nested_tree := next(tree.find_data("method_body"), None)) is not None:
+            if nested_tree is not None:
                 nested_context = Context(context, symbol, nested_tree)
                 context.children.append(nested_context)
 
