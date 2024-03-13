@@ -257,6 +257,14 @@ class ClassInterfaceDecl(Symbol):
                 if method is not None:
                     validate_field_access(method, accessor, allow_static, orig_owner)
                     return method
+
+        java_object = self.resolve_name("java.lang.Object")
+        signature = method_name + "^" + ",".join(argtypes)
+        for method in java_object.methods:
+            if method.signature() == signature:
+                validate_field_access(method, accessor, allow_static, orig_owner)
+                return method
+
         return None
 
     def resolve_field(
@@ -283,7 +291,7 @@ class ClassInterfaceDecl(Symbol):
                     return field
         return None
 
-    def resolve_method_return_types(self):
+    def populate_method_return_symbols(self):
         for method in self.methods:
             if method.return_symbol is None:
                 method.return_symbol = self.resolve_name(method.return_type)
@@ -411,13 +419,15 @@ class MethodDecl(Symbol):
     modifiers: List[str]
     return_type: str
     return_symbol: ClassInterfaceDecl | PrimitiveType
+    has_body: bool
 
-    def __init__(self, context, name, param_types, modifiers, return_type):
+    def __init__(self, context, name, param_types, modifiers, return_type, has_body):
         super().__init__(context, name)
         self.raw_param_types = param_types
         self.modifiers = modifiers
         self.return_type = return_type
         self.return_symbol = PrimitiveType(return_type) if is_primitive_type(return_type) else None
+        self.has_body = has_body
 
         if self.context.parent_node.node_type == "interface_decl" and "abstract" not in self.modifiers:
             self.modifiers.append("abstract")
