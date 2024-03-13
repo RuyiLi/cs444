@@ -102,7 +102,9 @@ def parse_node(tree: ParseTree, context: Context):
             assert isinstance(symbol, ClassDecl)
 
             if not any(method.name == method_id for method in symbol.methods):
-                raise SemanticError(f"Method {method_id} doesn't exist in class {symbol.name}")
+                java_object = context.resolve(f"{ClassInterfaceDecl.node_type}^java.lang.Object")
+                if not any(method.name == method_id for method in java_object.methods):
+                    raise SemanticError(f"Method {method_id} doesn't exist in class {symbol.name}")
 
         case "statement":
             child = tree.children[0]
