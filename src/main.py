@@ -141,8 +141,8 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
     passed = 0
     failed_tests = []
     actual_result = SUCCESS
-    error = ""
     for test_files_list in test_files_lists:
+        error = None
         expected_result = get_expected_result(test_files_list[0])
         try:
             with warnings.catch_warnings(record=True) as warning_list:
@@ -171,12 +171,12 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                 print(f"Passed: {test_files_list} (correctly returned {get_result_string(expected_result)})")
             passed += 1
         else:
-            print(
-                actual_result,
-                expected_result,
-                get_result_string(actual_result),
-                get_result_string(expected_result),
-            )
+            # print(
+            #     actual_result,
+            #     expected_result,
+            #     get_result_string(actual_result),
+            #     get_result_string(expected_result),
+            # )
             print(
                 f"Failed: {test_files_list} (returned {get_result_string(actual_result)} instead of {get_result_string(expected_result)})"
             )
@@ -228,6 +228,7 @@ def load_custom_testcases(test_names: List[str]):
     else:
         print(f"Succeded {test_name}")
 
+
 def load_path_testcases(paths: List[str]):
     global_context = deepcopy(global_context_with_stdlib)
     warning_list = []
@@ -258,7 +259,7 @@ def load_path_testcases(paths: List[str]):
             logging.exception(e)
             exit(42)
     warning_list.extend(w)
-    
+
     if warning_list:
         exit(43)
     else:
