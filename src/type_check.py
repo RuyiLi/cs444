@@ -1,22 +1,26 @@
 import copy
 import logging
+from typing import Literal
 
-from context import (
+from joos_types import (
     ArrayType,
+    NullReference,
+    PrimitiveType,
+    ReferenceType,
+    SymbolType,
+    assignable,
+    castable,
+    is_numeric_type,
+    is_primitive_type
+)
+from context import (
     ClassDecl,
     ClassInterfaceDecl,
     Context,
     FieldDecl,
-    InterfaceDecl,
     LocalVarDecl,
     MethodDecl,
-    NullReference,
-    PrimitiveType,
-    ReferenceType,
     SemanticError,
-    Symbol,
-    is_numeric_type,
-    is_primitive_type,
 )
 from helper import (
     extract_name,
@@ -30,7 +34,7 @@ from helper import (
 )
 from lark import ParseTree, Token, Tree
 from lark.tree import Meta
-from type_link import get_prefixes, get_simple_name
+from type_link import get_simple_name
 
 
 def type_check(context: Context):
@@ -91,7 +95,7 @@ def parse_node(tree: ParseTree, context: Context):
 
             type_tree = next(tree.find_data("type"))
             type_name = extract_type(type_tree)
-            field_type = type_decl.resolve_name(type_name)
+            field_type = type_decl.resolve_type(type_name)
 
             rhs = next(tree.find_data("var_initializer"), None)
             if rhs is not None:
@@ -136,7 +140,6 @@ def parse_node(tree: ParseTree, context: Context):
             resolve_expression(tree, context)
 
         case "local_var_declaration":
-            # print(tree)
             var_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
             symbol = context.resolve(LocalVarDecl, var_name)
             expr = next(tree.find_data("var_initializer"), None).children[0]
@@ -189,7 +192,7 @@ def parse_node(tree: ParseTree, context: Context):
                     parse_node(child, context)
 
 
-def resolve_token(token: Token, context: Context):
+def resolve_token(token: Token, context: Context) -> SymbolType:
     match token.type:
         case "INTEGER_L":
             return PrimitiveType("int")
@@ -207,39 +210,16 @@ def resolve_token(token: Token, context: Context):
                 raise SemanticError("Keyword 'this' found without an enclosing class.")
             if is_static_context(context):
                 raise SemanticError("Keyword 'this' found in static context.")
-            return symbol
+            return ReferenceType(symbol)
         case x:
             raise SemanticError(f"Unknown token {x}")
 
 
-def resolve_bare_refname(name: str, context: Context) -> Symbol:
-    # resolves a refname with no dots
-
-    # if None, then we're at the class or ctor level (where we dont care about static)
-    type_decl = get_enclosing_type_decl(context)
-
-    if name == "this":
-        if is_static_context(context):
-            raise SemanticError("Keyword 'this' found in static context.")
-        return type_decl
-
-    symbol = context.resolve(LocalVarDecl, name)
-    if symbol is None and not is_static_context(context):
-        # disallow implicit this in static context
-        # assume no static imports
-        symbol = type_decl.resolve_field(name, type_decl)
-    symbol = symbol or type_decl.resolve_name(name)
-
-    if symbol is None:
-        raise SemanticError(f"Name '{name}' could not be resolved in expression.")
-
-    # default to symbol itself (not localvar/field)
-    return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
-
-
 def parse_ambiguous_name_with_types(
     context, ids, meta: Meta = None, get_final_modifier=False, arg_types=None, field=False
-):
+) -> (tuple[Literal["package_name"], None] |
+    tuple[Literal["type_name"], ClassInterfaceDecl] |
+    tuple[Literal["expression_name"], LocalVarDecl | FieldDecl | MethodDecl]):
     last_id = ids[-1]
     enclosing_type_decl = get_enclosing_type_decl(context)
 
@@ -254,45 +234,47 @@ def parse_ambiguous_name_with_types(
         else:
             return ("package_name", None)
     else:
-        result, pre_symbol = parse_ambiguous_name_with_types(
+        qualifier = parse_ambiguous_name_with_types(
             context, ids[:-1], meta, get_final_modifier, arg_types, field
         )
         pre_name = ".".join(ids[:-1])
 
-        if result == "package_name":
-            if type_name := enclosing_type_decl.resolve_name(".".join(ids)):
-                return ("type_name", type_name)
-            else:
-                return ("package_name", None)
+        match qualifier:
+            case ("package_name", _):
+                if type_name := enclosing_type_decl.resolve_name(".".join(ids)):
+                    return ("type_name", type_name)
+                else:
+                    return ("package_name", None)
 
-        elif result == "type_name":
-            if symbol := pre_symbol.resolve_method(last_id, arg_types or [], enclosing_type_decl, True):
-                return ("expression_name", symbol)
+            case ("type_name", pre_symbol):
+                if symbol := pre_symbol.resolve_method(last_id, arg_types or [], enclosing_type_decl, True):
+                    return ("expression_name", symbol)
 
-            if symbol := pre_symbol.resolve_field(last_id, enclosing_type_decl, True):
-                return ("expression_name", symbol)
+                if symbol := pre_symbol.resolve_field(last_id, enclosing_type_decl, True):
+                    return ("expression_name", symbol)
 
-            raise SemanticError(f"'{last_id}' is not the name of a field or method in type '{pre_name}'.")
+                raise SemanticError(f"'{last_id}' is not the name of a field or method in type '{pre_name}'.")
 
-        elif result == "expression_name":
-            symbol_type = getattr(pre_symbol, "resolved_sym_type", ReferenceType(pre_symbol))
-            if not isinstance(symbol_type, ArrayType) and (
-                symbol := symbol_type.resolve_method(last_id, arg_types or [], enclosing_type_decl)
-            ):
-                return ("expression_name", symbol)
+            case ("expression_name", pre_symbol):
+                assert not isinstance(pre_symbol, MethodDecl)
 
-            if symbol := symbol_type.resolve_field(last_id, enclosing_type_decl):
-                if get_final_modifier and isinstance(symbol_type, ArrayType) and symbol.name == "length":
-                    raise SemanticError("A final field cannot be assigned to.")
+                symbol_type = pre_symbol.resolved_sym_type
 
-                return ("expression_name", symbol)
+                if isinstance(symbol_type, ReferenceType) and (
+                    symbol := symbol_type.resolve_method(last_id, arg_types or [], enclosing_type_decl)
+                ):
+                    return ("expression_name", symbol)
 
-            raise SemanticError(
-                f"'{last_id}' is not the name of a field or method in expression '{pre_name}' of type '{symbol_type}'."
-            )
+                if isinstance(symbol_type, ReferenceType) and \
+                    (symbol := symbol_type.resolve_field(last_id, enclosing_type_decl)):
+                    if get_final_modifier and isinstance(symbol_type, ArrayType) and symbol.name == "length":
+                        raise SemanticError("A final field cannot be assigned to.")
 
-        else:
-            raise SemanticError("how did you get here")
+                    return ("expression_name", symbol)
+
+                raise SemanticError(
+                    f"'{last_id}' is not the name of a field or method in expression '{pre_name}' of type '{symbol_type}'."
+                )
 
 
 def check_forward_reference(name: str, context: Context, meta: Meta, field: bool):
@@ -314,6 +296,20 @@ def check_forward_reference(name: str, context: Context, meta: Meta, field: bool
             raise SemanticError(f"Local var {name} cannot be used before it was declared.")
 
 
+def resolve_bare_refname(name: str, context: Context):
+    type_decl = get_enclosing_type_decl(context)
+
+    if symbol := context.resolve(LocalVarDecl, name):
+        return symbol
+
+    if not is_static_context(context):
+        if symbol := (context.resolve(FieldDecl, name) or type_decl.resolve_field(name, type_decl)):
+            return symbol
+
+    if symbol := type_decl.resolve_name(name):
+        return symbol
+
+
 def resolve_refname(
     name: str, context: Context, meta: Meta = None, get_final_modifier=False, arg_types=None, field=False
 ):
@@ -321,13 +317,7 @@ def resolve_refname(
     expr_id = refs[-1]
 
     if len(refs) == 1:
-        symbol = context.resolve(LocalVarDecl, expr_id)
-
-        if symbol is None and not is_static_context(context):
-            type_decl = get_enclosing_type_decl(context)
-            symbol = context.resolve(FieldDecl, expr_id) or type_decl.resolve_field(
-                expr_id, type_decl
-            )
+        symbol = resolve_bare_refname(expr_id, context)
 
         if symbol is None:
             raise SemanticError(f"Couldn't resolve symbol {refs}")
@@ -335,147 +325,13 @@ def resolve_refname(
         if meta is not None:
             check_forward_reference(name, context, meta, field)
 
-        return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
+        return symbol
     else:
         name_type, symbol = parse_ambiguous_name_with_types(
             context, refs, meta, get_final_modifier, arg_types, field
         )
-        return getattr(symbol, "resolved_sym_type", ReferenceType(symbol))
-
-
-def resolve_refname2(name: str, context: Context, meta: Meta = None, get_final_modifier=False):
-    # assert non primitive type?
-    final_modifier = False
-    type_decl = get_enclosing_type_decl(context)
-    ref_type = None
-    for prefix in reversed(get_prefixes(name)):
-        symbol = type_decl.resolve_name(prefix)
-        if symbol is not None:
-            # fully qualified name
-            ref_type = ReferenceType(symbol)
-            ref_type.name = symbol.name
-            name = name[len(prefix) :]
-            break
-
-    refs = name.split(".")
-    if refs[0] == "":
-        refs.pop(0)
-
-    start_idx = 0
-    if ref_type is None:
-        ref_type = resolve_bare_refname(refs[0], context)
-        start_idx = 1
-
-    for i in range(start_idx, len(refs)):
-        old_ref_type = ref_type
-        ref_type = ref_type.resolve_field(refs[i], type_decl).resolved_sym_type
-
-        if (
-            get_final_modifier
-            and isinstance(old_ref_type, ArrayType)
-            and ref_type == "int"
-            and refs[i] == "length"
-        ):
-            final_modifier = True
-
-    if get_final_modifier and final_modifier:
-        return (ref_type, final_modifier)
-    return ref_type
-
-
-VALID_PRIMITIVE_CONVERSIONS_WIDENING = dict(
-    byte={"short", "int", "long", "float", "double"},
-    short={"int", "long", "float", "double"},
-    char={"int", "long", "float", "double"},
-    int={"long", "float", "double"},
-    long={"float", "double"},
-    float={"double"},
-)
-
-VALID_PRIMITIVE_CONVERSIONS_NARROWING = dict(
-    byte={"char"},
-    short={"byte", "char"},
-    char={"byte", "short"},
-    int={"byte", "short", "char"},
-    long={"byte", "short", "char", "int"},
-    float={"byte", "short", "char", "int", "long"},
-    double={"byte", "byte", "short", "char", "int", "long", "float"},
-)
-
-
-def assignable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
-    "Returns true if s is assignable to t."
-
-    if s.name == t.name:
-        return True
-
-    if is_primitive_type(s) != is_primitive_type(t):
-        return False
-
-    if is_primitive_type(s):
-        # s and t are both primitive types
-        return t.name in VALID_PRIMITIVE_CONVERSIONS_WIDENING[s.name]
-
-    # s and t are both reference types
-
-    if t.name == "java.lang.Object" or s.name == "null":
-        return True
-
-    if s.node_type == ClassDecl.node_type:
-        match t.node_type:
-            case ClassDecl.node_type:
-                return s.is_subclass_of(t.name)
-            case InterfaceDecl.node_type:
-                return s.implements_interface(t.name)
-
-    if s.node_type == InterfaceDecl.node_type:
-        match t.node_type:
-            case InterfaceDecl.node_type:
-                return s.is_subclass_of(t.name)
-
-    if s.node_type == ArrayType.node_type:
-        match t.node_type:
-            case InterfaceDecl.node_type:
-                return t.name == "java.lang.Cloneable" or t.name == "java.io.Serializable"
-            case ArrayType.node_type:
-                s_type = type_decl.resolve_name(s.name[:-2])
-                t_type = type_decl.resolve_name(t.name[:-2])
-
-                if all(map(is_primitive_type, [s_type, t_type])):
-                    return s_type == t_type
-                elif all(isinstance(ty, ClassInterfaceDecl) for ty in [s_type, t_type]):
-                    return assignable(s_type, t_type, type_decl)
-                else:
-                    return False
-
-    return False
-
-
-def castable(s: Symbol, t: Symbol, type_decl: ClassInterfaceDecl):
-    if s.name == t.name:
-        return True
-
-    if is_primitive_type(s) != is_primitive_type(t):
-        return False
-
-    if is_primitive_type(s):
-        # s and t are both primitive types
-        return (
-            t.name in VALID_PRIMITIVE_CONVERSIONS_WIDENING[s.name]
-            or t.name in VALID_PRIMITIVE_CONVERSIONS_NARROWING[s.name]
-        )
-
-    for a, b in (s, t), (t, s):
-        if assignable(a, b, type_decl):
-            return True
-
-        if a.node_type == InterfaceDecl.node_type:
-            if b.node_type == InterfaceDecl.node_type or (
-                b.node_type == ClassDecl.node_type and "final" not in b.modifiers
-            ):
-                return True
-
-    return False
+        assert name_type != "package_name"
+        return symbol
 
 
 def resolve_expression(
@@ -484,10 +340,9 @@ def resolve_expression(
     meta: Meta = None,
     get_final_modifier: bool = False,
     field: bool = False,
-) -> Symbol | None:
+) -> SymbolType | None:
     """
     Resolves the type of an expression tree.
-    TODO fix arraytype
     """
 
     if isinstance(tree, Token):
@@ -500,7 +355,9 @@ def resolve_expression(
 
         case "class_instance_creation":
             new_type = extract_name(tree.children[1])
-            ref_type = resolve_refname2(new_type, context).referenced_type
+            ref_type = get_enclosing_type_decl(context).resolve_name(new_type)
+
+            assert isinstance(ref_type, ClassDecl)
 
             if "abstract" in ref_type.modifiers:
                 raise SemanticError(f"Cannot create object of {ref_type.name} due to abstract class")
@@ -523,7 +380,7 @@ def resolve_expression(
                             raise SemanticError(
                                 f"Cannot access protected constructor of {ref_type.name} from {type_decl.name}"
                             )
-                    return ref_type
+                    return ReferenceType(ref_type)
 
             raise SemanticError(f"Constructor {ref_type.name}({arg_types}) not found")
 
@@ -539,16 +396,17 @@ def resolve_expression(
                         f"Size expression of array creation must be a numeric type (found {size_expr_type.name})"
                     )
 
-            if is_primitive_type(array_type):
-                return ArrayType(f"{array_type}[]")
+            if isinstance(array_type, Token):
+                if is_primitive_type(array_type):
+                    return ArrayType(PrimitiveType(array_type))
+            else:
+                type_name = extract_name(array_type)
+                symbol = get_enclosing_type_decl(context).type_names.get(type_name)
 
-            type_name = extract_name(array_type)
-            symbol = get_enclosing_type_decl(context).type_names.get(type_name)
+                if symbol is None:
+                    raise SemanticError(f"Type name '{type_name}' could not be resolved.")
 
-            if symbol is None:
-                raise SemanticError(f"Type name '{type_name}' could not be resolved.")
-
-            return ArrayType(f"{symbol.name}[]")
+                return ArrayType(ReferenceType(symbol))
 
         case "mult_expr":
             left_type, right_type = map(
@@ -609,11 +467,7 @@ def resolve_expression(
                 raise SemanticError("Operand cannot have type void in relational expression")
 
             if op == "instanceof":
-                if not (
-                    left_type.name == "null"
-                    or isinstance(left_type, ClassDecl)
-                    or isinstance(left_type, ArrayType)
-                ):
+                if not isinstance(left_type, ReferenceType):
                     raise SemanticError(
                         f"Left side of instanceof must be a reference type or the null type (found {left_type})"
                     )
@@ -636,7 +490,7 @@ def resolve_expression(
                 or all(t.name == "boolean" for t in [left_type, right_type])
                 or (
                     all(
-                        isinstance(t, ClassInterfaceDecl) or isinstance(t, NullReference)
+                        isinstance(t, ReferenceType)
                         for t in [left_type, right_type]
                     )
                 )
@@ -663,19 +517,31 @@ def resolve_expression(
 
         case "type_name":
             name = extract_name(tree)
-            return resolve_refname2(name, context, meta, get_final_modifier)
+            symbol = resolve_refname(name, context, meta, get_final_modifier)
+
+            assert isinstance(symbol, ClassInterfaceDecl)
+            return ReferenceType(symbol, True)
 
         case "expression_name":
             # expression_name actually handles a lot of the field access cases...
             name = extract_name(tree)
-            return resolve_refname(name, context, meta, get_final_modifier, field=field)
+            symbol = resolve_refname(name, context, meta, get_final_modifier, field=field)
+
+            if isinstance(symbol, ClassInterfaceDecl):
+                return ReferenceType(symbol)
+
+            # assert isinstance(symbol, LocalVarDecl) or isinstance(symbol, FieldDecl)
+            return symbol.resolved_sym_type
 
         case "field_access":
             left, field_name = tree.children
             left_type = resolve_expression(left, context, meta, field=field)
             type_decl = get_enclosing_type_decl(context)
-            field = left_type.resolve_field(field_name, type_decl)
-            return field.resolved_sym_type
+
+            assert isinstance(left_type, ReferenceType)
+
+            field_sym = left_type.resolve_field(field_name, type_decl)
+            return field_sym.resolved_sym_type
 
         case "method_invocation":
             type_decl = get_enclosing_type_decl(context)
@@ -696,10 +562,10 @@ def resolve_expression(
                         field=field,
                     )
 
-                    if isinstance(ref_type.referenced_type, MethodDecl):
-                        return ref_type.referenced_type.return_symbol
+                    if isinstance(ref_type, MethodDecl):
+                        return ref_type.return_symbol
                     else:
-                        ref_type = resolve_refname2(ref_name, context)
+                        ref_type = resolve_refname(ref_name, context)
                 else:
                     # assume no static imports
                     if is_static_context(context):
@@ -719,8 +585,8 @@ def resolve_expression(
                     arg_types = get_argument_types(context, arg_list, meta)
                 ref_type = resolve_expression(left, context, meta, field=field)
 
-            if is_primitive_type(ref_type):
-                raise SemanticError(f"Cannot call method {method_name} on simple type {ref_type}")
+                if is_primitive_type(ref_type):
+                    raise SemanticError(f"Cannot call method {method_name} on simple type {ref_type}")
 
             if arg_types is None:
                 arg_types = get_argument_types(context, tree, meta)
@@ -763,19 +629,18 @@ def resolve_expression(
             if not isinstance(array_type, ArrayType):
                 raise SemanticError(f"Cannot index non-array type {array_type}")
 
-            type_decl = get_enclosing_type_decl(context)
-            return type_decl.resolve_name(array_type.name[:-2])
+            return array_type.referenced_type
 
         case "cast_expr":
             type_decl = get_enclosing_type_decl(context)
             if len(tree.children) == 2:
                 cast_type, cast_target = tree.children
                 type_name = extract_type(cast_type)
-                cast_type = type_decl.resolve_name(type_name)
+                cast_type = type_decl.resolve_type(type_name)
             else:
                 cast_type, square_brackets, cast_target = tree.children
                 assert square_brackets.value == "[]"
-                cast_type = type_decl.resolve_name(cast_type.value + "[]")
+                cast_type = type_decl.resolve_type(cast_type.value + "[]")
 
             source_type = resolve_expression(cast_target, context, meta, field=field)
             if is_primitive_type(source_type) and isinstance(source_type, str):
@@ -806,7 +671,7 @@ def resolve_expression(
             return PrimitiveType("char")
 
         case "string_l":
-            return context.resolve(ClassInterfaceDecl, "java.lang.String")
+            return ReferenceType(context.resolve(ClassInterfaceDecl, "java.lang.String"))
 
         case x:
             logging.warn(f"Unknown tree data {x}")

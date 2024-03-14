@@ -130,11 +130,11 @@ def merge_methods(method_dict: dict[str, list[MethodDecl]]):
 
 def extends_java_object(symbol: ClassDecl):
     for extend in symbol.extends:
-        extend_sym = symbol.resolve_name(extend)
-        if extend_sym.name == "java.lang.Object":
-            return True
-        if extends_java_object(extend_sym):
-            return True
+        if extend_sym := symbol.resolve_name(extend):
+            if extend_sym.name == "java.lang.Object":
+                return True
+            if extends_java_object(extend_sym):
+                return True
     return False
 
 

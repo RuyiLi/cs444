@@ -6,24 +6,11 @@ from typing import Dict, List, Optional, Type, TypeVar
 import type_link
 from lark import Tree
 from lark.tree import Meta
+from joos_types import ArrayType, PrimitiveType, ReferenceType, SymbolType, is_primitive_type
 
 
 class SemanticError(Exception):
     pass
-
-
-PRIMITIVE_TYPES = {"byte", "short", "int", "char", "void", "boolean", "void"}
-NUMERIC_TYPES = {"byte", "short", "int", "char"}
-
-
-def is_primitive_type(type_name: Symbol | str):
-    name = type_name.name if isinstance(type_name, PrimitiveType) else type_name
-    return name in PRIMITIVE_TYPES
-
-
-def is_numeric_type(type_name: Symbol | str):
-    name = type_name.name if isinstance(type_name, PrimitiveType) else type_name
-    return name in NUMERIC_TYPES
 
 
 class Symbol:
@@ -93,53 +80,6 @@ class GlobalContext(Context):
         self.packages = defaultdict(list)
 
 
-class PrimitiveType(Symbol):
-    node_type = "primitive_type"
-
-    def __init__(self, name: str):
-        # assert name in type_link.PRIMITIVE_TYPES
-        super().__init__(None, name)
-
-    def sym_id(self):
-        return f"primitive_type^{self.name}"
-
-    def __eq__(self, other):
-        return self.name == other
-
-
-class NullReference(Symbol):
-    node_type = "null_reference"
-
-    def __init__(self):
-        super().__init__(None, "null")
-
-
-class ArrayType(Symbol):
-    # TODO add type of elements
-    node_type = "array_type"
-
-    def __init__(self, name: str):
-        super().__init__(None, name)
-        sym = Symbol(None, "length")
-        sym.sym_type = "int"
-        sym.resolved_sym_type = PrimitiveType("int")
-        sym.modifiers = ["public", "final"]
-        self.fields = [sym]
-
-    def sym_id(self):
-        return f"array_type^{self.name}"
-
-    def resolve_field(self, field_name: str, _accessor, _static=False) -> Optional[FieldDecl]:
-        if field_name == "length":
-            # hardcode builtin property length for array types
-            sym = Symbol(None, "length")
-            sym.sym_type = "int"
-            sym.resolved_sym_type = PrimitiveType("int")
-            sym.modifiers = ["public", "final"]
-            return sym
-        return None
-
-
 def validate_field_access(
     field: FieldDecl | MethodDecl,
     accessor: ClassInterfaceDecl,
@@ -176,6 +116,7 @@ class ClassInterfaceDecl(Symbol):
     imports: List[type_link.ImportDeclaration]
     fields: List[FieldDecl]
     methods: List[MethodDecl]
+    type_names: Dict[str, ClassInterfaceDecl]
 
     def __init__(
         self,
@@ -199,15 +140,19 @@ class ClassInterfaceDecl(Symbol):
     def sym_id(self):
         return f"class_interface^{self.name}"
 
-    def resolve_name(self, type_name: str) -> Optional[Symbol]:
+    def resolve_type(self, type_name: str) -> Optional[SymbolType]:
         if is_primitive_type(type_name):
-            return type_name if isinstance(type_name, PrimitiveType) else PrimitiveType(type_name)
+            return PrimitiveType(type_name)
 
         if type_name[-2:] == "[]":
-            elem_type = self.resolve_name(type_name[:-2])
-            return None if elem_type is None else ArrayType(elem_type.name + "[]")
+            elem_type = self.resolve_type(type_name[:-2])
+            return None if elem_type is None else ArrayType(elem_type)
 
-        if (symbol := self.type_names.get(type_name, None)) is not None:
+        if symbol := self.resolve_name(type_name):
+            return ReferenceType(symbol)
+
+    def resolve_name(self, type_name: str) -> Optional[ClassInterfaceDecl]:
+        if symbol := self.type_names.get(type_name, None):
             return symbol
 
         try:
@@ -215,11 +160,11 @@ class ClassInterfaceDecl(Symbol):
             type_link.resolve_type(self.context, type_name, self)
             return self.type_names[type_name]
         except SemanticError:
-            type_decl = self.context.resolve(ClassInterfaceDecl, type_name)
-            if type_decl is not None and type_decl.package == "" and self.package != "":
-                # type_decl is in default package, but accessor (self) is not
-                return None
-            return type_decl
+            if type_decl := self.context.resolve(ClassInterfaceDecl, type_name):
+                if type_decl.package == "" and self.package != "":
+                    # type_decl is in default package, but accessor (self) is not
+                    return None
+                return type_decl
 
     def check_declare_same_signature(self):
         for i in range(len(self.methods)):
@@ -286,25 +231,21 @@ class ClassInterfaceDecl(Symbol):
 
         # TODO interfaces?
         for extend in self.extends:
-            parent = self.resolve_name(extend)
-            if parent is not None:
-                field = parent.resolve_field(field_name, accessor, allow_static, orig_owner)
-                if field is not None:
-                    validate_field_access(field, accessor, allow_static, orig_owner)
-                    return field
+            if (parent := self.resolve_name(extend)) and (field := parent.resolve_field(field_name, accessor, allow_static, orig_owner)):
+                validate_field_access(field, accessor, allow_static, orig_owner)
+                return field
         return None
 
     def populate_method_return_symbols(self):
         for method in self.methods:
             if method.return_symbol is None:
-                method.return_symbol = self.resolve_name(method.return_type)
+                method.return_symbol = self.resolve_type(method.return_type)
 
     def is_subclass_of(self, name: str):
         if self.name == name:
             return True
         for extend in self.extends:
-            parent = self.resolve_name(extend)
-            if name == parent.name or parent.is_subclass_of(name):
+            if (parent := self.resolve_name(extend)) and (name == parent.name or parent.is_subclass_of(name)):
                 return True
         return False
 
@@ -334,13 +275,11 @@ class ClassDecl(ClassInterfaceDecl):
 
     def implements_interface(self, name: str):
         for interface in self.implements:
-            interface = self.resolve_name(interface)
-            if name == interface.name:
+            if (interface := self.resolve_name(interface)) and name == interface.name:
                 return True
 
         for extend in self.extends:
-            parent = self.resolve_name(extend)
-            if parent.implements_interface(name):
+            if (parent := self.resolve_name(extend)) and parent.implements_interface(name):
                 return True
 
         return False
@@ -360,25 +299,6 @@ class InterfaceDecl(ClassInterfaceDecl):
         super().__init__(context, name, modifiers, extends, imports)
 
 
-class ReferenceType(Symbol):
-    node_type = "reference_type"
-
-    def __init__(self, type_decl: ClassInterfaceDecl):
-        super().__init__(None, f"reference_type^{type_decl.name}")
-        self.referenced_type = type_decl
-
-    def resolve_field(self, field_name: str, accessor: ClassInterfaceDecl) -> Optional[FieldDecl]:
-        return self.referenced_type.resolve_field(field_name, accessor, True)
-
-    def resolve_method(
-        self,
-        method_name: str,
-        argtypes: List[str],
-        accessor: ClassInterfaceDecl,
-    ) -> Optional[FieldDecl]:
-        return self.referenced_type.resolve_method(method_name, argtypes, accessor, True)
-
-
 class ConstructorDecl(Symbol):
     node_type = "constructor"
 
@@ -396,7 +316,7 @@ class ConstructorDecl(Symbol):
     @property
     def resolved_param_types(self):
         # assumes type linking is finished
-        return [self.context.parent_node.resolve_name(param) for param in self.param_types]
+        return [self.context.parent_node.resolve_type(param) for param in self.param_types]
 
 
 class FieldDecl(Symbol):
@@ -412,16 +332,16 @@ class FieldDecl(Symbol):
         self.context.parent_node.fields.append(self)
 
     @property
-    def resolved_sym_type(self):
+    def resolved_sym_type(self) -> SymbolType:
         # assumes type linking is finished
-        return self.context.parent_node.resolve_name(self.sym_type)
+        return self.context.parent_node.resolve_type(self.sym_type)
 
 
 class MethodDecl(Symbol):
     node_type = "method_decl"
     modifiers: List[str]
     return_type: str
-    return_symbol: ClassInterfaceDecl | PrimitiveType
+    return_symbol: SymbolType | None
     has_body: bool
 
     def __init__(self, context, name, param_types, modifiers, return_type, has_body):
@@ -462,7 +382,8 @@ class LocalVarDecl(Symbol):
         self.meta = meta
 
     @property
-    def resolved_sym_type(self):
+    def resolved_sym_type(self) -> SymbolType:
         # assumes type linking is finished
         parent = self.context.parent_node.context.parent_node
-        return parent.resolve_name(self.sym_type)
+        assert isinstance(parent, ClassInterfaceDecl)
+        return parent.resolve_type(self.sym_type)
