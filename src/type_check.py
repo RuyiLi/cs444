@@ -208,24 +208,6 @@ def resolve_token(token: Token, context: Context):
             if is_static_context(context):
                 raise SemanticError("Keyword 'this' found in static context.")
             return symbol
-        case "INSTANCEOF_KW":
-            return PrimitiveType("instanceof")
-        case "LT_EQ":
-            return PrimitiveType("<=")
-        case "GT_EQ":
-            return PrimitiveType(">=")
-        case "LOGICAL_AND":
-            return PrimitiveType("&&")
-        case "LOGICAL_OR":
-            return PrimitiveType("||")
-        case "EAGER_AND":
-            return PrimitiveType("&")
-        case "EAGER_OR":
-            return PrimitiveType("|")
-        case "EQ":
-            return PrimitiveType("==")
-        case "NOT_EQ":
-            return PrimitiveType("!=")
         case x:
             raise SemanticError(f"Unknown token {x}")
 
@@ -620,13 +602,8 @@ def resolve_expression(
             return PrimitiveType("int")
 
         case "rel_expr":
-            operands = list(map(lambda c: resolve_expression(c, context, meta, field=field), tree.children))
-            op = None
-
-            if len(operands) == 3:
-                left_type, op, right_type = operands
-            else:
-                left_type, right_type = operands
+            left_type, right_type = [resolve_expression(tree.children[i], context, meta, field) for i in [0, -1]]
+            op = None if len(tree.children) == 2 else tree.children[1]
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in relational expression")
@@ -649,9 +626,7 @@ def resolve_expression(
             return PrimitiveType("boolean")
 
         case "eq_expr":
-            left_type, _, right_type = map(
-                lambda c: resolve_expression(c, context, meta, field=field), tree.children
-            )
+            left_type, right_type = [resolve_expression(tree.children[i], context, meta, field) for i in [0, -1]]
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in equality expression")
@@ -674,9 +649,7 @@ def resolve_expression(
             return PrimitiveType("boolean")
 
         case "eager_and_expr" | "eager_or_expr" | "and_expr" | "or_expr":
-            left_type, _, right_type = map(
-                lambda c: resolve_expression(c, context, meta, field=field), tree.children
-            )
+            left_type, right_type = [resolve_expression(tree.children[i], context, meta, field) for i in [0, -1]]
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in and/or expression")
