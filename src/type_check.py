@@ -111,7 +111,7 @@ def parse_node(tree: ParseTree, context: Context):
 
                 for expr in rhs.find_data("expression_name"):
                     name = extract_name(expr)
-                    sym = context.resolve(f"{FieldDecl.node_type}^{name}")
+                    sym = context.resolve(FieldDecl, name)
                     if sym and sym.name == my_name:
                         raise SemanticError("Self-reference in field declaration")
 
@@ -138,7 +138,7 @@ def parse_node(tree: ParseTree, context: Context):
         case "local_var_declaration":
             # print(tree)
             var_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
-            symbol = context.resolve(f"{LocalVarDecl.node_type}^{var_name}")
+            symbol = context.resolve(LocalVarDecl, var_name)
             expr = next(tree.find_data("var_initializer"), None).children[0]
 
             assert isinstance(symbol, LocalVarDecl)
@@ -241,7 +241,7 @@ def resolve_bare_refname(name: str, context: Context) -> Symbol:
             raise SemanticError("Keyword 'this' found in static context.")
         return type_decl
 
-    symbol = context.resolve(f"{LocalVarDecl.node_type}^{name}")
+    symbol = context.resolve(LocalVarDecl, name)
     if symbol is None and not is_static_context(context):
         # disallow implicit this in static context
         # assume no static imports
@@ -262,9 +262,7 @@ def parse_ambiguous_name_with_types(
     enclosing_type_decl = get_enclosing_type_decl(context)
 
     if len(ids) == 1:
-        symbol = context.resolve(f"{LocalVarDecl.node_type}^{last_id}") or context.resolve(
-            f"{FieldDecl.node_type}^{last_id}"
-        )
+        symbol = context.resolve(LocalVarDecl, last_id) or context.resolve(FieldDecl, last_id)
         if symbol is not None:
             if meta is not None:
                 check_forward_reference(last_id, context, meta, field)
@@ -316,7 +314,7 @@ def parse_ambiguous_name_with_types(
 
 
 def check_forward_reference(name: str, context: Context, meta: Meta, field: bool):
-    if declare := context.resolve(f"{FieldDecl.node_type}^{name}"):
+    if declare := context.resolve(FieldDecl, name):
         if (
             field
             and "static" not in declare.modifiers
@@ -327,7 +325,7 @@ def check_forward_reference(name: str, context: Context, meta: Meta, field: bool
                 "Initializer of non-static field cannot use a non-static field declared later without explicit 'this'."
             )
 
-    elif declare := context.resolve(f"{LocalVarDecl.node_type}^{name}"):
+    elif declare := context.resolve(LocalVarDecl, name):
         if declare.meta.line > meta.line or (
             declare.meta.line == meta.line and declare.meta.column >= meta.column
         ):
@@ -341,11 +339,11 @@ def resolve_refname(
     expr_id = refs[-1]
 
     if len(refs) == 1:
-        symbol = context.resolve(f"{LocalVarDecl.node_type}^{expr_id}")
+        symbol = context.resolve(LocalVarDecl, expr_id)
 
         if symbol is None and not is_static_context(context):
             type_decl = get_enclosing_type_decl(context)
-            symbol = context.resolve(f"{FieldDecl.node_type}^{expr_id}") or type_decl.resolve_field(
+            symbol = context.resolve(FieldDecl, expr_id) or type_decl.resolve_field(
                 expr_id, type_decl
             )
 
@@ -835,7 +833,7 @@ def resolve_expression(
             return PrimitiveType("char")
 
         case "string_l":
-            return context.resolve(f"{ClassInterfaceDecl.node_type}^java.lang.String")
+            return context.resolve(ClassInterfaceDecl, "java.lang.String")
 
         case x:
             logging.warn(f"Unknown tree data {x}")

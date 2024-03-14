@@ -62,7 +62,7 @@ class SingleTypeImport(ImportDeclaration):
                 raise SemanticError(f"Import {self.name} clashes with {import_decl.name}")
 
         # All type names must resolve to some class or interface declared in some file listed on the Joos command line.
-        imported_type = context.resolve(f"{ClassInterfaceDecl.node_type}^{self.name}")
+        imported_type = context.resolve(ClassInterfaceDecl, self.name)
         if imported_type is None:
             raise SemanticError(f"Import {self.name} does not resolve to any existing type")
 
@@ -99,7 +99,7 @@ def resolve_type(context: GlobalContext, type_name: str, type_decl: ClassInterfa
     is_qualified = "." in type_name
     if is_qualified:
         # resolve fully qualified type name
-        symbol = context.resolve(f"{ClassInterfaceDecl.node_type}^{type_name}")
+        symbol = context.resolve(ClassInterfaceDecl, type_name)
         if symbol is None:
             raise SemanticError(f"Fully qualified type {type_name} does not resolve to any existing type.")
 
@@ -112,7 +112,7 @@ def resolve_type(context: GlobalContext, type_name: str, type_decl: ClassInterfa
         found_import = False
         for import_decl in type_decl.imports:
             if isinstance(import_decl, OnDemandImport):
-                symbol = context.resolve(f"{ClassInterfaceDecl.node_type}^{import_decl.package}.{type_name}")
+                symbol = context.resolve(ClassInterfaceDecl, f"{import_decl.package}.{type_name}")
                 if symbol is not None:
                     existing = type_decl.type_names.get(type_name)
                     if existing is not None and existing != symbol:
@@ -174,7 +174,7 @@ def type_link(context: GlobalContext):
     # except for types in the default, unnamed package.
     for package in context.packages.keys():
         for prefix in get_prefixes(package)[1:]:
-            if context.resolve(f"{ClassInterfaceDecl.node_type}^{prefix}") is not None:
+            if context.resolve(ClassInterfaceDecl, prefix) is not None:
                 raise SemanticError(
                     f"Prefix {prefix} of package {package} resolves to a type in the same environment"
                 )

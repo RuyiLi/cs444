@@ -44,8 +44,8 @@ def parse_node(tree: ParseTree, context: Context):
 
             if len(ids) == 1:
                 symbol = (
-                    context.resolve(f"{LocalVarDecl.node_type}^{expr_id}")
-                    or context.resolve(f"{FieldDecl.node_type}^{expr_id}")
+                    context.resolve(LocalVarDecl, expr_id)
+                    or context.resolve(FieldDecl, expr_id)
                     or next(
                         (field for field in get_enclosing_type_decl(context).fields if field.name == expr_id),
                         None,
@@ -102,7 +102,7 @@ def parse_node(tree: ParseTree, context: Context):
             assert isinstance(symbol, ClassDecl)
 
             if not any(method.name == method_id for method in symbol.methods):
-                java_object = context.resolve(f"{ClassInterfaceDecl.node_type}^java.lang.Object")
+                java_object = context.resolve(ClassInterfaceDecl, "java.lang.Object")
                 if not any(method.name == method_id for method in java_object.methods):
                     raise SemanticError(f"Method {method_id} doesn't exist in class {symbol.name}")
 
@@ -123,9 +123,7 @@ def parse_ambiguous_name(context, ids):
     last_id = ids[-1]
 
     if len(ids) == 1:
-        if context.resolve(f"{LocalVarDecl.node_type}^{last_id}") or context.resolve(
-            f"{FieldDecl.node_type}^{last_id}"
-        ):
+        if context.resolve(LocalVarDecl,last_id) or context.resolve(FieldDecl, last_id):
             return "expression_name"
         elif last_id in get_enclosing_type_decl(context).type_names:
             return "type_name"

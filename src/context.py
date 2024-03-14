@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Type, TypeVar
 
 import type_link
 from lark import Tree
@@ -17,9 +17,8 @@ NUMERIC_TYPES = {"byte", "short", "int", "char"}
 
 
 def is_primitive_type(type_name: Symbol | str):
-    if isinstance(type_name, PrimitiveType):
-        type_name = type_name.name
-    return type_name in PRIMITIVE_TYPES
+    name = type_name.name if isinstance(type_name, PrimitiveType) else type_name
+    return name in PRIMITIVE_TYPES
 
 
 def is_numeric_type(type_name: Symbol | str):
@@ -39,10 +38,7 @@ class Symbol:
         self.context = context
         self.name = name
 
-        self._checked = False
-
     def sym_id(self):
-        # TODO attrify
         return self.node_type + "^" + self.name
 
     def __repr__(self):
@@ -50,6 +46,8 @@ class Symbol:
         # items = ", ".join(f"{k}=?" for k, v in self.__dict__.items())
         return f"{self.__class__.__name__}(name={self.name}, context={self.context})"
 
+
+T = TypeVar("T", bound=Symbol)
 
 class Context:
     parent: Context
@@ -67,19 +65,22 @@ class Context:
         self.is_static = is_static
 
     def declare(self, symbol: Symbol):
-        existing = self.resolve(symbol.sym_id())
+        existing = self.resolve_hash(symbol.sym_id())
         if existing is not None:
             raise SemanticError(f"Overlapping {symbol.node_type} in scope: {symbol.sym_id()}")
 
         self.symbol_map[symbol.sym_id()] = symbol
 
-    def resolve(self, id_hash: str) -> Optional[Symbol]:
+    def resolve(self, sym_type: Type[T], name: str) -> Optional[T]:
+        return self.resolve_hash(f"{sym_type.node_type}^{name}")
+
+    def resolve_hash(self, id_hash: str) -> Optional[Symbol]:
         if id_hash in self.symbol_map:
             return self.symbol_map.get(id_hash)
 
         # Try looking in parent scope
         if self.parent is not None:
-            return self.parent.resolve(id_hash)
+            return self.parent.resolve_hash(id_hash)
 
         return None
 
@@ -172,7 +173,7 @@ class ClassInterfaceDecl(Symbol):
 
     modifiers: List[str]
     extends: List[str]
-    imports: List[str]
+    imports: List[type_link.ImportDeclaration]
     fields: List[FieldDecl]
     methods: List[MethodDecl]
 
@@ -193,6 +194,8 @@ class ClassInterfaceDecl(Symbol):
         self.methods = []
         self.type_names = {}
 
+        self._checked = False
+
     def sym_id(self):
         return f"class_interface^{self.name}"
 
@@ -212,7 +215,7 @@ class ClassInterfaceDecl(Symbol):
             type_link.resolve_type(self.context, type_name, self)
             return self.type_names[type_name]
         except SemanticError:
-            type_decl = self.context.resolve(f"{ClassInterfaceDecl.node_type}^{type_name}")
+            type_decl = self.context.resolve(ClassInterfaceDecl, type_name)
             if type_decl is not None and type_decl.package == "" and self.package != "":
                 # type_decl is in default package, but accessor (self) is not
                 return None

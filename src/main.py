@@ -183,6 +183,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
             if error:
                 print(f"Threw: {error}")
             failed_tests.append(str(test_files_list))
+            # raise error
     print()
     print("=" * 50)
     print(f"Total passed: {passed}/{len(test_files_lists)}")

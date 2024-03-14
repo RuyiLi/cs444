@@ -6,7 +6,7 @@ from context import ClassDecl, ClassInterfaceDecl, Context, InterfaceDecl, Metho
 
 
 def hierarchy_check(context: Context):
-    java_object = context.resolve(f"{ClassInterfaceDecl.node_type}^java.lang.Object")
+    java_object = context.resolve(ClassInterfaceDecl, "java.lang.Object")
     class_hierarchy_check(java_object)
     hierarchy_check_recursive(context)
 
