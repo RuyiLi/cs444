@@ -45,11 +45,11 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode | None = None) -
             return CFGNode(defs_expr + [var_name], uses_expr, [])
 
         case "if_st" | "if_st_no_short_if":
-            _if_kw, cond, body = tree.children
+            _if_kw, cond, true_block = tree.children
             defs_cond, uses_cond = decompose_expression(cond, context)
 
             # We need to get the if statement context
-            return CFGNode(defs_cond, uses_cond, [make_cfg(body, context)])
+            return CFGNode(defs_cond, uses_cond, [make_cfg(true_block, context)])
 
         case "if_else_st" | "if_else_st_no_short_if":
             _if_kw, cond, true_block, _else_kw, false_block = tree.children
@@ -57,7 +57,9 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode | None = None) -
             defs_cond, uses_cond = decompose_expression(cond, context)
 
             # We need to get the if statement context
-            return CFGNode(defs_cond, uses_cond, [make_cfg(b, context) for b in [true_block, false_block]])
+            true_cfg = make_cfg(true_block, context)
+            false_cfg = make_cfg(false_block, context)
+            return CFGNode(defs_cond, uses_cond, [true_cfg, false_cfg])
 
         case "while_st" | "while_st_no_short_if":
             _while_kw, cond, true_block = tree.children
@@ -85,6 +87,7 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode | None = None) -
             return for_init_node
 
         case "expr_st":
+            # assignment | method_invocation | class_instance_creation
             defs_expr, uses_expr = decompose_expression(tree.children[0], context)
             return CFGNode(defs_expr, uses_expr, [])
 
@@ -94,18 +97,7 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode | None = None) -
                 defs_expr, uses_expr = decompose_expression(tree.children[1], context)
             return CFGNode(defs_expr, uses_expr, [])
 
-        case "expr_st":
-            # assignment | method_invocation | class_instance_creation
-            expr = tree.children[0]
-            defs_expr, uses_expr = decompose_expression(expr, context)
-            return CFGNode(defs_expr, uses_expr, [])
-
-        case "block":
-            # this is probably not right
-            # maybe return an array of CFGNodes?
-            return CFGNode([], [], [make_cfg(c, context) for c in tree.children])
-
-        case "statement":
+        case "statement" | "statement_no_short_if":
             return make_cfg(tree.children[0], context)
 
         case _:
@@ -212,63 +204,3 @@ def decompose_expression(tree: Tree, context: Context) -> Tuple[List[Symbol], Li
         case _:
             print(f"! Decompose for {tree.data} not implemented")
             return ([], [])
-
-
-Tree(
-    Token("RULE", "if_st"),
-    [
-        Token("IF_KW", "if"),
-        Tree(
-            Token("RULE", "expr"),
-            [
-                Tree(
-                    Token("RULE", "expression_name"),
-                    [Tree(Token("RULE", "name"), [Token("IDENTIFIER", "neg")])],
-                )
-            ],
-        ),
-        Tree(
-            Token("RULE", "statement"),
-            [
-                Tree(
-                    Token("RULE", "expr_st"),
-                    [
-                        Tree(
-                            Token("RULE", "assignment"),
-                            [
-                                Tree(
-                                    Token("RULE", "lhs"),
-                                    [
-                                        Tree(
-                                            Token("RULE", "expression_name"),
-                                            [Tree(Token("RULE", "name"), [Token("IDENTIFIER", "ret")])],
-                                        )
-                                    ],
-                                ),
-                                Tree(
-                                    Token("RULE", "expr"),
-                                    [
-                                        Tree(
-                                            Token("RULE", "unary_negative_expr"),
-                                            [
-                                                Tree(
-                                                    Token("RULE", "expression_name"),
-                                                    [
-                                                        Tree(
-                                                            Token("RULE", "name"),
-                                                            [Token("IDENTIFIER", "ret")],
-                                                        )
-                                                    ],
-                                                )
-                                            ],
-                                        )
-                                    ],
-                                ),
-                            ],
-                        )
-                    ],
-                )
-            ],
-        ),
-    ],
-)
