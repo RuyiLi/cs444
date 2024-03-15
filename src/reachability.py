@@ -1,5 +1,5 @@
 from typing import Any, Callable
-from control_flow import CFGNode, make_cfg,
+from control_flow import CFGNode, make_cfg
 from context import GlobalContext, SemanticError
 from helper import extract_name
 
