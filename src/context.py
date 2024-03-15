@@ -36,6 +36,7 @@ class Symbol:
 
 T = TypeVar("T", bound=Symbol)
 
+
 class Context:
     parent: Context
     parent_node: Symbol
@@ -50,6 +51,9 @@ class Context:
         self.symbol_map = {}
         self.tree = tree
         self.is_static = is_static
+
+        if self.tree is not None:
+            setattr(self.tree, "context", self)
 
     def declare(self, symbol: Symbol):
         existing = self.resolve_hash(symbol.sym_id())
@@ -231,7 +235,9 @@ class ClassInterfaceDecl(Symbol):
 
         # TODO interfaces?
         for extend in self.extends:
-            if (parent := self.resolve_name(extend)) and (field := parent.resolve_field(field_name, accessor, allow_static, orig_owner)):
+            if (parent := self.resolve_name(extend)) and (
+                field := parent.resolve_field(field_name, accessor, allow_static, orig_owner)
+            ):
                 validate_field_access(field, accessor, allow_static, orig_owner)
                 return field
         return None
