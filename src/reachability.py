@@ -18,18 +18,18 @@ def analyze_reachability(context: GlobalContext):
 
         method_bodies = tree.find_data("method_body")
         for body in method_bodies:
-            check_tree_reachability(body, context)
+            check_tree_reachability(body)
 
         constructors = tree.find_data("constructor_declaration")
         for ctor in constructors:
             body = ctor.children[-1]
-            check_tree_reachability(body, context)
+            check_tree_reachability(body)
 
 
-def check_tree_reachability(tree: Tree, context: GlobalContext):
+def check_tree_reachability(tree: Tree):
     if tree.children and isinstance(tree.children[0], Tree):
         cfg_root = CFGNode("root_node", set(), set())
-        make_cfg(tree.children[0], context, cfg_root)
+        make_cfg(tree.children[0], tree.context, cfg_root)
         logging.debug(cfg_root)
         iterative_solving(cfg_root)
         check_dead_code_assignment(cfg_root)
