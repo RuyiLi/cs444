@@ -8,7 +8,7 @@ from typing import List
 from build_environment import build_environment
 from context import GlobalContext
 from hierarchy_check import hierarchy_check
-from lark import Lark, logger
+from lark import Lark, Tree, logger
 from name_disambiguation import disambiguate_names
 from type_check import type_check
 from type_link import type_link
@@ -28,6 +28,20 @@ lark = Lark(
     parser="lalr",
     propagate_positions=True,
 )
+
+
+# monkey patch lark.Tree to add context field
+def __deepcopy__(self, memo):
+    cls = self.__class__
+    result = cls.__new__(cls)
+    memo[id(self)] = result
+    for k, v in self.__dict__.items():
+        setattr(result, k, deepcopy(v, memo))
+    return result
+
+
+Tree.__deepcopy__ = __deepcopy__
+
 
 logging.basicConfig(
     format="\033[2m[%(levelname)s] %(filename)s:%(funcName)s:%(lineno)d\033[0m\n%(message)s\n",
