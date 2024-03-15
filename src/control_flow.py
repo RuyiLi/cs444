@@ -84,8 +84,8 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode | None = None) -
             true_block = tree.children[-1]
 
             for_update_node = CFGNode(for_update[0], for_update[1], None)
-            for_cond_node = CFGNode(for_cond[0], for_cond[1], make_cfg(true_block, context, for_update_node))
-            for_init_node = CFGNode(for_init[0], for_init[1], for_cond_node)
+            for_cond_node = CFGNode(for_cond[0], for_cond[1], [make_cfg(true_block, context, for_update_node)])
+            for_init_node = CFGNode(for_init[0], for_init[1], [for_cond_node])
             for_update_node.next_nodes = [for_cond_node]
 
             return for_init_node
