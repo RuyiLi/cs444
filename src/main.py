@@ -12,6 +12,7 @@ from lark import Lark, logger
 from name_disambiguation import disambiguate_names
 from type_check import type_check
 from type_link import type_link
+from reachability import analyze_reachability
 from weeder import Weeder
 
 grammar = ""
@@ -70,6 +71,13 @@ def static_check(context: GlobalContext, quiet=False):
     except Exception as e:
         if not quiet:
             logging.error("Failed type check")
+        raise e
+
+    try:
+        analyze_reachability(context)
+    except Exception as e:
+        if not quiet:
+            logging.error("Failed reachability analysis")
         raise e
 
 

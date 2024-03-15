@@ -58,7 +58,7 @@ class ReferenceType(SymbolType):
     node_type = "reference_type"
     static: bool
 
-    def __init__(self, type_decl: C.ClassInterfaceDecl, static = False):
+    def __init__(self, type_decl: C.ClassInterfaceDecl, static=False):
         self.name = type_decl.name
         self.referenced_type = type_decl
         self.static = static
@@ -67,11 +67,7 @@ class ReferenceType(SymbolType):
         return self.referenced_type.resolve_field(field_name, accessor, self.static)
 
     def resolve_method(
-        self,
-        method_name: str,
-        argtypes: List[str],
-        accessor: C.ClassInterfaceDecl,
-        static = False
+        self, method_name: str, argtypes: List[str], accessor: C.ClassInterfaceDecl, static=False
     ) -> Optional[C.MethodDecl]:
         return self.referenced_type.resolve_method(method_name, argtypes, accessor, static)
 
@@ -83,7 +79,7 @@ class ArrayType(ReferenceType):
         self.name = f"{element_type.name}[]"
         self.referenced_type = element_type
 
-    def resolve_field(self, field_name: str, accessor, static = False) -> Optional[C.FieldDecl]:
+    def resolve_field(self, field_name: str, accessor, static=False) -> Optional[C.FieldDecl]:
         if field_name == "length":
             # hardcode builtin property length for array types
             fake_context = C.Context(None, C.ClassDecl(None, None, [], [], [], []), None)
@@ -92,13 +88,10 @@ class ArrayType(ReferenceType):
         return None
 
     def resolve_method(
-        self,
-        method_name: str,
-        argtypes: List[str],
-        accessor: C.ClassInterfaceDecl,
-        static = False
+        self, method_name: str, argtypes: List[str], accessor: C.ClassInterfaceDecl, static=False
     ) -> Optional[C.MethodDecl]:
         return None
+
 
 class NullReference(ReferenceType):
     node_type = "null_reference"
@@ -111,11 +104,7 @@ class NullReference(ReferenceType):
         return None
 
     def resolve_method(
-        self,
-        method_name: str,
-        argtypes: List[str],
-        accessor: C.ClassInterfaceDecl,
-        static = False
+        self, method_name: str, argtypes: List[str], accessor: C.ClassInterfaceDecl, static=False
     ) -> Optional[C.MethodDecl]:
         return None
 
@@ -199,7 +188,7 @@ def castable(s: SymbolType, t: SymbolType, type_decl: C.ClassInterfaceDecl):
 
     for a, b in (ss, tt), (tt, ss):
         if isinstance(a, C.InterfaceDecl):
-            if isinstance(b, C.InterfaceDecl) or (isinstance(b, ClassDec) and "final" not in b.modifiers):
+            if isinstance(b, C.InterfaceDecl) or (isinstance(b, C.ClassDecl) and "final" not in b.modifiers):
                 return True
 
     return False
