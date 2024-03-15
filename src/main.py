@@ -206,6 +206,8 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
             )
             if error:
                 print(f"Threw: {error}")
+            if warning_list:
+                print(f"Warned: {[warning.message for warning in warning_list]}")
             failed_tests.append(str(test_files_list))
             # raise error
     print()

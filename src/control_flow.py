@@ -31,7 +31,7 @@ class CFGNode:
         return ret
 
     def __repr__(self):
-        return f"CFGNode(type={self.type}, defs={self.defs or ''}, uses={self.uses or ''})"
+        return f"CFGNode(type={self.type}, defs={self.defs or ''}, uses={self.uses or ''}, successors={len(self.next_nodes)})"
 
     def __str__(self):
         return self.pretty(set())
@@ -168,7 +168,7 @@ def resolve_refname(name: str, context: Context):
         return context.resolve(LocalVarDecl, refs[-1])
 
 
-def decompose_expression(tree: Tree, context: Context) -> Tuple[Set[Symbol], Set[Symbol]]:
+def decompose_expression(tree: Tree, context: Context) -> Tuple[Set[str], Set[str]]:
     """
     returns (defs, uses)
     """
@@ -205,7 +205,7 @@ def decompose_expression(tree: Tree, context: Context) -> Tuple[Set[Symbol], Set
 
         case "expression_name":
             name = extract_name(tree)
-            return (set(), {name})
+            return (set(), {name} if context.resolve(LocalVarDecl, name) else set())
 
         case "field_access":
             return decompose_expression(tree.children[0], context)
