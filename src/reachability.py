@@ -70,7 +70,12 @@ def check_dead_code_assignment(start: CFGNode):
         curr = to_visit.pop()
         visited.add(curr)
 
-        dead_assignment = next((next_n not in curr.out_vars for next_n in curr.defs), None)
+        dead_assignment = None
+        for next_n in curr.defs:
+            if next_n not in curr.out_vars:
+                dead_assignment = next_n
+                break
+
         if dead_assignment:
             warnings.warn(f"dead code assignment to variable {dead_assignment}")
 
