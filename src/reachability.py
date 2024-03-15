@@ -51,7 +51,7 @@ def iterative_solving(start: CFGNode):
             curr.in_vars, curr.out_vars = set(), set()
 
             for next_n in curr.next_nodes:
-                curr.out_vars.union(next_n.in_vars)
+                curr.out_vars = curr.out_vars.union(next_n.in_vars)
 
                 if next_n not in visited:
                     to_visit.append(next_n)
