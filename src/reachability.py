@@ -1,4 +1,4 @@
-from control_flow import make_cfg
+from control_flow import CFGNode, make_cfg,
 from context import GlobalContext
 from helper import extract_name
 
@@ -20,3 +20,30 @@ def analyze_reachability(context: GlobalContext):
                 cfg = make_cfg(body.children[0], context)
                 print(cfg)
                 print("=" * 10)
+
+
+def iterative_solving(start: CFGNode):
+    changed = True
+
+    while changed:
+        changed = False
+        to_visit = [start]
+        visited = set()
+
+        while len(to_visit) > 0:
+            curr = to_visit.pop()
+            visited.add(curr)
+
+            old_in_vars, old_out_vars = curr.in_vars, curr.out_vars
+            curr.in_vars, curr.out_vars = set(), set()
+
+            for next_n in curr.next_nodes:
+                curr.out_vars.union(next_n.in_vars)
+
+                if next_n not in visited:
+                    to_visit.append(next_n)
+
+            curr.in_vars = curr.uses | (curr.out_vars - curr.defs)
+
+            if curr.in_vars != old_in_vars or curr.out_vars != old_out_vars:
+                changed = True

@@ -9,10 +9,15 @@ from helper import extract_name, get_child_tree, get_tree_token
 
 
 class CFGNode:
+    in_vars: Set[str]
+    out_vars: Set[str]
+
     def __init__(self, defs: Set[str], uses: Set[str], next_nodes: List[CFGNode]):
         self.defs = defs
         self.uses = uses
         self.next_nodes = next_nodes
+        self.in_vars = set()
+        self.out_vars = set()
 
     def __str__(self):
         return f"CFGNode(defs={self.defs}, uses={self.uses}, next_nodes={self.next_nodes})"
