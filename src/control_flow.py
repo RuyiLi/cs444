@@ -133,6 +133,9 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode) -> CFGNode:
         case "statement" | "statement_no_short_if":
             return make_cfg(tree.children[0], context, parent_node)
 
+        case "empty_st":
+            return parent_node
+
         case _:
             print(f"! CFG for {tree.data} not implemented")
 
@@ -249,7 +252,7 @@ def decompose_expression(tree: Tree, context: Context) -> Tuple[Set[Symbol], Set
         case "for_update":
             return decompose_expression(tree.children[0], context)
 
-        case "string_l" | "char_l":
+        case "string_l" | "char_l" | "type_name":
             return (set(), set())
 
         case _:

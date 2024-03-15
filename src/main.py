@@ -269,7 +269,10 @@ def load_path_testcases(paths: List[str]):
         except Exception as e:
             logging.exception(e)
             exit(42)
+
     warning_list.extend(w)
+    for warning in warning_list:
+        logging.warning(warning)
 
     if warning_list:
         exit(43)
