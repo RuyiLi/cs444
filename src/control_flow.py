@@ -21,11 +21,20 @@ class CFGNode:
         self.in_vars = set()
         self.out_vars = set()
 
-    def __str__(self):
-        return f"CFGNode(type={self.type}, defs={self.defs}, uses={self.uses}, next_nodes={self.next_nodes})"
+    def pretty(self, visited, depth=0):
+        if self in visited:
+            return ""
+        visited |= {self}
+        ret = "  " * depth + repr(self) + "\n"
+        for node in self.next_nodes:
+            ret += node.pretty(visited, depth + 1)
+        return ret
 
     def __repr__(self):
-        return str(self)
+        return f"CFGNode(type={self.type}, defs={self.defs or ''}, uses={self.uses or ''})"
+
+    def __str__(self):
+        return self.pretty(set())
 
 
 def make_cfg(tree: Tree, context: Context, parent_node: CFGNode) -> CFGNode:
