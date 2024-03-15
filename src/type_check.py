@@ -530,7 +530,7 @@ def resolve_expression(
             if isinstance(symbol, ClassInterfaceDecl):
                 return ReferenceType(symbol)
 
-            # assert isinstance(symbol, LocalVarDecl) or isinstance(symbol, FieldDecl)
+            assert isinstance(symbol, LocalVarDecl) or isinstance(symbol, FieldDecl)
             return symbol.resolved_sym_type
 
         case "field_access":

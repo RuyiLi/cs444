@@ -86,10 +86,8 @@ class ArrayType(ReferenceType):
     def resolve_field(self, field_name: str, accessor, static = False) -> Optional[C.FieldDecl]:
         if field_name == "length":
             # hardcode builtin property length for array types
-            sym = C.Symbol(None, "length")
-            sym.sym_type = "int"
-            sym.resolved_sym_type = PrimitiveType("int")
-            sym.modifiers = ["public", "final"]
+            fake_context = C.Context(None, C.ClassDecl(None, None, [], [], [], []), None)
+            sym = C.FieldDecl(fake_context, "length", ["public", "final"], "int", None)
             return sym
         return None
 

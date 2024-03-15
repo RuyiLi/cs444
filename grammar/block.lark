@@ -1,6 +1,6 @@
 block: "{" block_statement* "}"
 ?block_statement: local_var_declaration ";"
-			| class_declaration
+			// | class_declaration
 			| statement
 
 local_var_declaration: type var_declarator

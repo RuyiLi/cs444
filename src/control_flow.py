@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from lark import Token, Tree
 from context import Context
 
@@ -6,30 +8,77 @@ from helper import extract_name, get_child_tree, get_tree_token
 
 
 class CFG_Node:
-    def __init__(self, defs, uses, children):
+    next_nodes: list[CFG_Node]
+
+    def __init__(self, defs, uses, next_nodes):
         self.defs = defs
         self.uses = uses
-        self.children = children
+        self.next_nodes = next_nodes
 
 
-def make_cfg(tree: Tree, context: Context):
+def make_cfg(tree: Tree, context: Context, parent_node: CFG_Node | None = None) -> CFG_Node:
     match tree.data:
+        case "block":
+            for child in tree.children:
+                node = CFG_Node([], [], [make_cfg(child, context)])
+
         case "local_var_declaration":
             expr = next(tree.find_data("var_initializer"), None).children[0]
             var_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
 
             assert isinstance(expr, Tree)
 
-            (uses_expr, defs_expr) = decompose_expression(expr, context)
-            CFG_Node(defs_expr + [var_name], uses_expr, [])
+            (defs_expr, uses_expr) = decompose_expression(expr, context)
+            return CFG_Node(defs_expr + [var_name], uses_expr, [])
 
-        case "if_st":
-            expr = get_child_tree(tree, "expr")
-            (uses_expr, defs_expr) = decompose_expression(expr, context)
-            nested_stmts = tree.children[-1]
+        case "if_st" | "if_st_no_short_if":
+            cond, true_block = tree.children
+            (uses_cond, defs_cond) = decompose_expression(cond, context)
 
             # We need to get the if statement context
-            CFG_Node(defs_expr, uses_expr, make_cfg(nested_stmts, context))
+            CFG_Node(defs_cond, uses_cond, [make_cfg(true_block, context)])
+
+        case "if_else_st" | "if_else_st_no_short_if":
+            _if, cond, true_block, _else, false_block = tree.children
+
+            (defs_cond, uses_cond) = decompose_expression(cond, context)
+
+            # We need to get the if statement context
+            return CFG_Node(defs_cond, uses_cond, [make_cfg(b, context) for b in [true_block, false_block]])
+
+        case "while_st" | "while_st_no_short_if":
+            _while, cond, true_block = tree.children
+
+            (defs_cond, uses_cond) = decompose_expression(cond, context)
+
+            cond_node = CFG_Node(defs_cond, uses_cond, None)
+            nested_node = make_cfg(true_block, context, cond_node)
+            cond_node.next_nodes = [nested_node]
+
+            return cond_node
+
+        case "for_st" | "for_st_no_short_if":
+            for_init, for_cond, for_update = [decompose_expression(get_child_tree(tree, name), context) for name in ["for_init", "expr", "for_update"]]
+            true_block = tree.children[-1]
+
+            for_update_node = CFG_Node(for_update[0], for_update[1], None)
+            for_cond_node = CFG_Node(for_cond[0], for_cond[1], make_cfg(true_block, context, for_update_node))
+            for_init_node = CFG_Node(for_init[0], for_init[1], for_cond_node)
+            for_update_node.next_nodes = [for_cond_node]
+
+            return for_init_node
+
+        case "expr_st":
+            (defs_expr, uses_expr) = decompose_expression(tree.children[0], context)
+            return CFG_Node(defs_expr, uses_expr, [])
+
+        case "return_st":
+            if len(tree.children) > 1:
+                defs_expr, uses_expr = decompose_expression(tree.children[0], context)
+            else:
+                defs_expr, uses_expr = [[], []]
+
+            return CFG_Node(defs_expr, uses_expr, [])
 
 
 def get_argument_types(context: Context, tree: Tree) -> tuple[list[Symbol], list[Symbol]]:
