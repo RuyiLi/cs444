@@ -249,7 +249,7 @@ def load_custom_testcases(test_names: List[str]):
     warning_list.extend(w)
 
     if warning_list:
-        print(f"Warned {test_name}")
+        print(f"Warned {test_name}: ", [warning.message for warning in warning_list])
     else:
         print(f"Passed {test_name}")
 
