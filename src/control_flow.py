@@ -3,7 +3,7 @@ from typing import Set, List, Tuple
 import warnings
 
 from lark import Token, Tree
-from context import Context
+from context import Context, SemanticError
 
 from context import LocalVarDecl, Symbol
 from helper import extract_name, get_child_tree, get_tree_token
@@ -44,7 +44,7 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode) -> CFGNode:
             curr_node = root
             for child in tree.children:
                 if curr_node.type == "return_st":
-                    warnings.warn(f"Unreachable code detected: {child}")
+                    raise SemanticError(f"Unreachable code detected of type {child.data}")
                 curr_node = make_cfg(child, context, curr_node)
             return root
 
@@ -98,11 +98,12 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode) -> CFGNode:
             )
             loop_body = tree.children[-1]
 
-            # init
-            #   cond
-            #     body
-            #       update
-            #     rest_of_program
+            # for_init
+            #   for_cond
+            #     loop_body
+            #     for_update
+            #       for_cond   # circular reference
+            #   rest_of_program
 
             for_cond_node = CFGNode(tree.data + "_cond", for_cond[0], for_cond[1])
             for_init_node = CFGNode(tree.data + "_init", for_init[0], for_init[1], [for_cond_node])
@@ -160,7 +161,7 @@ def decompose_expression(tree: Tree, context: Context) -> Tuple[Set[Symbol], Set
     returns (defs, uses)
     """
 
-    if isinstance(tree, Token):
+    if tree is None or isinstance(tree, Token):
         return (set(), set())
 
     match tree.data:
@@ -232,6 +233,24 @@ def decompose_expression(tree: Tree, context: Context) -> Tuple[Set[Symbol], Set
                 return (defs_l | defs_r | uses_l, uses_r)
             else:
                 return (defs_l | defs_r, uses_l | uses_r)
+
+        case "for_init":
+            child = tree.children[0]
+            if child.data == "local_var_declaration":
+                var_declarator = next(tree.find_data("var_declarator_id"))
+                var_initializer = next(tree.find_data("var_initializer"))
+                var_name = extract_name(var_declarator)
+                defs, uses = decompose_expression(var_initializer.children[0], context)
+                return ({var_name}, defs | uses)
+
+            assert child.data == "assignment"
+            return decompose_expression(child, context)
+
+        case "for_update":
+            return decompose_expression(tree.children[0], context)
+
+        case "string_l" | "char_l":
+            return (set(), set())
 
         case _:
             print(f"! Decompose for {tree.data} not implemented")
