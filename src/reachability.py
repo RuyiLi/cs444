@@ -1,5 +1,6 @@
+from typing import Any, Callable
 from control_flow import CFGNode, make_cfg,
-from context import GlobalContext
+from context import GlobalContext, SemanticError
 from helper import extract_name
 
 from lark import Tree
@@ -47,3 +48,19 @@ def iterative_solving(start: CFGNode):
 
             if curr.in_vars != old_in_vars or curr.out_vars != old_out_vars:
                 changed = True
+
+def check_dead_code_assignment(start: CFGNode):
+    to_visit = [start]
+    visited = set()
+
+    while len(to_visit) > 0:
+        curr = to_visit.pop()
+        visited.add(curr)
+
+        if dead_assignment := next((next_n not in curr.out_vars for next_n in curr.defs), None):
+            raise SemanticError(f"dead code assignment to variable {dead_assignment}")
+
+        for next_n in curr.next_nodes:
+            if next_n not in visited:
+                to_visit.append(next_n)
+
