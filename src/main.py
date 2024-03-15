@@ -235,7 +235,7 @@ def load_custom_testcases(test_names: List[str]):
     if warning_list:
         print(f"Warned {test_name}")
     else:
-        print(f"Succeded {test_name}")
+        print(f"Passed {test_name}")
 
 
 def load_path_testcases(paths: List[str]):

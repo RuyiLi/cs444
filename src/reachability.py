@@ -1,4 +1,4 @@
-from control_flow import make_cfg
+from control_flow import make_cfg, CFGNode
 from context import GlobalContext
 from helper import extract_name
 
@@ -17,6 +17,8 @@ def analyze_reachability(context: GlobalContext):
         print("=" * 20)
         for body in method_body:
             if isinstance(body.children[0], Tree):
-                cfg = make_cfg(body.children[0], context)
-                print(cfg)
+                # only check methods with implementations
+                cfg_root = CFGNode("root_node", set(), set())
+                make_cfg(body.children[0], context, cfg_root)
+                print(cfg_root)
                 print("=" * 10)
