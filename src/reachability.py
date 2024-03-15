@@ -31,7 +31,7 @@ def check_tree_reachability(tree: Tree):
         cfg_root = CFGNode("root_node", set(), set())
         print("--------------")
         make_cfg(tree.children[0], tree.context, cfg_root)
-        fix_if_links(cfg_root)
+        fix_links(cfg_root)
         logging.debug(cfg_root)
         iterative_solving(cfg_root)
         check_dead_code_assignment(cfg_root)
@@ -55,10 +55,11 @@ def get_terminals(root: CFGNode):
     return terminals
 
 
-def fix_if_links(root: CFGNode):
+def fix_links(root: CFGNode):
     to_visit = [root]
     visited = set()
 
+    # Fix if links
     while len(to_visit) > 0:
         curr = to_visit.pop()
         visited.add(curr)
@@ -66,12 +67,27 @@ def fix_if_links(root: CFGNode):
         if curr.type[:2] == "if":
             after_stmts = curr.next_nodes.pop()
 
+            # Add the after statement as a successor of each body terminal of all blocks
             for next_n in curr.next_nodes:
                 for terminal in get_terminals(next_n):
                     terminal.next_nodes.append(after_stmts)
 
-        for next_n in curr.next_nodes:
-            to_visit.append(next_n)
+        to_visit += [next_n for next_n in curr.next_nodes if next_n not in visited]
+
+    # Fix while links
+    to_visit = [root]
+    visited = set()
+
+    while len(to_visit) > 0:
+        curr = to_visit.pop()
+        visited.add(curr)
+
+        if curr.type[:5] == "while":
+            # Add the cond node as a successor of each body terminal
+            for terminal in get_terminals(curr.next_nodes[0]):
+                terminal.next_nodes.append(curr)
+
+        to_visit += [next_n for next_n in curr.next_nodes if next_n not in visited]
 
 
 def iterative_solving(start: CFGNode):
@@ -98,7 +114,6 @@ def iterative_solving(start: CFGNode):
             curr.in_vars = curr.uses | (curr.out_vars - curr.defs)
 
             print(curr.type, "old_in", old_in_vars, "old_out", old_out_vars, "in", curr.in_vars, "out", curr.out_vars, "defs", curr.defs, "uses", curr.uses)
-            print([next_n.__str__() for next_n in curr.next_nodes])
 
             if (curr.in_vars != old_in_vars) or (curr.out_vars != old_out_vars):
                 changed = True
@@ -127,6 +142,7 @@ def check_dead_code_assignment(start: CFGNode):
         for next_n in curr.next_nodes:
             if next_n not in visited:
                 to_visit.append(next_n)
+
 
 def check_unreachable(start: CFGNode):
     to_visit = [start]
