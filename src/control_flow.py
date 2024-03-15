@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Tuple
+from typing import Set, List, Tuple
 
 from lark import Token, Tree
 from context import Context
@@ -9,14 +9,13 @@ from helper import extract_name, get_child_tree, get_tree_token
 
 
 class CFGNode:
-    def __init__(self, defs: List[str], uses: List[str], next_nodes: List[CFGNode]):
-        # can maybe be a set?
+    def __init__(self, defs: Set[str], uses: Set[str], next_nodes: List[CFGNode]):
         self.defs = defs
         self.uses = uses
         self.next_nodes = next_nodes
 
     def __str__(self):
-        return f"CFGNode(def={self.defs}, uses={self.uses}, next_nodes={self.next_nodes})"
+        return f"CFGNode(defs={self.defs}, uses={self.uses}, next_nodes={self.next_nodes})"
 
     def __repr__(self):
         return str(self)
@@ -41,8 +40,8 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode | None = None) -
 
             assert isinstance(expr, Tree)
 
-            (defs_expr, uses_expr) = decompose_expression(expr, context)
-            return CFGNode(defs_expr + [var_name], uses_expr, [])
+            defs_expr, uses_expr = decompose_expression(expr, context)
+            return CFGNode(defs_expr | {var_name}, uses_expr, [])
 
         case "if_st" | "if_st_no_short_if":
             _if_kw, cond, true_block = tree.children
@@ -104,16 +103,16 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode | None = None) -
             print(f"! CFG for {tree.data} not implemented")
 
 
-def get_argument_types(context: Context, tree: Tree) -> Tuple[List[Symbol], List[Symbol]]:
+def get_argument_types(context: Context, tree: Tree) -> Tuple[Set[Symbol], Set[Symbol]]:
     arg_lists = list(tree.find_data("argument_list"))
-    defs = []
-    uses = []
+    defs = set()
+    uses = set()
     if arg_lists:
         # get the last one, because find_data fetches bottom-up
         for c in arg_lists[-1].children:
             child_defs, child_uses = decompose_expression(c, context)
-            defs += child_defs
-            uses += child_uses
+            defs |= child_defs
+            uses |= child_uses
     return (defs, uses)
 
 
@@ -123,13 +122,13 @@ def resolve_refname(name: str, context: Context):
         return context.resolve(LocalVarDecl, refs[-1])
 
 
-def decompose_expression(tree: Tree, context: Context) -> Tuple[List[Symbol], List[Symbol]]:
+def decompose_expression(tree: Tree, context: Context) -> Tuple[Set[Symbol], Set[Symbol]]:
     """
     returns (defs, uses)
     """
 
     if isinstance(tree, Token):
-        return ([], [])
+        return (set(), set())
 
     match tree.data:
         case "expr":
@@ -156,11 +155,11 @@ def decompose_expression(tree: Tree, context: Context) -> Tuple[List[Symbol], Li
             assert len(tree.children) == 2 or len(tree.children) == 3
             defs_l, uses_l = decompose_expression(tree.children[0], context)
             defs_r, uses_r = decompose_expression(tree.children[-1], context)
-            return (defs_l + defs_r, uses_l + uses_r)
+            return (defs_l | defs_r, uses_l | uses_r)
 
         case "expression_name":
             name = extract_name(tree)
-            return ([], [name])
+            return (set(), {name})
 
         case "field_access":
             return decompose_expression(tree.children[0], context)
@@ -175,7 +174,7 @@ def decompose_expression(tree: Tree, context: Context) -> Tuple[List[Symbol], Li
                 )
 
                 defs_l, uses_l = decompose_expression(tree.children[0], context)
-                return (defs_args + defs_l, uses_args + uses_l)
+                return (defs_args | defs_l, uses_args | uses_l)
 
         case "unary_negative_expr" | "unary_complement_expr":
             return decompose_expression(tree.children[0], context)
@@ -197,10 +196,10 @@ def decompose_expression(tree: Tree, context: Context) -> Tuple[List[Symbol], Li
 
             if lhs_tree.data == "expression_name":
                 assert len(defs_l) == 0
-                return (defs_l + defs_r + uses_l, uses_r)
+                return (defs_l | defs_r | uses_l, uses_r)
             else:
-                return (defs_l + defs_r, uses_l + uses_r)
+                return (defs_l | defs_r, uses_l | uses_r)
 
         case _:
             print(f"! Decompose for {tree.data} not implemented")
-            return ([], [])
+            return (set(), set())
