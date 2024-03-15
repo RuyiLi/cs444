@@ -1,7 +1,8 @@
-from control_flow import CFGNode, make_cfg
-from context import GlobalContext, SemanticError
-from helper import extract_name
+import warnings
 
+from context import GlobalContext, SemanticError
+from control_flow import CFGNode, make_cfg
+from helper import extract_name
 from lark import Tree
 
 
@@ -59,7 +60,7 @@ def check_dead_code_assignment(start: CFGNode):
         visited.add(curr)
 
         if dead_assignment := next((next_n not in curr.out_vars for next_n in curr.defs), None):
-            raise SemanticError(f"dead code assignment to variable {dead_assignment}")
+            warnings.warn(f"dead code assignment to variable {dead_assignment}")
 
         for next_n in curr.next_nodes:
             if next_n not in visited:
