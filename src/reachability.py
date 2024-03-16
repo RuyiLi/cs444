@@ -3,7 +3,7 @@ import warnings
 
 from context import GlobalContext, SemanticError
 from control_flow import CFGNode, make_cfg
-from helper import extract_name
+from helper import extract_name, get_return_type
 from lark import Tree
 
 
@@ -16,9 +16,12 @@ def analyze_reachability(context: GlobalContext):
             class_name = extract_name(class_name.children[1])
             logging.debug(f"Analyzing reachability for {class_name}")
 
-        method_bodies = tree.find_data("method_body")
-        for body in method_bodies:
-            check_tree_reachability(body)
+        method_decls = tree.find_data("method_declaration")
+        for method_decl in method_decls:
+            return_type = get_return_type(method_decl)
+
+            if method_body := next(method_decl.find_data("method_body"), None):
+                check_tree_reachability(method_body, return_type != "void")
 
         constructors = tree.find_data("constructor_declaration")
         for ctor in constructors:
@@ -26,13 +29,16 @@ def analyze_reachability(context: GlobalContext):
             check_tree_reachability(body)
 
 
-def check_tree_reachability(tree: Tree):
+def check_tree_reachability(tree: Tree, check_return=False):
     if tree.children and isinstance(tree.children[0], Tree):
         cfg_root = make_cfg(tree.children[0], tree.context)[0]
         logging.debug(cfg_root)
         iterative_solving(cfg_root)
         check_dead_code_assignment(cfg_root)
         check_unreachable(cfg_root)
+
+        if check_return:
+            check_returns(cfg_root)
 
 
 def get_terminals(root: CFGNode):
@@ -125,4 +131,19 @@ def check_unreachable(start: CFGNode):
 
         for next_n in curr.next_nodes:
             if next_n not in new_visited:
+                to_visit.append(next_n)
+
+def check_returns(start: CFGNode):
+    to_visit = [start]
+    visited = set()
+
+    while len(to_visit) > 0:
+        curr = to_visit.pop()
+        visited.add(curr)
+
+        if len(curr.next_nodes) == 0 and curr.type != "return_st":
+            raise SemanticError(f"finite-length non-void terminates without return")
+
+        for next_n in curr.next_nodes:
+            if next_n not in visited:
                 to_visit.append(next_n)

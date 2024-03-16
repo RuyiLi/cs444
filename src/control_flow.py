@@ -31,7 +31,7 @@ class CFGNode:
         return ret
 
     def __repr__(self):
-        return f"CFGNode(type={self.type}, defs={self.defs or ''}, uses={self.uses or ''}, successors={self.next_nodes})"
+        return f"CFGNode(type={self.type}, defs={self.defs or ''}, uses={self.uses or ''}, successors={len(self.next_nodes)})"
 
     def __str__(self):
         return self.pretty(set())
@@ -49,7 +49,8 @@ def make_cfg(tree: Tree, context: Context) -> tuple[CFGNode, List[CFGNode]]:
     match tree.data:
         case "block":
             if len(tree.children) == 0:
-                return (CFGNode("empty_st", set(), set(), []), [CFGNode("empty_st", set(), set(), [])])
+                empty_node = CFGNode("empty_st", set(), set(), [])
+                return (empty_node, [empty_node])
 
             child_nodes_terminals = [make_cfg(child, context) for child in tree.children]
 
@@ -79,8 +80,14 @@ def make_cfg(tree: Tree, context: Context) -> tuple[CFGNode, List[CFGNode]]:
             # We need to get the if statement context
             if_node = CFGNode(tree.data, defs_cond, uses_cond)
             true_node, true_terminals = make_cfg(true_block, context)
-            if_node.next_nodes = [true_node]
-            return (if_node, true_terminals + [if_node])
+
+            if_terminal = CFGNode("empty_st", set(), set(), [])
+            if_node.next_nodes = [true_node, if_terminal]
+
+            for terminal in true_terminals:
+                terminal.next_nodes.append(if_terminal)
+
+            return (if_node, [if_terminal])
 
         case "if_else_st" | "if_else_st_no_short_if":
             # the way that these currently work is that if/else nodes have three children
@@ -152,7 +159,8 @@ def make_cfg(tree: Tree, context: Context) -> tuple[CFGNode, List[CFGNode]]:
             return make_cfg(tree.children[0], context)
 
         case "empty_st":
-            return (CFGNode(tree.data, set(), set()), [CFGNode(tree.data, set(), set())])
+            empty_node = CFGNode("empty_st", set(), set(), [])
+            return (empty_node, [empty_node])
 
         case _:
             raise Exception(f"! CFG for {tree.data} not implemented")
