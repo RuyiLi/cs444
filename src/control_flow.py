@@ -163,8 +163,8 @@ def make_cfg(tree: Tree, context: Context) -> tuple[CFGNode, List[CFGNode], bool
 
             non_terminal = False
 
-            # No uses, so constant expression
-            if len(uses_cond) == 0:
+            # Constant expression
+            if (cond_tree := get_child_tree(tree, "expr")) and len(list(cond_tree.find_data("name"))) == 0:
                 const_expr_result = resolve_const_expr(get_child_tree(tree, "expr"))
                 if const_expr_result is True:
                     non_terminal = True
@@ -192,8 +192,8 @@ def make_cfg(tree: Tree, context: Context) -> tuple[CFGNode, List[CFGNode], bool
 
             non_terminal = False
 
-            # No uses, so constant expression
-            if len(for_cond[1]) == 0:
+            # Constant expression
+            if (cond_tree := get_child_tree(tree, "expr")) and len(list(cond_tree.find_data("name"))) == 0:
                 const_expr_result = resolve_const_expr(get_child_tree(tree, "expr"))
                 if const_expr_result is True:
                     non_terminal = True
