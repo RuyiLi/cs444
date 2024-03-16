@@ -188,7 +188,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
             actual_result = ERROR
             error = e
 
-        if STDLIB_VERSION < 4.0:
+        if assignment < 4:
             if actual_result == WARNING:
                 actual_result = SUCCESS
         
