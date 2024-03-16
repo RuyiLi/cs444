@@ -1,12 +1,10 @@
 from __future__ import annotations
 from typing import Set, List, Tuple
-import warnings
 
 from lark import Token, Tree
-from context import Context, SemanticError
+from context import Context, SemanticError, LocalVarDecl, FieldDecl, Symbol
 
-from context import LocalVarDecl, Symbol
-from helper import extract_name, get_child_tree, get_tree_token
+from helper import extract_name, get_child_tree, get_tree_token, is_static_context
 
 
 class CFGNode:
@@ -22,12 +20,11 @@ class CFGNode:
         self.out_vars = set()
 
     def pretty(self, visited, depth=0):
-        if self in visited:
-            return ""
-        visited |= {self}
         ret = "  " * depth + repr(self) + "\n"
+        if self in visited:
+            return ret
         for node in self.next_nodes:
-            ret += node.pretty(visited, depth + 1)
+            ret += node.pretty(visited | {self}, depth + 1)
         return ret
 
     def __repr__(self):
@@ -56,7 +53,7 @@ def make_cfg(tree: Tree, context: Context) -> tuple[CFGNode, List[CFGNode]]:
 
             for i in range(0, len(child_nodes_terminals) - 1):
                 _, l_terminals = child_nodes_terminals[i]
-                r_node, _ = child_nodes_terminals[i+1]
+                r_node, _ = child_nodes_terminals[i + 1]
 
                 for terminal in l_terminals:
                     terminal.next_nodes.append(r_node)
@@ -70,6 +67,12 @@ def make_cfg(tree: Tree, context: Context) -> tuple[CFGNode, List[CFGNode]]:
             assert isinstance(expr, Tree)
 
             defs_expr, uses_expr = decompose_expression(expr, context)
+            for uses in uses_expr:
+                if uses == var_name:
+                    sym = context.resolve(FieldDecl, uses)
+                    if sym and is_static_context(context):
+                        raise SemanticError(f"Self-assignment to variable {var_name}")
+
             var_node = CFGNode(tree.data, defs_expr | {var_name}, uses_expr)
             return (var_node, [var_node])
 

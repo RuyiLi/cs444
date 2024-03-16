@@ -19,7 +19,6 @@ def analyze_reachability(context: GlobalContext):
         method_decls = tree.find_data("method_declaration")
         for method_decl in method_decls:
             return_type = get_return_type(method_decl)
-
             if method_body := next(method_decl.find_data("method_body"), None):
                 check_tree_reachability(method_body, return_type != "void")
 
@@ -133,6 +132,7 @@ def check_unreachable(start: CFGNode):
             if next_n not in new_visited:
                 to_visit.append(next_n)
 
+
 def check_returns(start: CFGNode):
     to_visit = [start]
     visited = set()
@@ -142,7 +142,7 @@ def check_returns(start: CFGNode):
         visited.add(curr)
 
         if len(curr.next_nodes) == 0 and curr.type != "return_st":
-            raise SemanticError(f"finite-length non-void terminates without return")
+            raise SemanticError("finite-length non-void terminates without return")
 
         for next_n in curr.next_nodes:
             if next_n not in visited:
