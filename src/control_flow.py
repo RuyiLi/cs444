@@ -37,25 +37,30 @@ class CFGNode:
         return self.pretty(set())
 
 
-def make_cfg(tree: Tree, context: Context, parent_node: CFGNode) -> CFGNode:
+def make_cfg(tree: Tree, context: Context) -> tuple[CFGNode, List[CFGNode]]:
     """
     Returns the CFGNode corresponding to the given tree.
     Mutates parent_node.
     """
 
     if isinstance(tree, Token):
-        print("This shouldn't happen. CFG token encountered:", tree.value)
-        return
+        raise Exception("This shouldn't happen. CFG token encountered:", tree.value)
 
     match tree.data:
         case "block":
-            root = parent_node
-            curr_node = root
-            for child in tree.children:
-                if curr_node.type == "return_st":
-                    raise SemanticError(f"Unreachable code detected of type {child.data}")
-                curr_node = make_cfg(child, context, curr_node)
-            return root
+            if len(tree.children) == 0:
+                return (CFGNode("empty_st", set(), set(), []), [CFGNode("empty_st", set(), set(), [])])
+
+            child_nodes_terminals = [make_cfg(child, context) for child in tree.children]
+
+            for i in range(0, len(child_nodes_terminals) - 1):
+                _, l_terminals = child_nodes_terminals[i]
+                r_node, _ = child_nodes_terminals[i+1]
+
+                for terminal in l_terminals:
+                    terminal.next_nodes.append(r_node)
+
+            return (child_nodes_terminals[0][0], child_nodes_terminals[-1][1])
 
         case "local_var_declaration":
             expr = next(tree.find_data("var_initializer")).children[0]
@@ -65,8 +70,7 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode) -> CFGNode:
 
             defs_expr, uses_expr = decompose_expression(expr, context)
             var_node = CFGNode(tree.data, defs_expr | {var_name}, uses_expr)
-            parent_node.next_nodes.append(var_node)
-            return var_node
+            return (var_node, [var_node])
 
         case "if_st" | "if_st_no_short_if":
             _if_kw, cond, true_block = tree.children
@@ -74,9 +78,9 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode) -> CFGNode:
 
             # We need to get the if statement context
             if_node = CFGNode(tree.data, defs_cond, uses_cond)
-            make_cfg(true_block, context, if_node)
-            parent_node.next_nodes.append(if_node)
-            return if_node
+            true_node, true_terminals = make_cfg(true_block, context)
+            if_node.next_nodes = [true_node]
+            return (if_node, true_terminals + [if_node])
 
         case "if_else_st" | "if_else_st_no_short_if":
             # the way that these currently work is that if/else nodes have three children
@@ -87,22 +91,28 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode) -> CFGNode:
 
             # We need to get the if statement context
             if_else_node = CFGNode(tree.data, defs_cond, uses_cond)
-            make_cfg(true_block, context, if_else_node)
-            make_cfg(false_block, context, if_else_node)
-            parent_node.next_nodes.append(if_else_node)
-            return if_else_node
+            true_node, true_terminals = make_cfg(true_block, context)
+            false_node, false_terminals = make_cfg(false_block, context)
+
+            if_else_node.next_nodes = [true_node, false_node]
+            return (if_else_node, true_terminals + false_terminals)
 
         case "while_st" | "while_st_no_short_if":
             _while_kw, cond, loop_body = tree.children
             defs_cond, uses_cond = decompose_expression(cond, context)
+
             cond_node = CFGNode(tree.data, defs_cond, uses_cond)
-            make_cfg(loop_body, context, cond_node)
-            parent_node.next_nodes.append(cond_node)
-            return cond_node
+            true_node, true_terminals = make_cfg(loop_body, context)
+            cond_node.next_nodes = [true_node]
+
+            for terminal in true_terminals:
+                terminal.next_nodes.append(cond_node)
+
+            return (cond_node, [cond_node])
 
         case "for_st" | "for_st_no_short_if":
             for_init, for_cond, for_update = (
-                decompose_expression(get_child_tree(tree, name), context)
+                decompose_expression(get_child_tree(tree, name), tree.context)
                 for name in ["for_init", "expr", "for_update"]
             )
             loop_body = tree.children[-1]
@@ -114,39 +124,38 @@ def make_cfg(tree: Tree, context: Context, parent_node: CFGNode) -> CFGNode:
             #       for_cond   # circular reference
             #   rest_of_program
 
-            for_cond_node = CFGNode(tree.data + "_cond", for_cond[0], for_cond[1])
+            loop_body_node, loop_body_terminals = make_cfg(loop_body, context)
+
+            for_cond_node = CFGNode(tree.data + "_cond", for_cond[0], for_cond[1], [loop_body_node])
             for_init_node = CFGNode(tree.data + "_init", for_init[0], for_init[1], [for_cond_node])
-
-            loop_body_node = make_cfg(loop_body, context, for_cond_node)
             for_update_node = CFGNode(tree.data + "_update", for_update[0], for_update[1], [for_cond_node])
-            loop_body_node.next_nodes.append(for_update_node)
 
-            parent_node.next_nodes.append(for_init_node)
-            return for_init_node
+            for terminal in loop_body_terminals:
+                terminal.next_nodes.append(for_update_node)
+
+            return (for_init_node, [for_cond_node])
 
         case "expr_st":
             # assignment | method_invocation | class_instance_creation
             defs_expr, uses_expr = decompose_expression(tree.children[0], context)
             expr_node = CFGNode(tree.data, defs_expr, uses_expr)
-            parent_node.next_nodes.append(expr_node)
-            return expr_node
+            return (expr_node, [expr_node])
 
         case "return_st":
             defs_expr, uses_expr = set(), set()
             if len(tree.children) > 1:
                 defs_expr, uses_expr = decompose_expression(tree.children[1], context)
             return_node = CFGNode(tree.data, defs_expr, uses_expr)
-            parent_node.next_nodes.append(return_node)
-            return return_node
+            return (return_node, [return_node])
 
         case "statement" | "statement_no_short_if":
-            return make_cfg(tree.children[0], context, parent_node)
+            return make_cfg(tree.children[0], context)
 
         case "empty_st":
-            return parent_node
+            return (CFGNode(tree.data, set(), set()), [CFGNode(tree.data, set(), set())])
 
         case _:
-            print(f"! CFG for {tree.data} not implemented")
+            raise Exception(f"! CFG for {tree.data} not implemented")
 
 
 def get_argument_types(context: Context, tree: Tree) -> Tuple[Set[Symbol], Set[Symbol]]:
