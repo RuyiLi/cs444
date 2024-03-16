@@ -188,6 +188,10 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
             actual_result = ERROR
             error = e
 
+        if STDLIB_VERSION < 4.0:
+            if actual_result == WARNING:
+                actual_result = SUCCESS
+        
         if actual_result == expected_result:
             if not quiet:
                 print(f"Passed: {test_files_list} (correctly returned {get_result_string(expected_result)})")

@@ -31,7 +31,7 @@ class CFGNode:
         return ret
 
     def __repr__(self):
-        return f"CFGNode(type={self.type}, defs={self.defs or ''}, uses={self.uses or ''}, successors={len(self.next_nodes)})"
+        return f"CFGNode(type={self.type}, defs={self.defs or ''}, uses={self.uses or ''}, successors={self.next_nodes})"
 
     def __str__(self):
         return self.pretty(set())
