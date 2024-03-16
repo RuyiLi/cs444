@@ -32,6 +32,7 @@ def check_tree_reachability(tree: Tree):
         logging.debug(cfg_root)
         iterative_solving(cfg_root)
         check_dead_code_assignment(cfg_root)
+        check_unreachable(cfg_root)
 
 
 def get_terminals(root: CFGNode):
@@ -120,7 +121,7 @@ def check_unreachable(start: CFGNode):
         new_visited.add(curr)
 
         if curr not in visited:
-            warnings.warn(f"unreachable statement {curr.type}")
+            raise SemanticError(f"unreachable statement {curr.type}")
 
         for next_n in curr.next_nodes:
             if next_n not in new_visited:
