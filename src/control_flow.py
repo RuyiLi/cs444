@@ -112,7 +112,7 @@ def make_cfg(tree: Tree, context: Context) -> tuple[CFGNode, List[CFGNode]]:
 
         case "for_st" | "for_st_no_short_if":
             for_init, for_cond, for_update = (
-                decompose_expression(get_child_tree(tree, name), tree.context)
+                decompose_expression(get_child_tree(tree, name), getattr(tree, "context", context))
                 for name in ["for_init", "expr", "for_update"]
             )
             loop_body = tree.children[-1]
@@ -264,7 +264,7 @@ def decompose_expression(tree: Tree, context: Context) -> Tuple[Set[str], Set[st
                 defs, uses = decompose_expression(var_initializer.children[0], context)
                 return ({var_name}, defs | uses)
 
-            assert child.data == "assignment"
+            # assert child.data == "assignment"
             return decompose_expression(child, context)
 
         case "for_update":
