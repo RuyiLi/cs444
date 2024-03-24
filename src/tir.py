@@ -23,7 +23,7 @@ class IRExpr(IRNode):
 class IRConst(IRExpr):
     value: int
 
-    def __init__(self, value):
+    def __init__(self, value: int):
         self.value = value
 
     def __repr__(self):
@@ -43,14 +43,12 @@ class IRTemp(IRExpr):
         self.name = name
 
 
-BinOp = Enum("BinOp", ["ADD", "SUB", "MUL", "DIV", "MOD", "AND", "OR", "XOR", "LSHIFT", "RSHIFT", "ARSHIFT","EQ", "NEQ", "LT", "GT", "LEQ", "GEQ"])
-
 class IRBinExpr(IRExpr):
-    op_type: BinOp
+    op_type: str
     left: IRExpr
     right: IRExpr
 
-    def __init__(self, op_type, left, right):
+    def __init__(self, op_type: str, left: IRExpr, right: IRExpr):
         self.op_type = op_type
         self.left = left
         self.right = right
@@ -74,7 +72,7 @@ class IRBinExpr(IRExpr):
 class IRMem(IRExpr):
     address: IRExpr
 
-    def __init__(self, address):
+    def __init__(self, address: IRExpr):
         self.address = address
 
     def __repr__(self):
@@ -90,7 +88,7 @@ class IRCall(IRExpr):
     target: IRExpr
     args: List[IRExpr]
 
-    def __init__(self, target, args):
+    def __init__(self, target: IRExpr, args: List[IRExpr]):
         self.target = target
         self.args = args
 
@@ -110,7 +108,7 @@ class IRCall(IRExpr):
 class IRName(IRExpr):
     name: str
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
 
     def __repr__(self):
@@ -121,7 +119,7 @@ class IRESeq(IRESeq):
     stmt: IRStmt
     expr: IRExpr
 
-    def __init__(self, stmt, expr):
+    def __init__(self, stmt: IRStmt, expr: IRExpr):
         self.stmt = stmt
         self.expr = expr
 
