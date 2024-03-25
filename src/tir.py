@@ -13,33 +13,22 @@ class IRStmt(IRNode):
 class IRExpr(IRNode):
     is_constant: bool
 
-    def is_constant(self):
-        return False
-
-    def constant(self):
-        raise Exception("unsupported")
-
 
 class IRConst(IRExpr):
     value: int
 
     def __init__(self, value: int):
         self.value = value
+        self.is_constant = True
 
     def __repr__(self):
         return f"CONST({self.value})"
-
-    def is_constant(self):
-        return True
-
-    def constant(self):
-        return self.value
 
 
 class IRTemp(IRExpr):
     name: str
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
 
 
@@ -52,6 +41,7 @@ class IRBinExpr(IRExpr):
         self.op_type = op_type
         self.left = left
         self.right = right
+        self.is_constant = left.is_constant and right.is_constant
 
     def __repr__(self):
         return self.op_type
@@ -61,12 +51,9 @@ class IRBinExpr(IRExpr):
         right_child = visitor.visit(self, self.right)
 
         if left_child != self.left or right_child != self.right:
-            return IRBinExpr(left_child, right_child)
+            return IRBinExpr(self.op_type, left_child, right_child)
 
         return self
-
-    def is_constant(self):
-        return self.left.is_constant() and self.right.is_constant()
 
 
 class IRMem(IRExpr):
@@ -139,7 +126,7 @@ class IRMove(IRStmt):
     target: IRExpr
     source: IRExpr
 
-    def __init__(self, target, source):
+    def __init__(self, target: IRExpr, source: IRExpr):
         self.target = target
         self.source = source
 
@@ -159,7 +146,7 @@ class IRMove(IRStmt):
 class IRExp(IRStmt):
     expr: IRExpr
 
-    def __init__(self, expr):
+    def __init__(self, expr: IRExpr):
         self.expr = expr
 
     def __repr__(self):
@@ -174,7 +161,7 @@ class IRSeq(IRStmt):
     stmts: List[IRStmt]
     replace_parent: bool
 
-    def __init__(self, stmts, replace_parent = False):
+    def __init__(self, stmts: List[IRStmt], replace_parent = False):
         self.stmts = stmts
         self.replace_parent = replace_parent
 
@@ -190,7 +177,7 @@ class IRSeq(IRStmt):
 class IRJump(IRStmt):
     target: IRExpr
 
-    def __init__(self, target):
+    def __init__(self, target: IRExpr):
         self.target = target
 
     def __repr__(self):
@@ -206,7 +193,7 @@ class IRCJump(IRStmt):
     true_label: str
     false_label: str | None
 
-    def __init__(self, cond, true_label, false_label = None):
+    def __init__(self, cond: IRExpr, true_label: str, false_label = None):
         self.cond = cond
         self.true_label = true_label
         self.false_label = false_label
@@ -219,7 +206,7 @@ class IRCJump(IRStmt):
 class IRLabel(IRStmt):
     name: str
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
 
     def __repr__(self):
@@ -227,9 +214,9 @@ class IRLabel(IRStmt):
 
 
 class IRReturn(IRStmt):
-    ret: IRExpr
+    ret: IRExpr | None
 
-    def __init__(self, ret):
+    def __init__(self, ret: IRExpr | None):
         self.ret = ret
 
     def __repr__(self):
@@ -245,7 +232,7 @@ class IRFuncDecl(IRNode):
     body: IRStmt
     num_params: int
 
-    def __init__(self, name, body, num_params):
+    def __init__(self, name: str, body: IRStmt, num_params: int):
         self.name = name
         self.body = body
         self.num_params = num_params
@@ -259,7 +246,7 @@ class IRCompUnit(IRNode):
     name: str
     functions: Dict[str, IRFuncDecl]
 
-    def __init__(self, name, functions = {}):
+    def __init__(self, name: str, functions = {}):
         self.name = name
         self.functions = functions
 
@@ -269,7 +256,7 @@ class IRCompUnit(IRNode):
     def visit_children(self, visitor):
         child_funcs = [visitor.visit(self, func) for _, func in self.functions]
 
-        if any(func != child_funcs[i] for i, func in enumerate(self.funcs)):
+        if any(func != child_funcs[i] for i, func in enumerate(self.functions)):
             return IRCompUnit(self.name, child_funcs)
 
         return self
