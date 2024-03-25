@@ -1,4 +1,4 @@
-from tir import IRExpr, IRBinExpr, IRCall, IRConst, IRName, IRTemp
+from tir import IRExpr, IRBinExpr, IRCall, IRCJump, IRConst, IRLabel, IRMove, IRESeq, IRName, IRSeq, IRTemp
 from lark import Token, Tree
 from context import Context
 from helper import extract_name
@@ -21,7 +21,7 @@ def get_arguments(context: Context, tree: Tree) -> Tuple[Set[Symbol], Set[Symbol
     return []
 
 
-def lower_expression(tree: Tree | Token, context: Context) -> List[IRExpr]:
+def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
     if isinstance(tree, Token):
         return lower_token(tree)
 
@@ -37,12 +37,30 @@ def lower_expression(tree: Tree | Token, context: Context) -> List[IRExpr]:
             | "eq_expr"
             | "eager_and_expr"
             | "eager_or_expr"
-            | "and_expr"
-            | "or_expr"
         ):
             left, right = [lower_expression(tree.children[i], context) for i in [0, -1]]
             op_type = tree.data[:-5].upper() if len(tree.children) == 2 else tree.children[1].value
             return IRBinExpr(op_type, left, right)
+
+        case "and_expr":
+            left, right = [tree.children[i] for i in [0, -1]]
+
+            return IRESeq(IRSeq([
+                IRMove(IRTemp("t"), 0),
+                IRCJump(lower_expression(left, context), f"{tree.id()}_lt", f"{tree.id()}_lf"),
+                IRLabel(f"{tree.id()}_lt"), IRMove(IRTemp("t", lower_expression(right, context))),
+                IRLabel(f"{tree.id()}_lf")
+            ]), IRTemp("t"))
+
+        case "or_expr":
+            left, right = [tree.children[i] for i in [0, -1]]
+
+            return IRESeq(IRSeq([
+                IRMove(IRTemp("t"), 0),
+                IRCJump(lower_expression(left, context), f"{tree.id()}_lt", f"{tree.id()}_lf"),
+                IRLabel(f"{tree.id()}_lt"), IRMove(IRTemp("t", 1)),
+                IRLabel(f"{tree.id()}_lf"), IRMove(IRTemp("t", lower_expression(right, context))),
+            ]), IRTemp("t"))
 
         case "expression_name":
             name = extract_name(tree)
@@ -63,11 +81,13 @@ def lower_expression(tree: Tree | Token, context: Context) -> List[IRExpr]:
 
             return IRCall(IRName(f"java.lang.{expr_type.capitalize()}.{extract_name(tree)}", args))
 
+        case "unary_negative_expr":
+            return IRBinExpr("MULT", IRConst(-1), lower_expression(tree.children[0], context))
+
+        case "unary_complement_expr":
+            return IRBinExpr("SUB", IRConst(1), lower_expression(tree.children[0], context))
 
         ### TO BE IMPLEMENTED:
-
-        case "unary_negative_expr" | "unary_complement_expr":
-            return lower_expression(tree.children[0], context)
 
         case "array_access":
             assert len(tree.children) == 2
