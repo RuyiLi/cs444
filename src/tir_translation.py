@@ -1,4 +1,4 @@
-from tir import IRExpr, IRBinExpr, IRCall, IRCJump, IRConst, IRExp, IRJump, IRLabel, IRMove, IRESeq, IRName, IRReturn, IRSeq, IRStmt, IRTemp
+from tir import IRExpr, IRBinExpr, IRCall, IRCJump, IRConst, IRExp, IRJump, IRLabel, IRMem, IRMove, IRESeq, IRName, IRReturn, IRSeq, IRStmt, IRTemp
 from lark import Token, Tree
 from context import Context
 from helper import extract_name, get_child_tree, get_tree_token
@@ -105,13 +105,60 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
         case "for_update":
             return lower_expression(tree.children[0], context)
 
-        ### TO BE IMPLEMENTED:
-
         case "array_access":
-            assert len(tree.children) == 2
-            # array_type = lower_expression(ref_array, context) # Don't think array type can have defs/uses
+            ref_array, index = tree.children
 
-            return lower_expression(tree.children[-1], context)
+            err_label = f"{id(tree)}_lerr"
+            nonnull_label = f"{id(tree)}_lnnull"
+            inbound_label = f"{id(tree)}_linbound"
+            outbound_label = f"{id(tree)}_loutbound"
+
+            return IRESeq(IRSeq([
+                IRMove(IRTemp("a"), lower_expression(ref_array, context)),
+                IRCJump(IRBinExpr("EQ", IRTemp("a"), IRConst(0)), err_label, nonnull_label),
+                IRLabel(err_label), IRExp(IRCall(IRName("__exception"))),
+                IRLabel(nonnull_label), IRMove(IRTemp("i"), lower_expression(index, context)),
+                IRCJump(IRBinExpr("LOGICAL_AND",
+                    IRBinExpr("LT", IRTemp("i"), IRMem(IRBinExpr("SUB", IRTemp("a"), IRConst(4)))),
+                    IRBinExpr("GT_EQ", IRTemp("i"), IRConst(0))),
+                    inbound_label, outbound_label),
+                IRLabel(inbound_label)
+            ]), IRMem(IRBinExpr("ADD", IRTemp("a"), IRBinExpr("ADD", IRBinExpr("MULT", IRConst(4), IRTemp("i")), IRConst(4)))))
+
+        case "array_creation_expr":
+            _new_kw, _array_type, size_expr = tree.children
+
+            err_label = f"{id(tree)}_lerr"
+            nonneg_label = f"{id(tree)}_lnneg"
+
+            stmts: List[IRStmt] = [
+                IRMove(IRTemp("n"), lower_expression(size_expr, context)),
+                IRCJump(IRBinExpr("LT", IRTemp("n"), IRConst(0)), err_label, nonneg_label),
+                IRLabel(err_label), IRExp(IRCall(IRName("__exception"))),
+                IRLabel(nonneg_label), IRMove(IRTemp("m"),
+                    IRCall(IRName("__malloc"), [IRBinExpr("ADD", IRBinExpr("MULT", IRTemp("n"), IRConst(4)), IRConst(8))])),
+                IRMove(IRMem(IRTemp("m")), IRTemp("n"))
+            ]
+
+            # Zero-initialize array
+            cond_label = f"{id(tree)}_cond"
+            true_label = f"{id(tree)}_lt"
+            false_label = f"{id(tree)}_lf"
+
+            # Cursed manual for loop in TIR
+            stmts.extend([
+                IRMove(IRTemp("i"), IRConst(0)),
+                IRMove(IRTemp("c"), IRBinExpr("ADD", IRTemp("m"), IRConst(4))),
+                IRLabel(cond_label), IRExp(IRBinExpr("LT", IRTemp("i"), IRTemp("n"))),  # for (i = 0; i < n)
+                IRLabel(true_label),
+                    IRMove(IRMem(IRTemp("c")), IRConst(0)),                             # mem(c) = 0
+                    IRMove(IRTemp("c"), IRBinExpr("ADD", IRTemp("c"), IRConst(4))),     # c += 4
+                    IRMove(IRTemp("i"), IRBinExpr("ADD", IRTemp("i"), IRConst(1))),     # i++
+                    IRJump(IRName(cond_label)),
+                IRLabel(false_label)
+            ])
+
+            return IRESeq(IRSeq(stmts), IRBinExpr("ADD", IRTemp("m"), IRConst(4)))
 
         case _:
             raise Exception(f"! Lower for {tree.data} not implemented")

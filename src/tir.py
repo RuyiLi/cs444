@@ -74,7 +74,7 @@ class IRCall(IRExpr):
     target: IRExpr
     args: List[IRExpr]
 
-    def __init__(self, target: IRExpr, args: List[IRExpr]):
+    def __init__(self, target: IRExpr, args: List[IRExpr] = []):
         self.target = target
         self.args = args
 

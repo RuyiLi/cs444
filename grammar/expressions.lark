@@ -3,8 +3,7 @@
 ?primary: primary_no_new_array
         | array_creation_expr
 
-array_creation_expr: NEW_KW (primitive_type | type_name) dim_exprs SQ_BRACKETS? // no multidimensional arrays or array initializers
-dim_exprs: ("[" expr "]")
+array_creation_expr: NEW_KW (primitive_type | type_name) "[" expr "]" // no multidimensional arrays or array initializers
 
 ?primary_no_new_array: literal
                      | THIS_KW
@@ -58,7 +57,7 @@ pre_dec_expr.1: "--" unary_expr     // prioritize over unary_neg
          | add_expr "+" sub_expr
 
 ?rel_expr: add_expr
-         | rel_expr ("<" | ">" | LT_EQ | GT_EQ) add_expr
+         | rel_expr (LT | GT | LT_EQ | GT_EQ) add_expr
          | rel_expr INSTANCEOF_KW reference_type
 
 ?eq_expr: rel_expr
