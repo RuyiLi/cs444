@@ -10,6 +10,7 @@ from context import GlobalContext
 from hierarchy_check import hierarchy_check
 from lark import Lark, Tree, logger
 from name_disambiguation import disambiguate_names
+from tir_translation import lower_comp_unit
 from type_check import type_check
 from type_link import type_link
 from reachability import analyze_reachability
@@ -51,48 +52,54 @@ logging.basicConfig(
 STDLIB_VERSION = 4.0
 stdlib_files = glob.glob(f"stdlib/{STDLIB_VERSION}/java/**/*.java")
 global_context_with_stdlib = GlobalContext()
-for file in stdlib_files:
-    with open(file) as f:
-        res = lark.parse(f.read())
-        Weeder(f.name).visit(res)
-        build_environment(res, global_context_with_stdlib)
+# for file in stdlib_files:
+#     with open(file) as f:
+#         res = lark.parse(f.read())
+#         Weeder(f.name).visit(res)
+#         build_environment(res, global_context_with_stdlib)
 
 
 def static_check(context: GlobalContext, quiet=False):
-    try:
-        type_link(context)
-    except Exception as e:
-        if not quiet:
-            logging.error("Failed type_link")
-        raise e
+    # try:
+    #     type_link(context)
+    # except Exception as e:
+    #     if not quiet:
+    #         logging.error("Failed type_link")
+    #     raise e
 
-    try:
-        hierarchy_check(context)
-    except Exception as e:
-        if not quiet:
-            logging.error("Failed hierarchy_check")
-        raise e
+    # try:
+    #     hierarchy_check(context)
+    # except Exception as e:
+    #     if not quiet:
+    #         logging.error("Failed hierarchy_check")
+    #     raise e
 
-    try:
-        disambiguate_names(context)
-    except Exception as e:
-        if not quiet:
-            logging.error("Failed name disambiguation")
-        raise e
+    # try:
+    #     disambiguate_names(context)
+    # except Exception as e:
+    #     if not quiet:
+    #         logging.error("Failed name disambiguation")
+    #     raise e
 
-    try:
-        type_check(context)
-    except Exception as e:
-        if not quiet:
-            logging.error("Failed type check")
-        raise e
+    # try:
+    #     type_check(context)
+    # except Exception as e:
+    #     if not quiet:
+    #         logging.error("Failed type check")
+    #     raise e
 
-    try:
-        analyze_reachability(context)
-    except Exception as e:
-        if not quiet:
-            logging.error("Failed reachability analysis")
-        raise e
+    # try:
+    #     analyze_reachability(context)
+    # except Exception as e:
+    #     if not quiet:
+    #         logging.error("Failed reachability analysis")
+    #     raise e
+
+    for child_context in context.children:
+        comp_unit = lower_comp_unit(child_context.tree, context)
+
+        for f in comp_unit.functions:
+            print(f)
 
 
 ERROR = 42

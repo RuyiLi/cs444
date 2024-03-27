@@ -13,15 +13,18 @@ class IRStmt(IRNode):
 class IRExpr(IRNode):
     is_constant: bool
 
+    def __init__(self, is_constant = False):
+        self.is_constant = is_constant
+
 
 class IRConst(IRExpr):
     value: int
 
     def __init__(self, value: int):
+        super().__init__(True)
         self.value = value
-        self.is_constant = True
 
-    def __repr__(self):
+    def __str__(self):
         return f"CONST({self.value})"
 
 
@@ -29,7 +32,11 @@ class IRTemp(IRExpr):
     name: str
 
     def __init__(self, name: str):
+        super().__init__()
         self.name = name
+
+    def __str__(self):
+        return f"TEMP({self.name})"
 
 
 class IRBinExpr(IRExpr):
@@ -38,13 +45,14 @@ class IRBinExpr(IRExpr):
     right: IRExpr
 
     def __init__(self, op_type: str, left: IRExpr, right: IRExpr):
+        super().__init__()
         self.op_type = op_type
         self.left = left
         self.right = right
         self.is_constant = left.is_constant and right.is_constant
 
-    def __repr__(self):
-        return self.op_type
+    def __str__(self):
+        return f"({self.left} {self.op_type} {self.right})"
 
     def visit_children(self, visitor):
         left_child = visitor.visit(self, self.left)
@@ -60,10 +68,11 @@ class IRMem(IRExpr):
     address: IRExpr
 
     def __init__(self, address: IRExpr):
+        super().__init__()
         self.address = address
 
-    def __repr__(self):
-        return "MEM"
+    def __str__(self):
+        return f"MEM{self.address}"
 
     def visit_children(self, visitor):
         child_expr = visitor.visitor(self, self.address)
@@ -75,11 +84,12 @@ class IRCall(IRExpr):
     args: List[IRExpr]
 
     def __init__(self, target: IRExpr, args: List[IRExpr] = []):
+        super().__init__()
         self.target = target
         self.args = args
 
-    def __repr__(self):
-        return "CALL"
+    def __str__(self):
+        return f"CALL(target={self.target}, args=[{','.join(arg.__str__() for arg in self.args)}])"
 
     def visit_children(self, visitor):
         target_expr = visitor.visit(self, self.target)
@@ -95,9 +105,10 @@ class IRName(IRExpr):
     name: str
 
     def __init__(self, name: str):
+        super().__init__()
         self.name = name
 
-    def __repr__(self):
+    def __str__(self):
         return f"NAME({self.name})"
 
 
@@ -106,11 +117,12 @@ class IRESeq(IRExpr):
     expr: IRExpr
 
     def __init__(self, stmt: IRStmt, expr: IRExpr):
+        super().__init__()
         self.stmt = stmt
         self.expr = expr
 
-    def __repr__(self):
-        return "ESEQ"
+    def __str__(self):
+        return f"ESEQ({self.stmt}, {self.expr})"
 
     def visit_children(self, visitor):
         child_stmt = visitor.visit(self, self.stmt)
@@ -130,8 +142,8 @@ class IRMove(IRStmt):
         self.target = target
         self.source = source
 
-    def __repr__(self):
-        return "MOVE"
+    def __str__(self):
+        return f"MOVE(target={self.target}, source={self.source})"
 
     def visit_children(self, visitor):
         child_target = visitor.visit(self, self.target)
@@ -149,8 +161,8 @@ class IRExp(IRStmt):
     def __init__(self, expr: IRExpr):
         self.expr = expr
 
-    def __repr__(self):
-        return "EXP"
+    def __str__(self):
+        return f"EXP({self.expr})"
 
     def visit_children(self, visitor):
         child_expr = visitor.visit(self, self.expr)
@@ -164,6 +176,9 @@ class IRSeq(IRStmt):
     def __init__(self, stmts: List[IRStmt], replace_parent = False):
         self.stmts = stmts
         self.replace_parent = replace_parent
+
+    def __str__(self):
+        return f"SEQ({', '.join(stmt.__str__() for stmt in self.stmts)})"
 
     def visit_children(self, visitor):
         child_stmts = [visitor.visit(self, child) for child in self.stmts]
@@ -180,8 +195,8 @@ class IRJump(IRStmt):
     def __init__(self, target: IRExpr):
         self.target = target
 
-    def __repr__(self):
-        return "JUMP"
+    def __str__(self):
+        return f"JUMP({self.target})"
 
     def visit_children(self, visitor):
         child_target = visitor.visit(self, self.target)
@@ -198,6 +213,9 @@ class IRCJump(IRStmt):
         self.true_label = true_label
         self.false_label = false_label
 
+    def __str__(self):
+        return f"CJUMP(cond={self.cond}, true={self.true_label}, false={self.false_label})"
+
     def visit_children(self, visitor):
         child_cond = visitor.visit(self.cond)
         return IRCJump(child_cond, self.true_label, self.false_label) if child_cond != self.cond else self
@@ -209,7 +227,7 @@ class IRLabel(IRStmt):
     def __init__(self, name: str):
         self.name = name
 
-    def __repr__(self):
+    def __str__(self):
         return f"LABEL({self.name})"
 
 
@@ -219,8 +237,8 @@ class IRReturn(IRStmt):
     def __init__(self, ret: IRExpr | None):
         self.ret = ret
 
-    def __repr__(self):
-        return "RETURN"
+    def __str__(self):
+        return f"RETURN({self.ret})"
 
     def visit_children(self, visitor):
         child_ret = visitor.visit(self, self.ret)
@@ -237,6 +255,9 @@ class IRFuncDecl(IRNode):
         self.body = body
         self.num_params = num_params
 
+    def __str__(self):
+        return f"FuncDecl({self.name}, {self.body})"
+
     def visit_children(self, visitor):
         child_body = visitor.visit(self, self.body)
         return IRFuncDecl(self.name, child_body, self.num_params) if child_body != self.body else self
@@ -250,7 +271,7 @@ class IRCompUnit(IRNode):
         self.name = name
         self.functions = functions
 
-    def __repr__(self):
+    def __str__(self):
         return "COMPUNIT"
 
     def visit_children(self, visitor):

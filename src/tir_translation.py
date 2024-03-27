@@ -1,9 +1,21 @@
-from tir import IRExpr, IRBinExpr, IRCall, IRCJump, IRConst, IRExp, IRJump, IRLabel, IRMem, IRMove, IRESeq, IRName, IRReturn, IRSeq, IRStmt, IRTemp
+from tir import IRCompUnit, IRExpr, IRBinExpr, IRCall, IRCJump, IRConst, IRExp, IRFuncDecl, IRJump, IRLabel, IRMem, IRMove, IRESeq, IRName, IRReturn, IRSeq, IRStmt, IRTemp
 from lark import Token, Tree
 from context import Context
-from helper import extract_name, get_child_tree, get_tree_token
+from helper import extract_name, get_child_tree, get_formal_params, get_nested_token, get_tree_token
 from type_check import resolve_expression
 from typing import List
+
+def lower_comp_unit(tree: Tree, context: Context):
+    return IRCompUnit("test", [lower_function(f, context) for f in list(tree.find_data("method_declaration"))])
+
+def lower_function(tree: Tree, context: Context):
+    method_name = get_nested_token(tree, "IDENTIFIER")
+    formal_param_types, formal_param_names = get_formal_params(tree)
+
+    if method_body := next(tree.find_data("method_body"), None):
+        return IRFuncDecl(method_name, lower_statement(method_body.children[0], context), len(formal_param_names))
+
+    return IRFuncDecl(method_name, IRStmt(), len(formal_param_names))
 
 def lower_token(token: Token):
     match token.type:
@@ -42,7 +54,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             | "eager_or_expr"
         ):
             left, right = [lower_expression(tree.children[i], context) for i in [0, -1]]
-            op_type = tree.data[:-5].upper() if len(tree.children) == 2 else tree.children[1].value
+            op_type = tree.data[:-5].upper() if len(tree.children) == 2 else tree.children[1].type
             return IRBinExpr(op_type, left, right)
 
         case "and_expr":
@@ -76,7 +88,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             if isinstance(tree.children[0], Tree) and tree.children[0].data == "method_name":
                 args = get_arguments(context, tree)
 
-                return IRCall(IRName(extract_name(tree)), args)
+                return IRCall(IRName(extract_name(tree.children[0])), args)
 
             # lhs is expression
             args = get_arguments(context, tree if len(tree.children) == 2 else tree.children[-1])
@@ -160,7 +172,11 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
 
             return IRESeq(IRSeq(stmts), IRBinExpr("ADD", IRTemp("m"), IRConst(4)))
 
+        case "char_l":
+            return IRConst(tree.children[0].value)
+
         case _:
+            print(tree)
             raise Exception(f"! Lower for {tree.data} not implemented")
 
 
@@ -195,6 +211,12 @@ def lower_c(expr: Tree | Token, context: Context, true_label: str, false_label: 
 
 
 def lower_statement(tree: Tree, context: Context) -> IRStmt:
+    if isinstance(tree, Token):
+        if tree.value == ";":
+            return IRStmt()
+        print(tree)
+        raise Exception("e")
+
     match tree.data:
         case "block":
             if len(tree.children) == 0:
