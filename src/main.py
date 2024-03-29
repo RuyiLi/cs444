@@ -12,6 +12,7 @@ from lark import Lark, Tree, logger
 from name_disambiguation import disambiguate_names
 from tir_canonical import canonicalize_statement
 from tir_translation import lower_comp_unit
+from tir_visitor import CanonicalVisitor
 from type_check import type_check
 from type_link import type_link
 from reachability import analyze_reachability
@@ -102,7 +103,12 @@ def static_check(context: GlobalContext, quiet=False):
         for k, v in comp_unit.functions.items():
             print(v)
             print()
-            print(canonicalize_statement(v.body))
+            canonical = canonicalize_statement(v.body)
+            print(canonical)
+
+            visitor = CanonicalVisitor()
+            result = visitor.visit(None, canonical)
+            print(result, visitor.offender)
 
 
 ERROR = 42

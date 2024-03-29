@@ -1,11 +1,22 @@
-from enum import Enum
-from typing import List, Dict
+from __future__ import annotations
+from functools import reduce
+from typing import List, Dict, TypeVar
+
+T = TypeVar("T")
 
 class IRNode:
     label: str
+    children: List[IRNode]
+
+    def __init__(self, children = []):
+        self.children = children
 
     def visit_children(self, visitor):
         return self
+
+    def aggregate_children(self, visitor):
+        return reduce(lambda a, c: visitor.bind(a, visitor.visit(self, c)),
+            self.children, visitor.unit())
 
 class IRStmt(IRNode):
     def __str__(self) -> str:
@@ -14,7 +25,8 @@ class IRStmt(IRNode):
 class IRExpr(IRNode):
     is_constant: bool
 
-    def __init__(self, is_constant = False):
+    def __init__(self, children = [], is_constant = False):
+        super().__init__(children)
         self.is_constant = is_constant
 
 
@@ -22,7 +34,7 @@ class IRConst(IRExpr):
     value: int
 
     def __init__(self, value: int):
-        super().__init__(True)
+        super().__init__([], True)
         self.value = value
 
     def __str__(self):
@@ -46,7 +58,7 @@ class IRBinExpr(IRExpr):
     right: IRExpr
 
     def __init__(self, op_type: str, left: IRExpr, right: IRExpr):
-        super().__init__()
+        super().__init__([left, right])
         self.op_type = op_type
         self.left = left
         self.right = right
@@ -69,7 +81,7 @@ class IRMem(IRExpr):
     address: IRExpr
 
     def __init__(self, address: IRExpr):
-        super().__init__()
+        super().__init__([address])
         self.address = address
 
     def __str__(self):
@@ -85,7 +97,7 @@ class IRCall(IRExpr):
     args: List[IRExpr]
 
     def __init__(self, target: IRExpr, args: List[IRExpr] = []):
-        super().__init__()
+        super().__init__([target] + args)
         self.target = target
         self.args = args
 
@@ -118,7 +130,7 @@ class IRESeq(IRExpr):
     expr: IRExpr
 
     def __init__(self, stmt: IRStmt, expr: IRExpr):
-        super().__init__()
+        super().__init__([stmt, expr])
         self.stmt = stmt
         self.expr = expr
 
@@ -140,6 +152,7 @@ class IRMove(IRStmt):
     source: IRExpr
 
     def __init__(self, target: IRExpr, source: IRExpr):
+        super().__init__([target, source])
         self.target = target
         self.source = source
 
@@ -160,6 +173,7 @@ class IRExp(IRStmt):
     expr: IRExpr
 
     def __init__(self, expr: IRExpr):
+        super().__init__([expr])
         self.expr = expr
 
     def __str__(self):
@@ -175,6 +189,7 @@ class IRSeq(IRStmt):
     replace_parent: bool
 
     def __init__(self, stmts: List[IRStmt], replace_parent = False):
+        super().__init__(stmts)
         self.stmts = stmts
         self.replace_parent = replace_parent
 
@@ -194,6 +209,7 @@ class IRJump(IRStmt):
     target: IRExpr
 
     def __init__(self, target: IRExpr):
+        super().__init__([target])
         self.target = target
 
     def __str__(self):
@@ -210,6 +226,7 @@ class IRCJump(IRStmt):
     false_label: str | None
 
     def __init__(self, cond: IRExpr, true_label: str, false_label = None):
+        super().__init__([cond])
         self.cond = cond
         self.true_label = true_label
         self.false_label = false_label
@@ -226,6 +243,7 @@ class IRLabel(IRStmt):
     name: str
 
     def __init__(self, name: str):
+        super().__init__()
         self.name = name
 
     def __str__(self):
@@ -236,6 +254,7 @@ class IRReturn(IRStmt):
     ret: IRExpr | None
 
     def __init__(self, ret: IRExpr | None):
+        super().__init__([ret])
         self.ret = ret
 
     def __str__(self):
@@ -252,6 +271,7 @@ class IRFuncDecl(IRNode):
     num_params: int
 
     def __init__(self, name: str, body: IRStmt, num_params: int):
+        super().__init__([body])
         self.name = name
         self.body = body
         self.num_params = num_params
@@ -268,7 +288,8 @@ class IRCompUnit(IRNode):
     name: str
     functions: Dict[str, IRFuncDecl]
 
-    def __init__(self, name: str, functions = {}):
+    def __init__(self, name: str, functions: Dict[str, IRFuncDecl] = {}):
+        super().__init__(functions.values())
         self.name = name
         self.functions = functions
 
