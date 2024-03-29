@@ -8,7 +8,8 @@ class IRNode:
         return self
 
 class IRStmt(IRNode):
-    pass
+    def __str__(self) -> str:
+        return f"EMPTY"
 
 class IRExpr(IRNode):
     is_constant: bool
@@ -72,7 +73,7 @@ class IRMem(IRExpr):
         self.address = address
 
     def __str__(self):
-        return f"MEM{self.address}"
+        return f"MEM({self.address})"
 
     def visit_children(self, visitor):
         child_expr = visitor.visitor(self, self.address)

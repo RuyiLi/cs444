@@ -10,6 +10,7 @@ from context import GlobalContext
 from hierarchy_check import hierarchy_check
 from lark import Lark, Tree, logger
 from name_disambiguation import disambiguate_names
+from tir_canonical import canonicalize_statement
 from tir_translation import lower_comp_unit
 from type_check import type_check
 from type_link import type_link
@@ -98,8 +99,10 @@ def static_check(context: GlobalContext, quiet=False):
     for child_context in context.children:
         comp_unit = lower_comp_unit(child_context.tree, context)
 
-        for f in comp_unit.functions:
-            print(f)
+        for k, v in comp_unit.functions.items():
+            print(v)
+            print()
+            print(canonicalize_statement(v.body))
 
 
 ERROR = 42

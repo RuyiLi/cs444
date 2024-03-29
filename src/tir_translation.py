@@ -6,16 +6,16 @@ from type_check import resolve_expression
 from typing import List
 
 def lower_comp_unit(tree: Tree, context: Context):
-    return IRCompUnit("test", [lower_function(f, context) for f in list(tree.find_data("method_declaration"))])
+    return IRCompUnit("test", dict([lower_function(f, context) for f in list(tree.find_data("method_declaration"))]))
 
 def lower_function(tree: Tree, context: Context):
     method_name = get_nested_token(tree, "IDENTIFIER")
     formal_param_types, formal_param_names = get_formal_params(tree)
 
     if method_body := next(tree.find_data("method_body"), None):
-        return IRFuncDecl(method_name, lower_statement(method_body.children[0], context), len(formal_param_names))
+        return (method_name, IRFuncDecl(method_name, lower_statement(method_body.children[0], context), len(formal_param_names)))
 
-    return IRFuncDecl(method_name, IRStmt(), len(formal_param_names))
+    return (method_name, IRFuncDecl(method_name, IRStmt(), len(formal_param_names)))
 
 def lower_token(token: Token):
     match token.type:
@@ -107,7 +107,14 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             lhs = lower_expression(lhs_tree, context)
             rhs = lower_expression(tree.children[1], context)
 
-            return IRESeq(IRMove(lhs, rhs), lhs)
+            if lhs_tree.data != "array_access":
+                return IRESeq(IRMove(lhs, rhs), lhs)
+
+            assert isinstance(lhs, IRESeq)
+            assert isinstance(lhs.stmt, IRSeq)
+
+            lhs.stmt.stmts.append(IRMove(IRMem(lhs.expr), rhs))
+            return IRESeq(lhs.stmt, rhs)
 
         case "cast_expr":
             cast_target = tree.children[-1]
