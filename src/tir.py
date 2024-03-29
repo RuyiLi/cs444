@@ -193,6 +193,8 @@ class IRSeq(IRStmt):
         self.stmts = stmts
         self.replace_parent = replace_parent
 
+        self.simplify_stmts()
+
     def __str__(self):
         return f"SEQ({', '.join(stmt.__str__() for stmt in self.stmts)})"
 
@@ -203,6 +205,21 @@ class IRSeq(IRStmt):
             return IRSeq(child_stmts)
 
         return self
+
+    def simplify_stmts(self):
+        stmts = []
+
+        for s in self.stmts:
+            if s.__str__() == "EMPTY":
+                continue
+
+            if isinstance(s, IRSeq):
+                s.simplify_stmts()
+                stmts += s.stmts
+            else:
+                stmts.append(s)
+
+        self.stmts = stmts
 
 
 class IRJump(IRStmt):

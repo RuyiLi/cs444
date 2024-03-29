@@ -151,6 +151,11 @@ class CanonicalVisitor(AggregateVisitor[bool]):
         if self.is_canonical(original):
             return True
 
+        if not isinstance(original, IRCJump):
+            print("NON CANONICAL!!")
+            print("self", original)
+            print("parent", parent)
+
         self.noncanonical(original if parent is None else parent)
         return False
 

@@ -108,7 +108,7 @@ def static_check(context: GlobalContext, quiet=False):
 
             visitor = CanonicalVisitor()
             result = visitor.visit(None, canonical)
-            print(result, visitor.offender)
+            print(f"Canonical? {result}")
 
 
 ERROR = 42
