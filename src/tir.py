@@ -189,11 +189,11 @@ class IRSeq(IRStmt):
     replace_parent: bool
 
     def __init__(self, stmts: List[IRStmt], replace_parent = False):
-        super().__init__(stmts)
         self.stmts = stmts
         self.replace_parent = replace_parent
 
         self.simplify_stmts()
+        super().__init__(self.stmts)
 
     def __str__(self):
         return f"SEQ({', '.join(stmt.__str__() for stmt in self.stmts)})"
@@ -271,7 +271,7 @@ class IRReturn(IRStmt):
     ret: IRExpr | None
 
     def __init__(self, ret: IRExpr | None):
-        super().__init__([ret])
+        super().__init__([] if ret is None else [ret])
         self.ret = ret
 
     def __str__(self):

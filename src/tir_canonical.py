@@ -52,7 +52,8 @@ def canonicalize_statement(stmt: IRStmt) -> IRStmt:
 
 	if isinstance(stmt, IRCJump):
 		c_stmt, c_expr = canonicalize_expression(stmt.cond)
-		return IRSeq([c_stmt, IRCJump(c_expr, stmt.true_label, stmt.false_label)])
+
+		return IRSeq([c_stmt, IRCJump(c_expr, stmt.true_label, None)] + [IRJump(IRName(stmt.false_label))] if stmt.false_label is not None else [])
 
 	if isinstance(stmt, IRExp):
 		c_stmt, _ = canonicalize_expression(stmt.expr)
@@ -79,3 +80,7 @@ def canonicalize_statement(stmt: IRStmt) -> IRStmt:
 			return IRSeq([ct_stmt, IRMove(IRTemp(label), ct_expr), cs_stmt, IRMove(IRMem(IRTemp(label)), cs_expr)])
 
 	raise Exception(f"couldn't canonicalize stmt {stmt}")
+
+
+def canonicalize_cjump(stmt: IRStmt):
+	pass

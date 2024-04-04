@@ -5,6 +5,7 @@ import warnings
 from copy import deepcopy
 from typing import List
 
+from asm_tiling import tile_stmt
 from build_environment import build_environment
 from context import GlobalContext
 from hierarchy_check import hierarchy_check
@@ -109,6 +110,8 @@ def static_check(context: GlobalContext, quiet=False):
             visitor = CanonicalVisitor()
             result = visitor.visit(None, canonical)
             print(f"Canonical? {result}")
+
+            print("\n".join(tile_stmt(canonical, {})))
 
 
 ERROR = 42

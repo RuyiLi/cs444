@@ -42,6 +42,9 @@ class AggregateVisitor(Generic[T]):
         pass
 
     def visit(self, parent: IRNode, node: IRNode):
+        if node is None:
+            return None
+
         overrideValue = self.override(parent, node);
         if overrideValue != None:
             return overrideValue;
@@ -132,14 +135,14 @@ class CanonicalVisitor(AggregateVisitor[bool]):
             case IRCall():
                 return not self.in_expr
 
-            case IRCJump(false_label = f):
+            case IRCJump(false_label=f):
                 return f is None
 
             case IRESeq():
                 return False
 
             case IRSeq():
-                return self.in_seq
+                return not self.in_seq
 
             case _:
                 return True
@@ -151,10 +154,9 @@ class CanonicalVisitor(AggregateVisitor[bool]):
         if self.is_canonical(original):
             return True
 
-        if not isinstance(original, IRCJump):
-            print("NON CANONICAL!!")
-            print("self", original)
-            print("parent", parent)
+        print("NON CANONICAL!!")
+        print("self", original)
+        print("parent", parent)
 
         self.noncanonical(original if parent is None else parent)
         return False
