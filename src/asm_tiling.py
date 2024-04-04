@@ -1,10 +1,6 @@
 from typing import Dict, List, Tuple
-from tir import IRBinExpr, IRCJump, IRConst, IRFuncDecl, IRJump, IRLabel, IRMove, IRName, IRReturn, IRSeq, IRStmt, IRExpr, IRTemp
-
-# asm = [
-# 		"push ebp",		# Save base pointer
-# 		"mov ebp, esp"	# Move base pointer
-# 	]
+from tir import IRBinExpr, IRCJump, IRCall, IRConst, IRFuncDecl, IRJump, IRLabel, IRMove, IRName, IRReturn, IRSeq, IRStmt, IRExpr, IRTemp
+from functools import reduce
 
 def tile_func(func: IRFuncDecl) -> List[str]:
 	asm = []
@@ -12,34 +8,48 @@ def tile_func(func: IRFuncDecl) -> List[str]:
 	if func.name == "test":
 		asm += [
 			"global _start",
-			"_start:",
-			"mov ebp, esp"
-		]
-
-	local_var_dict = dict([(param, i) for i, param in enumerate(func.params)])
-	asm += tile_stmt(func.body, local_var_dict)
-
-	# Don't include "ret" if main function
-	if func.name == "test":
-		asm = list(filter(lambda x: x != "ret", asm))
-
-		asm += [
-			"mov ebx, eax",		# Save final return
-			"mov eax, 1",		# sys_exit
-			"int 0x80"
+			"_start:"
 		]
 	else:
-		asm.append("pop ebp") # Restore base pointer
+		asm += [
+			f"_{func.name}:",
+			"push ebp"			# Save old base pointer
+		]
 
-	return asm
+	asm += ["mov ebp, esp"]		# Update base pointer to start in this call frame
+
+	# Parameters are behind the return address on the stack, so we make them -2
+	local_var_dict = dict([(param, -(i+2)) for i, param in enumerate(func.params)])
+	local_var_dict['%RET'] = -100
+
+	asm += tile_stmt(func.body, local_var_dict)
+
+	if func.name != "test":
+		return asm
+
+	main_return = [
+		"mov ebx, eax",		# Save final return
+		"mov eax, 1",		# sys_exit
+		"int 0x80"
+	]
+
+	# Replace "ret" with special returns in main function
+	return reduce(lambda a, c: a + ([c] if c != "ret" else main_return), asm, [])
 
 
 def fmt_bp(index: int):
+	if index == -100:
+		return "eax"
+
+	if index < 0:
+		return f"[ebp+{-4*index}]"
+
 	index += 1
-	return "[ebp]" if index == 0 else f"[ebp-{4*index}]"
+	return f"[ebp-{4*index}]"
 
 
 def process_expr(expr: IRExpr, local_var_dict: Dict[str, int]) -> Tuple[str | int, List[str]]:
+	print(f"processing expr {expr}, {local_var_dict}")
 	if isinstance(expr, IRTemp):
 		return ("ecx", [f"mov ecx, {fmt_bp(local_var_dict.get(expr.name))}"])
 
@@ -49,9 +59,26 @@ def process_expr(expr: IRExpr, local_var_dict: Dict[str, int]) -> Tuple[str | in
 	if isinstance(expr, IRBinExpr):
 		return ("ecx", tile_expr(expr, "ecx", local_var_dict))
 
+	raise Exception(f"unable to process expr {expr}")
+
 
 def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
+	print(f"tiling stmt {stmt}")
+
 	match stmt:
+		case IRCall(target=t, args=args):
+			asm = []
+
+			for arg in args:
+				r, r_asm = process_expr(arg, local_var_dict)
+				asm += r_asm + [f"push {r}"]
+
+			asm += [
+				f"call _{t.name}",
+				f"add esp, {len(args)*4}"	# pop off arguments
+			]
+			return asm
+
 		case IRCJump(cond=c, true_label=t):
 			match c:
 				case IRConst(value=v):
@@ -102,12 +129,14 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
 			match t:
 				case IRTemp(name=n):
 					if (loc := local_var_dict.get(n, None)) is not None:
-						stmts = tile_expr(s, "edx", local_var_dict)
-						return stmts + [f"mov {fmt_bp(loc)}, edx"]
+						print("VARIABLE", n, "EXISTS AT", loc)
+						r, r_asm = process_expr(s, local_var_dict)
+						return r_asm + [f"mov {fmt_bp(loc)}, {r}"]
 
-					local_var_dict[n] = len(local_var_dict.keys())
-					stmts = tile_expr(s, "edx", local_var_dict)
-					return stmts + [f"push edx"]
+					local_var_dict[n] = len([v for v in local_var_dict.values() if v >= 0])
+					print(f"CREATING NEW VAR {n} AT LOC {local_var_dict[n]}")
+					r, r_asm = process_expr(s, local_var_dict)
+					return r_asm + [f"push {r}"]
 
 				case IRMem(address=a):
 					pass
@@ -116,14 +145,18 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
 			if stmt.ret is None:
 				return []
 
-			stmts = tile_expr(stmt.ret, 'eax', local_var_dict)
-			return stmts + ['ret']
+			# Return always uses eax register
+			stmts = tile_expr(stmt.ret, "eax", local_var_dict)
+			return stmts + [f"mov esp, ebp", "pop ebp", "ret"]
 
 		case IRSeq(stmts=ss):
 			asm = []
 			for s in ss:
 				asm += tile_stmt(s, local_var_dict)
 			return asm
+
+		case x:
+			raise Exception(f"Unknown tiling for statement {x}")
 
 	return []
 

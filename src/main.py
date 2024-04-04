@@ -113,11 +113,13 @@ def static_check(context: GlobalContext, quiet=False):
             print(canonical)
             print()
 
+        f = open("output/test1.s", "w")
+
         for func in comp_unit.functions.values():
             asm = "\n".join(tile_func(func))
             print(asm)
-            f = open("output/test1.s", "w")
             f.write(asm)
+            f.write("\n\n")
 
 
 ERROR = 42

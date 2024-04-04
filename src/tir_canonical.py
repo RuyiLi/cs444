@@ -35,7 +35,7 @@ def canonicalize_expression(expr: IRExpr) -> Tuple[IRStmt, IRExpr]:
 
 		stmts.append(IRCall(expr.target, [IRTemp(f"{label}_{i}") for i in range(len(expr.args))]))
 
-		return (IRSeq(stmts), IRTemp("RET"))
+		return (IRSeq(stmts), IRTemp("%RET"))
 
 	raise Exception(f"couldn't canonicalize expr {expr}")
 
