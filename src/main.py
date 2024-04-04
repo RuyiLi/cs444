@@ -52,53 +52,55 @@ logging.basicConfig(
     level=logging.ERROR,
 )
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
-STDLIB_VERSION = 4.0
+STDLIB_VERSION = 5.1
 stdlib_files = glob.glob(f"stdlib/{STDLIB_VERSION}/java/**/*.java")
 global_context_with_stdlib = GlobalContext()
-# for file in stdlib_files:
-#     with open(file) as f:
-#         res = lark.parse(f.read())
-#         Weeder(f.name).visit(res)
-#         build_environment(res, global_context_with_stdlib)
+for file in stdlib_files:
+    with open(file) as f:
+        res = lark.parse(f.read())
+        Weeder(f.name).visit(res)
+        build_environment(res, global_context_with_stdlib)
 
 
 def static_check(context: GlobalContext, quiet=False):
-    # try:
-    #     type_link(context)
-    # except Exception as e:
-    #     if not quiet:
-    #         logging.error("Failed type_link")
-    #     raise e
+    try:
+        type_link(context)
+    except Exception as e:
+        if not quiet:
+            logging.error("Failed type_link")
+        raise e
 
-    # try:
-    #     hierarchy_check(context)
-    # except Exception as e:
-    #     if not quiet:
-    #         logging.error("Failed hierarchy_check")
-    #     raise e
+    try:
+        hierarchy_check(context)
+    except Exception as e:
+        if not quiet:
+            logging.error("Failed hierarchy_check")
+        raise e
 
-    # try:
-    #     disambiguate_names(context)
-    # except Exception as e:
-    #     if not quiet:
-    #         logging.error("Failed name disambiguation")
-    #     raise e
+    try:
+        disambiguate_names(context)
+    except Exception as e:
+        if not quiet:
+            logging.error("Failed name disambiguation")
+        raise e
 
-    # try:
-    #     type_check(context)
-    # except Exception as e:
-    #     if not quiet:
-    #         logging.error("Failed type check")
-    #     raise e
+    try:
+        type_check(context)
+    except Exception as e:
+        if not quiet:
+            logging.error("Failed type check")
+        raise e
 
-    # try:
-    #     analyze_reachability(context)
-    # except Exception as e:
-    #     if not quiet:
-    #         logging.error("Failed reachability analysis")
-    #     raise e
+    try:
+        analyze_reachability(context)
+    except Exception as e:
+        if not quiet:
+            logging.error("Failed reachability analysis")
+        raise e
 
-    for child_context in context.children:
+
+def assemble(context: GlobalContext):
+    for i, child_context in enumerate(context.children):
         comp_unit = lower_comp_unit(child_context.tree, context)
 
         for k, v in comp_unit.functions.items():
@@ -113,7 +115,7 @@ def static_check(context: GlobalContext, quiet=False):
             print(canonical)
             print()
 
-        f = open("output/test1.s", "w")
+        f = open(f"output/test{i}.s", "w")
 
         for func in comp_unit.functions.values():
             asm = "\n".join(tile_func(func))
@@ -207,6 +209,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                         if not quiet:
                             print(res.pretty())
                 static_check(global_context, quiet)
+                assemble(global_context)
             if warning_list:
                 actual_result = WARNING
             else:
@@ -276,6 +279,7 @@ def load_custom_testcases(test_names: List[str]):
     with warnings.catch_warnings(record=True) as w:
         try:
             static_check(global_context)
+            assemble(global_context)
         except Exception as e:
             print(f"Failed {test_name}:", e)
             raise e
@@ -313,6 +317,7 @@ def load_path_testcases(paths: List[str]):
     with warnings.catch_warnings(record=True) as w:
         try:
             static_check(global_context)
+            assemble(global_context)
         except Exception as e:
             logging.exception(e)
             exit(42)

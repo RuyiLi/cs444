@@ -38,6 +38,9 @@ def tile_func(func: IRFuncDecl) -> List[str]:
 
 
 def fmt_bp(index: int):
+	if index is None:
+		raise Exception('Attempted to format with None index!')
+
 	if index == -100:
 		return "eax"
 
@@ -74,7 +77,7 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
 				asm += r_asm + [f"push {r}"]
 
 			asm += [
-				f"call _{t.name}",
+				f"call _{t.name.split('.')[-1]}",	# FIX: Hack to try and call local function
 				f"add esp, {len(args)*4}"	# pop off arguments
 			]
 			return asm
