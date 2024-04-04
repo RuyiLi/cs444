@@ -239,10 +239,10 @@ class IRJump(IRStmt):
 
 class IRCJump(IRStmt):
     cond: IRExpr
-    true_label: str
-    false_label: str | None
+    true_label: IRName
+    false_label: IRName | None
 
-    def __init__(self, cond: IRExpr, true_label: str, false_label = None):
+    def __init__(self, cond: IRExpr, true_label: IRName, false_label = None):
         super().__init__([cond])
         self.cond = cond
         self.true_label = true_label

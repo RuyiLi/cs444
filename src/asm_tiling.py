@@ -1,5 +1,5 @@
-from typing import Dict, List
-from tir import IRBinExpr, IRConst, IRFuncDecl, IRMove, IRReturn, IRSeq, IRStmt, IRExpr, IRTemp
+from typing import Dict, List, Tuple
+from tir import IRBinExpr, IRCJump, IRConst, IRFuncDecl, IRJump, IRLabel, IRMove, IRName, IRReturn, IRSeq, IRStmt, IRExpr, IRTemp
 
 # asm = [
 # 		"push ebp",		# Save base pointer
@@ -39,8 +39,65 @@ def fmt_bp(index: int):
 	return "[ebp]" if index == 0 else f"[ebp-{4*index}]"
 
 
+def process_expr(expr: IRExpr, local_var_dict: Dict[str, int]) -> Tuple[str | int, List[str]]:
+	if isinstance(expr, IRTemp):
+		return ("ecx", [f"mov ecx, {fmt_bp(local_var_dict.get(expr.name))}"])
+
+	if isinstance(expr, IRConst):
+		return (expr.value, [])
+
+	if isinstance(expr, IRBinExpr):
+		return ("ecx", tile_expr(expr, "ecx", local_var_dict))
+
+
 def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
 	match stmt:
+		case IRCJump(cond=c, true_label=t):
+			match c:
+				case IRConst(value=v):
+					if v == 0:	# never jump
+						return []
+					if v == 1:	# always jump
+						return [f"jmp {t.name}"]
+
+					raise Exception(f"CJump with constant value {v} not 0 or 1!!")
+
+				case IRTemp(name=n):
+					if (loc := local_var_dict.get(n, None)) is not None:
+						return [
+							f"mov eax, {fmt_bp(loc)}",
+							"cmp eax, 1",
+							f"je {t.name}"
+						]
+					raise Exception(f"CJump with unbound variable {n}")
+
+				case IRBinExpr(op_type=o, left=l, right=r):
+					asm = []
+					assert isinstance(l, IRTemp)
+
+					left = local_var_dict.get(l.name)
+
+					right, r_asm = process_expr(r, local_var_dict)
+					asm += r_asm
+
+					match o:
+						case "EQ":
+							return asm + [
+								f"mov edx, {fmt_bp(left)}",
+								f"cmp edx, {right}",
+								f"je {t.name}"
+							]
+
+				case x:
+					raise Exception(f"CJump with unimplemented condition {c}")
+
+		case IRJump(target=t):
+			assert isinstance(t, IRName)
+			return [f"jmp {t.name}"]
+
+		case IRLabel(name=n):
+			return [f"{n}:"]
+
 		case IRMove(target=t, source=s):
 			match t:
 				case IRTemp(name=n):
@@ -66,10 +123,10 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
 			asm = []
 			for s in ss:
 				asm += tile_stmt(s, local_var_dict)
-				print(local_var_dict, asm)
 			return asm
 
 	return []
+
 
 def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int]) -> List[str]:
 	asm = []
@@ -86,13 +143,8 @@ def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int]) -> 
 
 			left = local_var_dict.get(l.name)
 
-			if isinstance(r, IRTemp):
-				right = local_var_dict.get(r.name)
-			elif isinstance(r, IRConst):
-				right = r.value
-			elif isinstance(r, IRBinExpr):
-				asm += tile_expr(r, "edx", local_var_dict)
-				right = "edx"
+			right, r_asm = process_expr(r, local_var_dict)
+			asm += r_asm
 
 			asm.append(f"mov eax, {fmt_bp(left)}")
 
@@ -103,6 +155,7 @@ def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int]) -> 
 				if isinstance(r, IRConst):
 					asm.append(f"mov ebx, {right}")
 					right = "ebx"
+
 				asm += [
 					"xor edx, edx",		# Clear out edx for division
 					f"div {right}"		# Quotient stored in eax, remainder stored in edx
@@ -126,4 +179,5 @@ def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int]) -> 
 	if output_reg != hold:
 		asm += [f"mov {output_reg}, {hold}"]
 
+	print(asm)
 	return asm

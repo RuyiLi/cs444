@@ -62,9 +62,9 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
 
             return IRESeq(IRSeq([
                 IRMove(IRTemp("t"), IRConst(0)),
-                IRCJump(lower_expression(left, context), f"{id(tree)}_lt", f"{id(tree)}_lf"),
-                IRLabel(f"{id(tree)}_lt"), IRMove(IRTemp("t"), lower_expression(right, context)),
-                IRLabel(f"{id(tree)}_lf")
+                IRCJump(lower_expression(left, context), IRName(f"_{id(tree)}_lt"), IRName(f"_{id(tree)}_lf")),
+                IRLabel(f"_{id(tree)}_lt"), IRMove(IRTemp("t"), lower_expression(right, context)),
+                IRLabel(f"_{id(tree)}_lf")
             ]), IRTemp("t"))
 
         case "or_expr":
@@ -72,9 +72,9 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
 
             return IRESeq(IRSeq([
                 IRMove(IRTemp("t"), IRConst(0)),
-                IRCJump(lower_expression(left, context), f"{id(tree)}_lt", f"{id(tree)}_lf"),
-                IRLabel(f"{id(tree)}_lt"), IRMove(IRTemp("t"), IRConst(1)),
-                IRLabel(f"{id(tree)}_lf"), IRMove(IRTemp("t"), lower_expression(right, context)),
+                IRCJump(lower_expression(left, context), IRName(f"_{id(tree)}_lt"), IRName(f"_{id(tree)}_lf")),
+                IRLabel(f"_{id(tree)}_lt"), IRMove(IRTemp("t"), IRConst(1)),
+                IRLabel(f"_{id(tree)}_lf"), IRMove(IRTemp("t"), lower_expression(right, context)),
             ]), IRTemp("t"))
 
         case "expression_name":
@@ -127,32 +127,32 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
         case "array_access":
             ref_array, index = tree.children
 
-            err_label = f"{id(tree)}_lerr"
-            nonnull_label = f"{id(tree)}_lnnull"
-            inbound_label = f"{id(tree)}_linbound"
-            outbound_label = f"{id(tree)}_loutbound"
+            err_label = f"_{id(tree)}_lerr"
+            nonnull_label = f"_{id(tree)}_lnnull"
+            inbound_label = f"_{id(tree)}_linbound"
+            outbound_label = f"_{id(tree)}_loutbound"
 
             return IRESeq(IRSeq([
                 IRMove(IRTemp("a"), lower_expression(ref_array, context)),
-                IRCJump(IRBinExpr("EQ", IRTemp("a"), IRConst(0)), err_label, nonnull_label),
+                IRCJump(IRBinExpr("EQ", IRTemp("a"), IRConst(0)), IRName(err_label), IRName(nonnull_label)),
                 IRLabel(err_label), IRExp(IRCall(IRName("__exception"))),
                 IRLabel(nonnull_label), IRMove(IRTemp("i"), lower_expression(index, context)),
                 IRCJump(IRBinExpr("LOGICAL_AND",
                     IRBinExpr("LT", IRTemp("i"), IRMem(IRBinExpr("SUB", IRTemp("a"), IRConst(4)))),
                     IRBinExpr("GT_EQ", IRTemp("i"), IRConst(0))),
-                    inbound_label, outbound_label),
+                    IRName(inbound_label), IRName(outbound_label)),
                 IRLabel(inbound_label)
             ]), IRMem(IRBinExpr("ADD", IRTemp("a"), IRBinExpr("ADD", IRBinExpr("MUL", IRConst(4), IRTemp("i")), IRConst(4)))))
 
         case "array_creation_expr":
             _new_kw, _array_type, size_expr = tree.children
 
-            err_label = f"{id(tree)}_lerr"
-            nonneg_label = f"{id(tree)}_lnneg"
+            err_label = f"_{id(tree)}_lerr"
+            nonneg_label = f"_{id(tree)}_lnneg"
 
             stmts: List[IRStmt] = [
                 IRMove(IRTemp("n"), lower_expression(size_expr, context)),
-                IRCJump(IRBinExpr("LT", IRTemp("n"), IRConst(0)), err_label, nonneg_label),
+                IRCJump(IRBinExpr("LT", IRTemp("n"), IRConst(0)), IRName(err_label), IRName(nonneg_label)),
                 IRLabel(err_label), IRExp(IRCall(IRName("__exception"))),
                 IRLabel(nonneg_label), IRMove(IRTemp("m"),
                     IRCall(IRName("__malloc"), [IRBinExpr("ADD", IRBinExpr("MUL", IRTemp("n"), IRConst(4)), IRConst(8))])),
@@ -160,9 +160,9 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             ]
 
             # Zero-initialize array
-            cond_label = f"{id(tree)}_cond"
-            true_label = f"{id(tree)}_lt"
-            false_label = f"{id(tree)}_lf"
+            cond_label = f"_{id(tree)}_cond"
+            true_label = f"_{id(tree)}_lt"
+            false_label = f"_{id(tree)}_lf"
 
             # Cursed manual for loop in TIR
             stmts.extend([
@@ -187,12 +187,12 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             raise Exception(f"! Lower for {tree.data} not implemented")
 
 
-def lower_c(expr: Tree | Token, context: Context, true_label: str, false_label: str) -> IRStmt:
+def lower_c(expr: Tree | Token, context: Context, true_label: IRName, false_label: IRName) -> IRStmt:
     if isinstance(expr, Token):
         if expr == "true":
-            return IRJump(IRName(true_label))
+            return IRJump(true_label)
         if expr == "false":
-            return IRJump(IRName(false_label))
+            return IRJump(false_label)
     else:
         match expr.data:
             case "unary_complement_expr":
@@ -202,7 +202,7 @@ def lower_c(expr: Tree | Token, context: Context, true_label: str, false_label: 
                 left, right = [expr.children[i] for i in [0, -1]]
 
                 return IRSeq([
-                    lower_c(left, context, str(id(expr)), false_label),
+                    lower_c(left, context, IRName(str(id(expr))), false_label),
                     IRLabel(str(id(expr))), lower_c(right, context, true_label, false_label)
                 ])
 
@@ -210,7 +210,7 @@ def lower_c(expr: Tree | Token, context: Context, true_label: str, false_label: 
                 left, right = [expr.children[i] for i in [0, -1]]
 
                 return IRSeq([
-                    lower_c(left, context, true_label, str(id(expr))),
+                    lower_c(left, context, true_label, IRName(str(id(expr)))),
                     IRLabel(str(id(expr))), lower_c(right, context, true_label, false_label)
                 ])
 
@@ -240,11 +240,11 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
         case "if_st" | "if_st_no_short_if":
             _if_kw, cond, true_block = tree.children
 
-            true_label = f"{id(tree)}_lt"
-            false_label = f"{id(tree)}_lf"
+            true_label = f"_{id(tree)}_lt"
+            false_label = f"_{id(tree)}_lf"
 
             return IRSeq([
-                lower_c(cond, context, true_label, false_label),
+                lower_c(cond, context, IRName(true_label), IRName(false_label)),
                 IRLabel(true_label), lower_statement(true_block, context),
                 IRLabel(false_label)
             ])
@@ -252,11 +252,11 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
         case "if_else_st" | "if_else_st_no_short_if":
             _if_kw, cond, true_block, _else_kw, false_block = tree.children
 
-            true_label = f"{id(tree)}_lt"
-            false_label = f"{id(tree)}_lf"
+            true_label = f"_{id(tree)}_lt"
+            false_label = f"_{id(tree)}_lf"
 
             return IRSeq([
-                lower_c(cond, context, true_label, false_label),
+                lower_c(cond, context, IRName(true_label), IRName(false_label)),
                 IRLabel(true_label), lower_statement(true_block, context),
                 IRLabel(false_label), lower_statement(false_block, context)
             ])
@@ -266,12 +266,12 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
 
             # Check for constant condition?
 
-            cond_label = f"{id(tree)}_cond"
-            true_label = f"{id(tree)}_lt"
-            false_label = f"{id(tree)}_lf"
+            cond_label = f"_{id(tree)}_cond"
+            true_label = f"_{id(tree)}_lt"
+            false_label = f"_{id(tree)}_lf"
 
             return IRSeq([
-                IRLabel(cond_label), lower_c(cond, context, true_label, false_label),
+                IRLabel(cond_label), lower_c(cond, context, IRName(true_label), IRName(false_label)),
                 IRLabel(true_label), lower_statement(loop_body, context), IRJump(IRName(cond_label)),
                 IRLabel(false_label)
             ])
@@ -282,13 +282,13 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
 
             # Check for constant condition?
 
-            cond_label = f"{id(tree)}_cond"
-            true_label = f"{id(tree)}_lt"
-            false_label = f"{id(tree)}_lf"
+            cond_label = f"_{id(tree)}_cond"
+            true_label = f"_{id(tree)}_lt"
+            false_label = f"_{id(tree)}_lf"
 
             return IRSeq([
                 lower_statement(for_init, context),
-                IRLabel(cond_label), lower_c(for_cond, context, true_label, false_label),
+                IRLabel(cond_label), lower_c(for_cond, context, IRName(true_label), IRName(false_label)),
                 IRLabel(true_label), lower_statement(loop_body, context), IRExp(lower_expression(for_update, context)), IRJump(IRName(cond_label)),
                 IRLabel(false_label)
             ])

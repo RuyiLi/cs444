@@ -20,14 +20,14 @@ def canonicalize_expression(expr: IRExpr) -> Tuple[IRStmt, IRExpr]:
 		cl_stmt, cl_expr = canonicalize_expression(expr.left)
 		cr_stmt, cr_expr = canonicalize_expression(expr.right)
 
-		label = f"{id(expr)}"
+		label = f"_{id(expr)}"
 
 		return (IRSeq([cl_stmt, IRMove(IRTemp(label), cl_expr), cr_stmt]),
 			IRBinExpr(expr.op_type, IRTemp(label), cr_expr))
 
 	if isinstance(expr, IRCall):
 		stmts = []
-		label = f"{id(expr)}"
+		label = f"_{id(expr)}"
 
 		for i, arg in enumerate(expr.args):
 			c_stmt, c_expr = canonicalize_expression(arg)
@@ -53,7 +53,7 @@ def canonicalize_statement(stmt: IRStmt) -> IRStmt:
 	if isinstance(stmt, IRCJump):
 		c_stmt, c_expr = canonicalize_expression(stmt.cond)
 
-		return IRSeq([c_stmt, IRCJump(c_expr, stmt.true_label, None)] + [IRJump(IRName(stmt.false_label))] if stmt.false_label is not None else [])
+		return IRSeq([c_stmt, IRCJump(c_expr, stmt.true_label, None)] + [IRJump(stmt.false_label)] if stmt.false_label is not None else [])
 
 	if isinstance(stmt, IRExp):
 		c_stmt, _ = canonicalize_expression(stmt.expr)
@@ -75,7 +75,7 @@ def canonicalize_statement(stmt: IRStmt) -> IRStmt:
 			ct_stmt, ct_expr = canonicalize_expression(stmt.target.address)
 			cs_stmt, cs_expr = canonicalize_expression(stmt.source)
 
-			label = f"{id(stmt)}"
+			label = f"_{id(stmt)}"
 
 			return IRSeq([ct_stmt, IRMove(IRTemp(label), ct_expr), cs_stmt, IRMove(IRMem(IRTemp(label)), cs_expr)])
 
