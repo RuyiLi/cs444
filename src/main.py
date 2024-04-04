@@ -5,7 +5,7 @@ import warnings
 from copy import deepcopy
 from typing import List
 
-from asm_tiling import tile_stmt
+from asm_tiling import tile_func, tile_stmt
 from build_environment import build_environment
 from context import GlobalContext
 from hierarchy_check import hierarchy_check
@@ -102,16 +102,22 @@ def static_check(context: GlobalContext, quiet=False):
         comp_unit = lower_comp_unit(child_context.tree, context)
 
         for k, v in comp_unit.functions.items():
-            print(v)
-            print()
+            print('old', v.body)
             canonical = canonicalize_statement(v.body)
-            print(canonical)
 
             visitor = CanonicalVisitor()
             result = visitor.visit(None, canonical)
             print(f"Canonical? {result}")
 
-            print("\n".join(tile_stmt(canonical, {})))
+            v.body = canonical
+            print(canonical)
+            print()
+
+        for func in comp_unit.functions.values():
+            asm = "\n".join(tile_func(func))
+            print(asm)
+            f = open("output/test1.s", "w")
+            f.write(asm)
 
 
 ERROR = 42

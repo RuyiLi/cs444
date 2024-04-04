@@ -285,20 +285,20 @@ class IRReturn(IRStmt):
 class IRFuncDecl(IRNode):
     name: str
     body: IRStmt
-    num_params: int
+    params: List[str]
 
-    def __init__(self, name: str, body: IRStmt, num_params: int):
+    def __init__(self, name: str, body: IRStmt, params: List[str]):
         super().__init__([body])
         self.name = name
         self.body = body
-        self.num_params = num_params
+        self.params = params
 
     def __str__(self):
         return f"FuncDecl({self.name}, {self.body})"
 
     def visit_children(self, visitor):
         child_body = visitor.visit(self, self.body)
-        return IRFuncDecl(self.name, child_body, self.num_params) if child_body != self.body else self
+        return IRFuncDecl(self.name, child_body, self.params) if child_body != self.body else self
 
 
 class IRCompUnit(IRNode):

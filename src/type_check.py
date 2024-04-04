@@ -409,9 +409,7 @@ def resolve_expression(
                 return ArrayType(ReferenceType(symbol))
 
         case "mult_expr":
-            left_type, right_type = map(
-                lambda c: resolve_expression(c, context, meta, field=field), tree.children
-            )
+            left_type, right_type = [resolve_expression(tree.children[i], context, meta, field=field) for i in [0,-1]]
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in mult expression")

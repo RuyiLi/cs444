@@ -1,5 +1,8 @@
 SQ_BRACKETS: "[]"
 
+MUL: "*"
+DIV: "/"
+
 EQ: "=="
 NOT_EQ: "!="
 LOGICAL_OR: "||"

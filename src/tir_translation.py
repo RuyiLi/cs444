@@ -13,9 +13,9 @@ def lower_function(tree: Tree, context: Context):
     formal_param_types, formal_param_names = get_formal_params(tree)
 
     if method_body := next(tree.find_data("method_body"), None):
-        return (method_name, IRFuncDecl(method_name, lower_statement(method_body.children[0], context), len(formal_param_names)))
+        return (method_name, IRFuncDecl(method_name, lower_statement(method_body.children[0], context), formal_param_names))
 
-    return (method_name, IRFuncDecl(method_name, IRStmt(), len(formal_param_names)))
+    return (method_name, IRFuncDecl(method_name, IRStmt(), formal_param_names))
 
 def lower_token(token: Token):
     match token.type:
@@ -54,7 +54,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             | "eager_or_expr"
         ):
             left, right = [lower_expression(tree.children[i], context) for i in [0, -1]]
-            op_type = tree.data[:-5].upper() if len(tree.children) == 2 else tree.children[1].type
+            op_type = tree.data[:-5][:3].upper() if len(tree.children) == 2 else tree.children[1].type
             return IRBinExpr(op_type, left, right)
 
         case "and_expr":
@@ -97,7 +97,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             return IRCall(IRName(f"java.lang.{expr_type.name.capitalize()}.{extract_name(tree)}"), args)
 
         case "unary_negative_expr":
-            return IRBinExpr("MULT", IRConst(-1), lower_expression(tree.children[0], context))
+            return IRBinExpr("MUL", IRConst(-1), lower_expression(tree.children[0], context))
 
         case "unary_complement_expr":
             return IRBinExpr("SUB", IRConst(1), lower_expression(tree.children[0], context))
@@ -142,7 +142,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                     IRBinExpr("GT_EQ", IRTemp("i"), IRConst(0))),
                     inbound_label, outbound_label),
                 IRLabel(inbound_label)
-            ]), IRMem(IRBinExpr("ADD", IRTemp("a"), IRBinExpr("ADD", IRBinExpr("MULT", IRConst(4), IRTemp("i")), IRConst(4)))))
+            ]), IRMem(IRBinExpr("ADD", IRTemp("a"), IRBinExpr("ADD", IRBinExpr("MUL", IRConst(4), IRTemp("i")), IRConst(4)))))
 
         case "array_creation_expr":
             _new_kw, _array_type, size_expr = tree.children
@@ -155,7 +155,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                 IRCJump(IRBinExpr("LT", IRTemp("n"), IRConst(0)), err_label, nonneg_label),
                 IRLabel(err_label), IRExp(IRCall(IRName("__exception"))),
                 IRLabel(nonneg_label), IRMove(IRTemp("m"),
-                    IRCall(IRName("__malloc"), [IRBinExpr("ADD", IRBinExpr("MULT", IRTemp("n"), IRConst(4)), IRConst(8))])),
+                    IRCall(IRName("__malloc"), [IRBinExpr("ADD", IRBinExpr("MUL", IRTemp("n"), IRConst(4)), IRConst(8))])),
                 IRMove(IRMem(IRTemp("m")), IRTemp("n"))
             ]
 
