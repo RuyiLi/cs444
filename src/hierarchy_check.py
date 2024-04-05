@@ -55,8 +55,6 @@ def validate_replace_method(method: MethodDecl, replacer: MethodDecl):
 
 def inherit_methods(symbol: ClassInterfaceDecl, methods: list[MethodDecl]):
     inherited_methods = []
-    # print("class methods:", [m.signature() for m in symbol.methods])
-    # print("inherited:", [m.signature() for m in methods])
     for method in methods:
         # method is the method from the parent class/interface that we're about to replace
         replacer = next(filter(lambda m: m.signature() == method.signature(), symbol.methods), None)

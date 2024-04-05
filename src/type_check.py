@@ -372,7 +372,6 @@ def resolve_expression(
                     # construction using new keyword is only allowed if
                     # 1) calling class is a subclass of the class being constructed
                     # 2) they are in the same package
-                    # print(constructor.modifiers)
                     if "protected" in constructor.modifiers:
                         if not (
                             type_decl.is_subclass_of(ref_type.name) and type_decl.package == ref_type.package
