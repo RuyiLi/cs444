@@ -1,31 +1,34 @@
 from __future__ import annotations
+
 from functools import reduce
-from typing import List, Dict, TypeVar
+from typing import Dict, List, TypeVar
 
 T = TypeVar("T")
+
 
 class IRNode:
     label: str
     children: List[IRNode]
 
-    def __init__(self, children = []):
+    def __init__(self, children=[]):
         self.children = children
 
     def visit_children(self, visitor):
         return self
 
     def aggregate_children(self, visitor):
-        return reduce(lambda a, c: visitor.bind(a, visitor.visit(self, c)),
-            self.children, visitor.unit())
+        return reduce(lambda a, c: visitor.bind(a, visitor.visit(self, c)), self.children, visitor.unit())
+
 
 class IRStmt(IRNode):
     def __str__(self) -> str:
         return f"EMPTY"
 
+
 class IRExpr(IRNode):
     is_constant: bool
 
-    def __init__(self, children = [], is_constant = False):
+    def __init__(self, children=[], is_constant=False):
         super().__init__(children)
         self.is_constant = is_constant
 
@@ -188,7 +191,7 @@ class IRSeq(IRStmt):
     stmts: List[IRStmt]
     replace_parent: bool
 
-    def __init__(self, stmts: List[IRStmt], replace_parent = False):
+    def __init__(self, stmts: List[IRStmt], replace_parent=False):
         self.stmts = stmts
         self.replace_parent = replace_parent
 
@@ -242,7 +245,7 @@ class IRCJump(IRStmt):
     true_label: IRName
     false_label: IRName | None
 
-    def __init__(self, cond: IRExpr, true_label: IRName, false_label = None):
+    def __init__(self, cond: IRExpr, true_label: IRName, false_label=None):
         super().__init__([cond])
         self.cond = cond
         self.true_label = true_label

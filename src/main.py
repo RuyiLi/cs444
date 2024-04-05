@@ -11,12 +11,12 @@ from context import GlobalContext
 from hierarchy_check import hierarchy_check
 from lark import Lark, Tree, logger
 from name_disambiguation import disambiguate_names
+from reachability import analyze_reachability
 from tir_canonical import canonicalize_statement
 from tir_translation import lower_comp_unit
 from tir_visitor import CanonicalVisitor
 from type_check import type_check
 from type_link import type_link
-from reachability import analyze_reachability
 from weeder import Weeder
 
 grammar = ""
@@ -221,7 +221,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
         if assignment != 4:
             if actual_result == WARNING:
                 actual_result = SUCCESS
-        
+
         if actual_result == expected_result:
             logging.info(
                 f"Passed: {test_files_list} (correctly returned {get_result_string(expected_result)})"

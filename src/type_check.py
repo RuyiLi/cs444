@@ -2,17 +2,6 @@ import copy
 import logging
 from typing import Literal
 
-from joos_types import (
-    ArrayType,
-    NullReference,
-    PrimitiveType,
-    ReferenceType,
-    SymbolType,
-    assignable,
-    castable,
-    is_numeric_type,
-    is_primitive_type
-)
 from context import (
     ClassDecl,
     ClassInterfaceDecl,
@@ -31,6 +20,17 @@ from helper import (
     get_modifiers,
     get_tree_token,
     is_static_context,
+)
+from joos_types import (
+    ArrayType,
+    NullReference,
+    PrimitiveType,
+    ReferenceType,
+    SymbolType,
+    assignable,
+    castable,
+    is_numeric_type,
+    is_primitive_type,
 )
 from lark import ParseTree, Token, Tree
 from lark.tree import Meta
@@ -217,9 +217,11 @@ def resolve_token(token: Token, context: Context) -> SymbolType:
 
 def parse_ambiguous_name_with_types(
     context, ids, meta: Meta = None, get_final_modifier=False, arg_types=None, field=False
-) -> (tuple[Literal["package_name"], None] |
-    tuple[Literal["type_name"], ClassInterfaceDecl] |
-    tuple[Literal["expression_name"], LocalVarDecl | FieldDecl | MethodDecl]):
+) -> (
+    tuple[Literal["package_name"], None]
+    | tuple[Literal["type_name"], ClassInterfaceDecl]
+    | tuple[Literal["expression_name"], LocalVarDecl | FieldDecl | MethodDecl]
+):
     last_id = ids[-1]
     enclosing_type_decl = get_enclosing_type_decl(context)
 
@@ -265,8 +267,9 @@ def parse_ambiguous_name_with_types(
                 ):
                     return ("expression_name", symbol)
 
-                if isinstance(symbol_type, ReferenceType) and \
-                    (symbol := symbol_type.resolve_field(last_id, enclosing_type_decl)):
+                if isinstance(symbol_type, ReferenceType) and (
+                    symbol := symbol_type.resolve_field(last_id, enclosing_type_decl)
+                ):
                     if get_final_modifier and isinstance(symbol_type, ArrayType) and symbol.name == "length":
                         raise SemanticError("A final field cannot be assigned to.")
 
@@ -408,7 +411,9 @@ def resolve_expression(
                 return ArrayType(ReferenceType(symbol))
 
         case "mult_expr":
-            left_type, right_type = [resolve_expression(tree.children[i], context, meta, field=field) for i in [0,-1]]
+            left_type, right_type = [
+                resolve_expression(tree.children[i], context, meta, field=field) for i in [0, -1]
+            ]
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in mult expression")
@@ -457,7 +462,9 @@ def resolve_expression(
             return PrimitiveType("int")
 
         case "rel_expr":
-            left_type, right_type = [resolve_expression(tree.children[i], context, meta, field) for i in [0, -1]]
+            left_type, right_type = [
+                resolve_expression(tree.children[i], context, meta, field) for i in [0, -1]
+            ]
             op = None if len(tree.children) == 2 else tree.children[1]
 
             if any(t.name == "void" for t in [left_type, right_type]):
@@ -477,7 +484,9 @@ def resolve_expression(
             return PrimitiveType("boolean")
 
         case "eq_expr":
-            left_type, right_type = [resolve_expression(tree.children[i], context, meta, field) for i in [0, -1]]
+            left_type, right_type = [
+                resolve_expression(tree.children[i], context, meta, field) for i in [0, -1]
+            ]
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in equality expression")
@@ -485,12 +494,7 @@ def resolve_expression(
             if not (
                 all(map(is_numeric_type, [left_type, right_type]))
                 or all(t.name == "boolean" for t in [left_type, right_type])
-                or (
-                    all(
-                        isinstance(t, ReferenceType)
-                        for t in [left_type, right_type]
-                    )
-                )
+                or (all(isinstance(t, ReferenceType) for t in [left_type, right_type]))
                 and castable(left_type, right_type, get_enclosing_type_decl(context))
             ):
                 raise SemanticError(
@@ -500,7 +504,9 @@ def resolve_expression(
             return PrimitiveType("boolean")
 
         case "eager_and_expr" | "eager_or_expr" | "and_expr" | "or_expr":
-            left_type, right_type = [resolve_expression(tree.children[i], context, meta, field) for i in [0, -1]]
+            left_type, right_type = [
+                resolve_expression(tree.children[i], context, meta, field) for i in [0, -1]
+            ]
 
             if any(t.name == "void" for t in [left_type, right_type]):
                 raise SemanticError("Operand cannot have type void in and/or expression")

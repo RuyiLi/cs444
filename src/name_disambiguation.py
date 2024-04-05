@@ -123,7 +123,7 @@ def parse_ambiguous_name(context, ids):
     last_id = ids[-1]
 
     if len(ids) == 1:
-        if context.resolve(LocalVarDecl,last_id) or context.resolve(FieldDecl, last_id):
+        if context.resolve(LocalVarDecl, last_id) or context.resolve(FieldDecl, last_id):
             return "expression_name"
         elif last_id in get_enclosing_type_decl(context).type_names:
             return "type_name"

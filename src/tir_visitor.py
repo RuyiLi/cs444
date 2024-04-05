@@ -1,27 +1,30 @@
 from __future__ import annotations
-from typing import Generic, Optional, TypeVar
-from tir import IRCJump, IRCall, IRESeq, IRExp, IRExpr, IRNode, IRSeq
+
 import logging
+from typing import Generic, Optional, TypeVar
+
+from tir import IRCall, IRCJump, IRESeq, IRExp, IRExpr, IRNode, IRSeq
+
 
 class IRVisitor:
     def visit(self, parent: IRNode, node: IRNode) -> IRNode:
-        overrideValue = self.override(parent, node);
+        overrideValue = self.override(parent, node)
         if overrideValue != None:
-            return overrideValue;
+            return overrideValue
 
-        v_ = self.enter(parent, node);
+        v_ = self.enter(parent, node)
         if v_ is None:
-            raise Exception("IRVisitor.enter() returned null!");
+            raise Exception("IRVisitor.enter() returned null!")
 
-        child_prod_node = node.visit_children(v_);
+        child_prod_node = node.visit_children(v_)
         if child_prod_node is None:
-            raise Exception("IRVisitor.visitChildren() returned null!");
+            raise Exception("IRVisitor.visitChildren() returned null!")
 
-        n_ = self.leave(parent, node, child_prod_node, v_);
+        n_ = self.leave(parent, node, child_prod_node, v_)
         if n_ is None:
-            raise Exception("IRVisitor.leave() returned null!");
+            raise Exception("IRVisitor.leave() returned null!")
 
-        return n_;
+        return n_
 
     def override(self, parent: IRNode, node: IRNode) -> Optional[IRNode]:
         return None
@@ -29,11 +32,14 @@ class IRVisitor:
     def enter(self, parent: IRNode, node: IRNode) -> IRVisitor:
         return self
 
-    def leave(self, parent: IRNode, original: IRNode, child_prod_node: IRNode, enter_visitor: IRVisitor) -> IRNode:
+    def leave(
+        self, parent: IRNode, original: IRNode, child_prod_node: IRNode, enter_visitor: IRVisitor
+    ) -> IRNode:
         return child_prod_node
 
 
 T = TypeVar("T")
+
 
 class AggregateVisitor(Generic[T]):
     def unit(self) -> T:
@@ -46,23 +52,23 @@ class AggregateVisitor(Generic[T]):
         if node is None:
             return None
 
-        overrideValue = self.override(parent, node);
+        overrideValue = self.override(parent, node)
         if overrideValue != None:
-            return overrideValue;
+            return overrideValue
 
-        v_ = self.enter(parent, node);
+        v_ = self.enter(parent, node)
         if v_ is None:
-            raise Exception("AggregateVisitor.enter() returned null!");
+            raise Exception("AggregateVisitor.enter() returned null!")
 
-        child_prod = node.aggregate_children(v_);
+        child_prod = node.aggregate_children(v_)
         if child_prod is None:
-            raise Exception("AggregateVisitor.visitChildren() returned null!");
+            raise Exception("AggregateVisitor.visitChildren() returned null!")
 
-        n_ = self.leave(parent, node, child_prod, v_);
+        n_ = self.leave(parent, node, child_prod, v_)
         if n_ is None:
-            raise Exception("AggregateVisitor.leave() returned null!");
+            raise Exception("AggregateVisitor.leave() returned null!")
 
-        return n_;
+        return n_
 
     def override(self, parent: IRNode, node: IRNode) -> Optional[T]:
         return None

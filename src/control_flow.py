@@ -1,15 +1,14 @@
 from __future__ import annotations
-from typing import Set, List, Tuple
-
-from lark import Token, Tree
-from context import Context, SemanticError, LocalVarDecl, FieldDecl, Symbol
-
-from context import LocalVarDecl, Symbol
-from helper import extract_name, get_child_tree, get_tree_token, is_static_context
-from joos_types import is_numeric_type
-from type_check import resolve_token
 
 import logging
+from typing import List, Set, Tuple
+
+from context import Context, FieldDecl, LocalVarDecl, SemanticError, Symbol
+from helper import extract_name, get_child_tree, get_tree_token, is_static_context
+from joos_types import is_numeric_type
+from lark import Token, Tree
+from type_check import resolve_token
+
 
 class CFGNode:
     in_vars: Set[str]
