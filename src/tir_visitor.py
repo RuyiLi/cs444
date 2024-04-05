@@ -9,7 +9,7 @@ from tir import IRCall, IRCJump, IRESeq, IRExp, IRExpr, IRNode, IRSeq
 class IRVisitor:
     def visit(self, parent: IRNode, node: IRNode) -> IRNode:
         overrideValue = self.override(parent, node)
-        if overrideValue != None:
+        if overrideValue is not None:
             return overrideValue
 
         v_ = self.enter(parent, node)
@@ -53,7 +53,7 @@ class AggregateVisitor(Generic[T]):
             return None
 
         overrideValue = self.override(parent, node)
-        if overrideValue != None:
+        if overrideValue is not None:
             return overrideValue
 
         v_ = self.enter(parent, node)

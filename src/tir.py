@@ -22,7 +22,7 @@ class IRNode:
 
 class IRStmt(IRNode):
     def __str__(self) -> str:
-        return f"EMPTY"
+        return "EMPTY"
 
 
 class IRExpr(IRNode):

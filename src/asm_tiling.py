@@ -169,7 +169,7 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
 
 			# Return always uses eax register
 			stmts = tile_expr(stmt.ret, "eax", local_var_dict)
-			return stmts + [f"mov esp, ebp", "pop ebp", "ret"]
+			return stmts + ["mov esp, ebp", "pop ebp", "ret"]
 
 		case IRSeq(stmts=ss):
 			asm = []

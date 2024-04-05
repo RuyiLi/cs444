@@ -5,7 +5,7 @@ import warnings
 from copy import deepcopy
 from typing import List
 
-from asm_tiling import tile_func, tile_stmt
+from asm_tiling import tile_func
 from build_environment import build_environment
 from context import GlobalContext
 from hierarchy_check import hierarchy_check
