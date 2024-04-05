@@ -2,6 +2,8 @@ import logging
 from itertools import chain
 from typing import List
 
+from type_link import ImportDeclaration, OnDemandImport, SingleTypeImport
+
 from context import (
     ClassDecl,
     ClassInterfaceDecl,
@@ -24,7 +26,6 @@ from helper import (
     get_tree_token,
 )
 from lark import ParseTree, Tree
-from type_link import ImportDeclaration, OnDemandImport, SingleTypeImport
 
 
 def build_environment(tree: ParseTree, context: Context):
