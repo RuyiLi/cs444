@@ -2,8 +2,7 @@ import logging
 from itertools import chain
 from typing import List
 
-from type_link import ImportDeclaration, OnDemandImport, SingleTypeImport
-
+import type_link
 from context import (
     ClassDecl,
     ClassInterfaceDecl,
@@ -47,13 +46,13 @@ def build_compilation_unit(tree: ParseTree, context: Context):
         pass
 
     # run thru imports, auto import java.lang.*
-    imports: List[ImportDeclaration] = [OnDemandImport("java.lang")]
+    imports: List[type_link.ImportDeclaration] = [type_link.OnDemandImport("java.lang")]
     for import_decl in tree.find_data("single_type_import_decl"):
         type_name = extract_name(import_decl)
-        imports.append(SingleTypeImport(type_name))
+        imports.append(type_link.SingleTypeImport(type_name))
     for import_decl in tree.find_data("type_import_on_demand_decl"):
         type_name = extract_name(import_decl)
-        imports.append(OnDemandImport(type_name))
+        imports.append(type_link.OnDemandImport(type_name))
 
     # attempt to build class or interface declaration
     try:
@@ -80,7 +79,7 @@ def build_class_interface_decl(
     tree: ParseTree,
     context: Context,
     package_prefix: str,
-    imports: List[ImportDeclaration],
+    imports: List[type_link.ImportDeclaration],
 ):
     class_name = package_prefix + get_nested_token(tree, "IDENTIFIER")
     modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
