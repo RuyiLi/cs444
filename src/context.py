@@ -4,9 +4,9 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Type, TypeVar
 
 import type_link
+from joos_types import ArrayType, PrimitiveType, ReferenceType, SymbolType, is_primitive_type
 from lark import Tree
 from lark.tree import Meta
-from joos_types import ArrayType, PrimitiveType, ReferenceType, SymbolType, is_primitive_type
 
 
 class SemanticError(Exception):

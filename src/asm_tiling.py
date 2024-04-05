@@ -1,7 +1,25 @@
-from typing import Dict, List, Tuple
-from tir import IRBinExpr, IRCJump, IRCall, IRConst, IRFuncDecl, IRJump, IRLabel, IRMove, IRName, IRReturn, IRSeq, IRStmt, IRExpr, IRTemp
-from functools import reduce
 import logging
+from functools import reduce
+from typing import Dict, List, Tuple
+
+from tir import (
+	IRBinExpr,
+	IRCall,
+	IRCJump,
+	IRConst,
+	IRExpr,
+	IRFuncDecl,
+	IRJump,
+	IRLabel,
+	IRMem,
+	IRMove,
+	IRName,
+	IRReturn,
+	IRSeq,
+	IRStmt,
+	IRTemp,
+)
+
 
 def tile_func(func: IRFuncDecl) -> List[str]:
 	asm = []
