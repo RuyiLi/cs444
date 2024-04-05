@@ -54,7 +54,7 @@ clean:
 	rm -f joosc
 	rm -f joos_submission.zip
 	rm -rf joos_submission
-    rm -rf benchmarks/*/
+	rm -rf benchmarks/*/
 	pip uninstall -r requirements.txt -y
 
 joosc:
