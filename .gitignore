@@ -3,6 +3,9 @@ joos_submission
 joos_submission.zip
 joosc
 
+# Ouput
+output/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
