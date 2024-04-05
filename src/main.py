@@ -104,22 +104,22 @@ def assemble(context: GlobalContext):
         comp_unit = lower_comp_unit(child_context.tree, context)
 
         for k, v in comp_unit.functions.items():
-            logging.debug("old", v.body)
+            logging.info("old", v.body)
             canonical = canonicalize_statement(v.body)
 
             visitor = CanonicalVisitor()
             result = visitor.visit(None, canonical)
-            logging.debug(f"Canonical? {result}")
+            logging.info(f"Canonical? {result}")
 
             v.body = canonical
-            logging.debug(canonical)
-            logging.debug("")
+            logging.info(canonical)
+            logging.info("")
 
         f = open(f"output/test{i}.s", "w")
 
         for func in comp_unit.functions.values():
             asm = "\n".join(tile_func(func))
-            logging.debug(asm)
+            logging.info(asm)
             f.write(asm)
             f.write("\n\n")
 

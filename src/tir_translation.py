@@ -184,7 +184,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             return IRConst(tree.children[0].value)
 
         case _:
-            logging.debug(tree)
+            logging.info(tree)
             raise Exception(f"! Lower for {tree.data} not implemented")
 
 
@@ -222,7 +222,7 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
     if isinstance(tree, Token):
         if tree.value == ";":
             return IRStmt()
-        logging.debug(tree)
+        logging.info(tree)
         raise Exception("e")
 
     match tree.data:

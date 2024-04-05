@@ -204,6 +204,7 @@ def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int]) -> 
 			hold = "eax"
 
 		case IRTemp(name=n):
+			logging.info
 			if (loc := local_var_dict.get(n, None)) is not None:
 				hold = fmt_bp(loc)
 			else:
