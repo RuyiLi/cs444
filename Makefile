@@ -72,19 +72,3 @@ unzip:
 	rm -rf joos_submission
 	mkdir joos_submission
 	unzip joos_submission.zip -d joos_submission
-
-bench: joosc
-    rm -rf benchmarks/results.csv
-    mkdir -p benchmarks
-    for opt in opt-reg-only; do \
-        echo "Compiling benchmarks for optimization: $$opt"; \
-        for file in benchmarks/$$opt/*.c; do \
-            gcc -O2 -o $${file%.c} $$file; \
-            echo "$$opt,$$(basename $${file%.c})," \
-            $$(./$${file%.c}) \
-            $$(./$${file%.c}-unoptimized) \
-            | awk -F ',' '{ printf "%s,%s,%.2f,%.2f,%.2f\n", $$1, $$2, $$3*1000, $$4*1000, ($$4/$$3) }' \
-            >> benchmarks/results.csv; \
-            rm -f $${file%.c}; \
-        done; \
-    done    
