@@ -22,7 +22,7 @@ from weeder import Weeder
 grammar = ""
 grammar_files = glob.glob(r"./grammar/**/*.lark", recursive=True)
 for file in grammar_files:
-    print(f"Loaded grammar {file[2:]}")
+    logging.info(f"Loaded grammar {file[2:]}")
     with open(file) as f:
         grammar += "\n" + f.read()
 
@@ -104,22 +104,22 @@ def assemble(context: GlobalContext):
         comp_unit = lower_comp_unit(child_context.tree, context)
 
         for k, v in comp_unit.functions.items():
-            print('old', v.body)
+            logging.debug("old", v.body)
             canonical = canonicalize_statement(v.body)
 
             visitor = CanonicalVisitor()
             result = visitor.visit(None, canonical)
-            print(f"Canonical? {result}")
+            logging.debug(f"Canonical? {result}")
 
             v.body = canonical
-            print(canonical)
-            print()
+            logging.debug(canonical)
+            logging.debug("")
 
         f = open(f"output/test{i}.s", "w")
 
         for func in comp_unit.functions.values():
             asm = "\n".join(tile_func(func))
-            print(asm)
+            logging.debug(asm)
             f.write(asm)
             f.write("\n\n")
 
@@ -185,7 +185,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
     if custom_test_names_set:
         missed_tests = custom_test_names_set.difference(seen_custom_test_names_set)
         for test_name in missed_tests:
-            print(
+            logging.info(
                 f"Could not find test file or folder in assignment {assignment} with name {test_name}, skipping..."
             )
 
@@ -200,14 +200,14 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                 global_context = deepcopy(global_context_with_stdlib)
                 for test_file in test_files_list:
                     if not quiet:
-                        print(f"Testing {test_file}")
+                        logging.info(f"Testing {test_file}")
                     with open(os.path.join(test_directory, test_file), "r") as f:
                         test_file_contents = f.read()
                         res = lark.parse(test_file_contents)
                         Weeder(f.name).visit(res)
                         build_environment(res, global_context)
                         if not quiet:
-                            print(res.pretty())
+                            logging.info(res.pretty())
                 static_check(global_context, quiet)
                 assemble(global_context)
             if warning_list:
@@ -223,26 +223,27 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                 actual_result = SUCCESS
         
         if actual_result == expected_result:
-            if not quiet:
-                print(f"Passed: {test_files_list} (correctly returned {get_result_string(expected_result)})")
-                if warning_list:
-                    print(f"Warned: {[warning.message for warning in warning_list]}")
+            logging.info(
+                f"Passed: {test_files_list} (correctly returned {get_result_string(expected_result)})"
+            )
+            if warning_list:
+                logging.info(f"Warned: {[warning.message for warning in warning_list]}")
             passed += 1
         else:
-            print(
+            logging.info(
                 f"Failed: {test_files_list} (returned {get_result_string(actual_result)} instead of {get_result_string(expected_result)})"
             )
             if error:
-                print(f"Threw: {error}")
+                logging.info(f"Threw: {error}")
             if warning_list:
-                print(f"Warned: {[warning.message for warning in warning_list]}")
+                logging.info(f"Warned: {[warning.message for warning in warning_list]}")
             failed_tests.append(str(test_files_list))
             # raise error
-    print()
-    print("=" * 50)
-    print(f"Total passed: {passed}/{len(test_files_lists)}")
+    logging.info("")
+    logging.info("=" * 50)
+    logging.info(f"Total passed: {passed}/{len(test_files_lists)}")
     if len(failed_tests) > 0:
-        print(f"Failed tests: {', '.join(failed_tests)}")
+        logging.info(f"Failed tests: {', '.join(failed_tests)}")
 
 
 def load_custom_testcases(test_names: List[str]):
@@ -254,7 +255,7 @@ def load_custom_testcases(test_names: List[str]):
         try:
             f = open(f"./custom_testcases/{test_name}.java", "r")
         except FileNotFoundError:
-            print(f"Could not find test with name {test_name}.java, skipping...")
+            logging.info(f"Could not find test with name {test_name}.java, skipping...")
         else:
             with warnings.catch_warnings(record=True) as w:
                 with f:
@@ -263,10 +264,10 @@ def load_custom_testcases(test_names: List[str]):
                         res = lark.parse(test_file_contents)
                         logging.debug(res.pretty())
                         Weeder(f.name).visit(res)
-                        print(res.pretty())
+                        logging.info(res.pretty())
                         build_environment(res, global_context)
                     except Exception as e:
-                        print(f"Failed {test_name}:", e)
+                        logging.info(f"Failed {test_name}:", e)
                         raise e
             warning_list.extend(w)
 
@@ -275,14 +276,14 @@ def load_custom_testcases(test_names: List[str]):
             static_check(global_context)
             assemble(global_context)
         except Exception as e:
-            print(f"Failed {test_name}:", e)
+            logging.info(f"Failed {test_name}:", e)
             raise e
     warning_list.extend(w)
 
     if warning_list:
-        print(f"Warned {test_name}: ", [warning.message for warning in warning_list])
+        logging.info(f"Warned {test_name}: ", [warning.message for warning in warning_list])
     else:
-        print(f"Passed {test_name}")
+        logging.info(f"Passed {test_name}")
 
 
 def load_path_testcases(paths: List[str]):
@@ -293,7 +294,7 @@ def load_path_testcases(paths: List[str]):
         try:
             f = open(path, "r")
         except FileNotFoundError:
-            print(f"Could not find test with name {path}, skipping...")
+            logging.info(f"Could not find test with name {path}, skipping...")
         else:
             with warnings.catch_warnings(record=True) as w:
                 with f:

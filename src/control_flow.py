@@ -9,6 +9,8 @@ from helper import extract_name, get_child_tree, get_tree_token, is_static_conte
 from joos_types import is_numeric_type
 from type_check import resolve_token
 
+import logging
+
 class CFGNode:
     in_vars: Set[str]
     out_vars: Set[str]
@@ -350,5 +352,5 @@ def decompose_expression(tree: Tree, context: Context) -> Tuple[Set[str], Set[st
             return (set(), set())
 
         case _:
-            print(f"! Decompose for {tree.data} not implemented")
+            logging.info(f"! Decompose for {tree.data} not implemented")
             return (set(), set())

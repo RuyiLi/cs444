@@ -4,6 +4,7 @@ from context import Context
 from helper import extract_name, get_child_tree, get_formal_params, get_nested_token, get_tree_token
 from type_check import resolve_expression
 from typing import List
+import logging
 
 def lower_comp_unit(tree: Tree, context: Context):
     return IRCompUnit("test", dict([lower_function(f, context) for f in list(tree.find_data("method_declaration"))]))
@@ -183,7 +184,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             return IRConst(tree.children[0].value)
 
         case _:
-            print(tree)
+            logging.debug(tree)
             raise Exception(f"! Lower for {tree.data} not implemented")
 
 
@@ -221,7 +222,7 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
     if isinstance(tree, Token):
         if tree.value == ";":
             return IRStmt()
-        print(tree)
+        logging.debug(tree)
         raise Exception("e")
 
     match tree.data:

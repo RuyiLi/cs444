@@ -1,6 +1,7 @@
 from typing import Dict, List, Tuple
 from tir import IRBinExpr, IRCJump, IRCall, IRConst, IRFuncDecl, IRJump, IRLabel, IRMove, IRName, IRReturn, IRSeq, IRStmt, IRExpr, IRTemp
 from functools import reduce
+import logging
 
 def tile_func(func: IRFuncDecl) -> List[str]:
 	asm = []
@@ -52,7 +53,7 @@ def fmt_bp(index: int):
 
 
 def process_expr(expr: IRExpr, local_var_dict: Dict[str, int]) -> Tuple[str | int, List[str]]:
-	print(f"processing expr {expr}, {local_var_dict}")
+	logging.info(f"processing expr {expr}, {local_var_dict}")
 	if isinstance(expr, IRTemp):
 		return ("ecx", [f"mov ecx, {fmt_bp(local_var_dict.get(expr.name))}"])
 
@@ -66,7 +67,7 @@ def process_expr(expr: IRExpr, local_var_dict: Dict[str, int]) -> Tuple[str | in
 
 
 def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
-	print(f"tiling stmt {stmt}")
+	logging.info(f"tiling stmt {stmt}")
 
 	match stmt:
 		case IRCall(target=t, args=args):
@@ -132,12 +133,12 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
 			match t:
 				case IRTemp(name=n):
 					if (loc := local_var_dict.get(n, None)) is not None:
-						print("VARIABLE", n, "EXISTS AT", loc)
+						logging.info("VARIABLE", n, "EXISTS AT", loc)
 						r, r_asm = process_expr(s, local_var_dict)
 						return r_asm + [f"mov {fmt_bp(loc)}, {r}"]
 
 					local_var_dict[n] = len([v for v in local_var_dict.values() if v >= 0])
-					print(f"CREATING NEW VAR {n} AT LOC {local_var_dict[n]}")
+					logging.info(f"CREATING NEW VAR {n} AT LOC {local_var_dict[n]}")
 					r, r_asm = process_expr(s, local_var_dict)
 					return r_asm + [f"push {r}"]
 
@@ -168,7 +169,7 @@ def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int]) -> 
 	asm = []
 	hold = ""
 
-	print('tiling expr', expr)
+	logging.info('tiling expr', expr)
 
 	match expr:
 		case IRConst(value=v):
@@ -206,14 +207,14 @@ def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int]) -> 
 			if (loc := local_var_dict.get(n, None)) is not None:
 				hold = fmt_bp(loc)
 			else:
-				print(local_var_dict.get(n, None))
-				print(local_var_dict)
+				logging.info(local_var_dict.get(n, None))
+				logging.info(local_var_dict)
 				raise Exception(f"couldn't find local var {n} in dict!")
 		case x:
-			print('unknown expr type', x)
+			logging.info('unknown expr type', x)
 
 	if output_reg != hold:
 		asm += [f"mov {output_reg}, {hold}"]
 
-	print(asm)
+	logging.info(asm)
 	return asm

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Generic, Optional, TypeVar
 from tir import IRCJump, IRCall, IRESeq, IRExp, IRExpr, IRNode, IRSeq
+import logging
 
 class IRVisitor:
     def visit(self, parent: IRNode, node: IRNode) -> IRNode:
@@ -154,9 +155,9 @@ class CanonicalVisitor(AggregateVisitor[bool]):
         if self.is_canonical(original):
             return True
 
-        print("NON CANONICAL!!")
-        print("self", original)
-        print("parent", parent)
+        logging.debug("NON CANONICAL!!")
+        logging.debug("self", original)
+        logging.debug("parent", parent)
 
         self.noncanonical(original if parent is None else parent)
         return False
