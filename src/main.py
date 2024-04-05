@@ -218,7 +218,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
             actual_result = ERROR
             error = e
 
-        if assignment < 4:
+        if assignment != 4:
             if actual_result == WARNING:
                 actual_result = SUCCESS
         
@@ -229,12 +229,6 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                     print(f"Warned: {[warning.message for warning in warning_list]}")
             passed += 1
         else:
-            # print(
-            #     actual_result,
-            #     expected_result,
-            #     get_result_string(actual_result),
-            #     get_result_string(expected_result),
-            # )
             print(
                 f"Failed: {test_files_list} (returned {get_result_string(actual_result)} instead of {get_result_string(expected_result)})"
             )
