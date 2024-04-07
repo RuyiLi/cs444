@@ -104,7 +104,7 @@ def assemble(context: GlobalContext):
         comp_unit = lower_comp_unit(child_context.tree, context)
 
         for k, v in comp_unit.functions.items():
-            logging.info("old", v.body)
+            logging.info(f"old {v.body}")
             canonical = canonicalize_statement(v.body)
 
             visitor = CanonicalVisitor()
@@ -112,14 +112,14 @@ def assemble(context: GlobalContext):
             logging.info(f"Canonical? {result}")
 
             v.body = canonical
-            logging.info(canonical)
+            logging.info(f"{canonical}")
             logging.info("")
 
         f = open(f"output/test{i}.s", "w")
 
         for func in comp_unit.functions.values():
             asm = "\n".join(tile_func(func))
-            logging.info(asm)
+            logging.info(f"{asm}")
             f.write(asm)
             f.write("\n\n")
 
@@ -207,7 +207,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                         Weeder(f.name).visit(res)
                         build_environment(res, global_context)
                         if not quiet:
-                            logging.info(res.pretty())
+                            logging.info(f"{res.pretty()}")
                 static_check(global_context, quiet)
                 assemble(global_context)
             if warning_list:
@@ -264,7 +264,7 @@ def load_custom_testcases(test_names: List[str]):
                         res = lark.parse(test_file_contents)
                         logging.debug(res.pretty())
                         Weeder(f.name).visit(res)
-                        logging.info(res.pretty())
+                        logging.info(f"{res.pretty()}")
                         build_environment(res, global_context)
                     except Exception as e:
                         logging.info(f"Failed {test_name}:", e)
@@ -340,7 +340,7 @@ def load_parse_trees(paths: List[str]):
                     logging.info(f"Parsing {f.name}")
                     res = lark.parse(test_file_contents)
                     Weeder(f.name).visit(res)
-                    logging.info(res.pretty())
+                    logging.info(f"{res.pretty()}")
                 except Exception as e:
                     logging.error(e)
 

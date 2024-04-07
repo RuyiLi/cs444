@@ -151,7 +151,7 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
 			match t:
 				case IRTemp(name=n):
 					if (loc := local_var_dict.get(n, None)) is not None:
-						logging.info("VARIABLE", n, "EXISTS AT", loc)
+						logging.info(f"VARIABLE {n} EXISTS AT {loc}")
 						r, r_asm = process_expr(s, local_var_dict)
 						return r_asm + [f"mov {fmt_bp(loc)}, {r}"]
 
@@ -187,7 +187,7 @@ def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int]) -> 
 	asm = []
 	hold = ""
 
-	logging.info('tiling expr', expr)
+	logging.info(f"tiling expr {expr}")
 
 	match expr:
 		case IRConst(value=v):
@@ -226,14 +226,14 @@ def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int]) -> 
 			if (loc := local_var_dict.get(n, None)) is not None:
 				hold = fmt_bp(loc)
 			else:
-				logging.info(local_var_dict.get(n, None))
-				logging.info(local_var_dict)
+				logging.info(f"{local_var_dict.get(n, None)}")
+				logging.info(f"{local_var_dict}")
 				raise Exception(f"couldn't find local var {n} in dict!")
 		case x:
-			logging.info('unknown expr type', x)
+			logging.info(f"unknown expr type {x}")
 
 	if output_reg != hold:
 		asm += [f"mov {output_reg}, {hold}"]
 
-	logging.info(asm)
+	logging.info(f"{asm}")
 	return asm

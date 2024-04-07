@@ -162,8 +162,8 @@ class CanonicalVisitor(AggregateVisitor[bool]):
             return True
 
         logging.info("NON CANONICAL!!")
-        logging.info("self", original)
-        logging.info("parent", parent)
+        logging.info(f"self {original}")
+        logging.info(f"parent {parent}")
 
         self.noncanonical(original if parent is None else parent)
         return False
