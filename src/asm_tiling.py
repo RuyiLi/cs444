@@ -23,7 +23,7 @@ from tir import (
 log = logging.getLogger(__name__)
 
 def tile_func(func: IRFuncDecl) -> List[str]:
-	asm = []
+	asm = ["extern __malloc", "extern __exception", "extern __debexit", ""]
 
 	if func.name == "test":
 		asm += [
@@ -71,16 +71,16 @@ def fmt_bp(index: int):
 	return f"[ebp-{4*index}]"
 
 
-def process_expr(expr: IRExpr, local_var_dict: Dict[str, int]) -> Tuple[str | int, List[str]]:
+def process_expr(expr: IRExpr, local_var_dict: Dict[str, int], reg = "ecx") -> Tuple[str | int, List[str]]:
 	log.info(f"processing expr {expr}, {local_var_dict}")
 	if isinstance(expr, IRTemp):
-		return ("ecx", [f"mov ecx, {fmt_bp(local_var_dict.get(expr.name))}"])
+		return (reg, [f"mov {reg}, {fmt_bp(local_var_dict.get(expr.name))}"])
 
 	if isinstance(expr, IRConst):
 		return (expr.value, [])
 
 	if isinstance(expr, IRBinExpr):
-		return ("ecx", tile_expr(expr, "ecx", local_var_dict))
+		return (reg, tile_expr(expr, reg, local_var_dict))
 
 	raise Exception(f"unable to process expr {expr}")
 
@@ -90,6 +90,15 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
 
 	match stmt:
 		case IRCall(target=t, args=args):
+			if t.name == "__malloc":
+				r, r_asm = process_expr(args[0], local_var_dict)
+
+				# malloc() allocates eax bytes and returns address in eax
+				return r_asm + [f"mov eax, {r}", "call __malloc"]
+
+			if t.name == "__exception":
+				t.name = "_exception"
+
 			asm = []
 
 			for arg in args:
@@ -137,6 +146,14 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
 								f"cmp edx, {right}",
 								f"je {t.name}"
 							]
+						case "LT":
+							return asm + [
+								f"mov edx, {fmt_bp(left)}",
+								f"cmp edx, {right}",
+								f"jl {t.name}"
+							]
+						case x:
+							raise Exception(f"CJump with unimplemented cond IRBinExpr with optype {o}")
 
 				case x:
 					raise Exception(f"CJump with unimplemented condition {c}")
@@ -162,7 +179,15 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
 					return r_asm + [f"push {r}"]
 
 				case IRMem(address=a):
-					pass
+					assert isinstance(a, IRTemp)
+					l, l_asm = process_expr(a, local_var_dict, "eax")
+
+					if isinstance(s, IRConst):
+						r, r_asm = ("ecx", [f"mov ecx, {s.value}"])
+					else:
+						r, r_asm = process_expr(s, local_var_dict, "ecx")
+
+					return l_asm + r_asm + [f"mov [{l}], {r}"]
 
 		case IRReturn(ret=ret):
 			if stmt.ret is None:
