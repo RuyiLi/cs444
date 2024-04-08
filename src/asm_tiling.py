@@ -157,6 +157,8 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
                                 "cmp edx, 1",
                                 f"je {t.name}",
                             ]
+                        case "SUB":
+                            return asm + [f"mov edx, {fmt_bp(left)}", f"sub edx, {right}", f"jle {t.name}"]
                         case x:
                             raise Exception(f"CJump with unimplemented cond IRBinExpr with optype {o}")
 
