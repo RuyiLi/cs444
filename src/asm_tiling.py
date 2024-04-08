@@ -249,6 +249,20 @@ def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int]) -> 
                     f"div {right}",  # Quotient stored in eax, remainder stored in edx
                 ]
 
+            elif o == "LT":
+                asm += [
+                    f"cmp eax, {right}",
+                    "setl al",
+                    "movzx eax, al", # Zero-extend AL into EAX
+                ]
+
+            elif o == "GT_EQ":
+                asm += [
+                    f"cmp eax, {right}",
+                    "setge al",
+                    "movzx eax, al", # Zero-extend AL into EAX
+                ]
+
             else:
                 asm.append(f"{o.lower()} eax, {right}")
 
