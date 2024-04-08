@@ -253,14 +253,28 @@ def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int]) -> 
                 asm += [
                     f"cmp eax, {right}",
                     "setl al",
-                    "movzx eax, al", # Zero-extend AL into EAX
+                    "movzx eax, al",  # Zero-extend AL into EAX
                 ]
 
             elif o == "GT_EQ":
                 asm += [
                     f"cmp eax, {right}",
                     "setge al",
-                    "movzx eax, al", # Zero-extend AL into EAX
+                    "movzx eax, al",  # Zero-extend AL into EAX
+                ]
+
+            elif o == "EQ":
+                asm += [
+                    f"cmp eax, {right}",
+                    "sete al",
+                    "movzx eax, al",  # Zero-extend AL to EAX
+                ]
+
+            elif o == "NOT_EQ":
+                asm += [
+                    f"cmp eax, {right}",
+                    "setne al",
+                    "movzx eax, al",  # Zero-extend AL to EAX
                 ]
 
             else:
