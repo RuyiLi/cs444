@@ -4,7 +4,7 @@ import logging
 from typing import Generic, Optional, TypeVar
 
 from tir import IRCall, IRCJump, IRESeq, IRExp, IRExpr, IRNode, IRSeq
-
+log = logging.getLogger(__name__)
 
 class IRVisitor:
     def visit(self, parent: IRNode, node: IRNode) -> IRNode:
@@ -161,9 +161,9 @@ class CanonicalVisitor(AggregateVisitor[bool]):
         if self.is_canonical(original):
             return True
 
-        logging.info("NON CANONICAL!!")
-        logging.info(f"self {original}")
-        logging.info(f"parent {parent}")
+        log.info("NON CANONICAL!!")
+        log.info(f"self {original}")
+        log.info(f"parent {parent}")
 
         self.noncanonical(original if parent is None else parent)
         return False

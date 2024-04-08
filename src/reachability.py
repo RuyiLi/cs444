@@ -5,6 +5,7 @@ from context import GlobalContext, SemanticError
 from control_flow import CFGNode, make_cfg
 from helper import extract_name, get_return_type
 from lark import Tree
+log = logging.getLogger(__name__)
 
 
 def analyze_reachability(context: GlobalContext):
@@ -14,7 +15,7 @@ def analyze_reachability(context: GlobalContext):
         class_name = next(tree.find_data("constructor_declaration"), None)
         if class_name is not None:
             class_name = extract_name(class_name.children[1])
-            logging.debug(f"Analyzing reachability for {class_name}")
+            log.debug(f"Analyzing reachability for {class_name}")
 
         method_decls = tree.find_data("method_declaration")
         for method_decl in method_decls:
@@ -31,7 +32,7 @@ def analyze_reachability(context: GlobalContext):
 def check_tree_reachability(tree: Tree, check_return=False):
     if tree.children and isinstance(tree.children[0], Tree):
         cfg_root = make_cfg(tree.children[0], tree.context)[0]
-        logging.debug(cfg_root)
+        log.debug(cfg_root)
         iterative_solving(cfg_root)
         check_dead_code_assignment(cfg_root)
         check_unreachable(cfg_root)

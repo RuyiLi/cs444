@@ -36,6 +36,8 @@ from lark import ParseTree, Token, Tree
 from lark.tree import Meta
 from type_link import get_simple_name
 
+log = logging.getLogger(__name__)
+
 
 def type_check(context: Context):
     for child_context in context.children:
@@ -677,4 +679,4 @@ def resolve_expression(
             return ReferenceType(context.resolve(ClassInterfaceDecl, "java.lang.String"))
 
         case x:
-            logging.warn(f"Unknown tree data {x}")
+            log.warn(f"Unknown tree data {x}")

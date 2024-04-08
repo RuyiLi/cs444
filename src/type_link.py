@@ -2,7 +2,7 @@ import logging
 from typing import List
 
 from context import ClassInterfaceDecl, GlobalContext, SemanticError
-
+log = logging.getLogger(__name__)
 """
 Terminology:
 - A "canonical name", "qualified name", or just "name" is the full type_name of the import (e.g. foo.bar.Baz)
@@ -45,7 +45,7 @@ class SingleTypeImport(ImportDeclaration):
         return f"SingleTypeImport({self.simple_name}, {self.name})"
 
     def link_type(self, context: GlobalContext, type_decl: ClassInterfaceDecl):
-        logging.debug(f"Single Type Link: {self.name}, {type_decl.name}")
+        log.debug(f"Single Type Link: {self.name}, {type_decl.name}")
 
         # No single-type-import declaration clashes with the class or interface declared in the same file, but a class can import itself.
         if self.name != type_decl.name and self.simple_name == get_simple_name(type_decl.name):
@@ -77,7 +77,7 @@ class OnDemandImport(ImportDeclaration):
         return f"SingleTypeImport({self.package}.*)"
 
     def link_type(self, context: GlobalContext, type_decl: ClassInterfaceDecl):
-        logging.debug(f"On Demand Type Link: {self}, {type_decl.name}")
+        log.debug(f"On Demand Type Link: {self}, {type_decl.name}")
 
         # Every import-on-demand declaration must refer to a package declared in some file listed on
         # the Joos command line. That is, the import-on-demand declaration must refer to a package
@@ -94,7 +94,7 @@ class OnDemandImport(ImportDeclaration):
 
 
 def resolve_type(context: GlobalContext, type_name: str, type_decl: ClassInterfaceDecl):
-    logging.debug(f"Resolving {type_name}")
+    log.debug(f"Resolving {type_name}")
 
     is_qualified = "." in type_name
     if is_qualified:
@@ -145,7 +145,7 @@ def type_link(context: GlobalContext):
     type_decls = [sym for sym in context.symbol_map.values() if isinstance(sym, ClassInterfaceDecl)]
 
     for type_decl in type_decls:
-        logging.debug(f"Linking type {type_decl.name}")
+        log.debug(f"Linking type {type_decl.name}")
 
         # resolve class/interface name to itself
         type_name = get_simple_name(type_decl.name)

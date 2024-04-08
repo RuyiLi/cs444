@@ -25,7 +25,7 @@ from tir import (
     IRTemp,
 )
 from type_check import resolve_expression
-
+log = logging.getLogger(__name__)
 
 def lower_comp_unit(tree: Tree, context: Context):
     return IRCompUnit(
@@ -265,7 +265,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             return IRConst(tree.children[0].value)
 
         case _:
-            logging.info(f"{tree}")
+            log.info(f"{tree}")
             raise Exception(f"! Lower for {tree.data} not implemented")
 
 
@@ -309,7 +309,7 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
     if isinstance(tree, Token):
         if tree.value == ";":
             return IRStmt()
-        logging.info(f"{tree}")
+        log.info(f"{tree}")
         raise Exception("e")
 
     match tree.data:

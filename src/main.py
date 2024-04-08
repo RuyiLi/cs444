@@ -18,11 +18,12 @@ from tir_visitor import CanonicalVisitor
 from type_check import type_check
 from type_link import type_link
 from weeder import Weeder
+log = logging.getLogger(__name__)
 
 grammar = ""
 grammar_files = glob.glob(r"./grammar/**/*.lark", recursive=True)
 for file in grammar_files:
-    logging.info(f"Loaded grammar {file[2:]}")
+    log.info(f"Loaded grammar {file[2:]}")
     with open(file) as f:
         grammar += "\n" + f.read()
 
@@ -48,7 +49,7 @@ Tree.__deepcopy__ = __deepcopy__
 
 
 logging.basicConfig(
-    format="\033[2m[%(levelname)s] %(filename)s:%(funcName)s:%(lineno)d\033[0m\n%(message)s\n",
+    format="\033[2m[%(levelname)s] %(filename)s:%(lineno)d in function %(funcName)s\033[0m\n%(message)s\n",
     level=logging.ERROR,
 )
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
@@ -67,35 +68,35 @@ def static_check(context: GlobalContext, quiet=False):
         type_link(context)
     except Exception as e:
         if not quiet:
-            logging.error("Failed type_link")
+            log.error("Failed type_link")
         raise e
 
     try:
         hierarchy_check(context)
     except Exception as e:
         if not quiet:
-            logging.error("Failed hierarchy_check")
+            log.error("Failed hierarchy_check")
         raise e
 
     try:
         disambiguate_names(context)
     except Exception as e:
         if not quiet:
-            logging.error("Failed name disambiguation")
+            log.error("Failed name disambiguation")
         raise e
 
     try:
         type_check(context)
     except Exception as e:
         if not quiet:
-            logging.error("Failed type check")
+            log.error("Failed type check")
         raise e
 
     try:
         analyze_reachability(context)
     except Exception as e:
         if not quiet:
-            logging.error("Failed reachability analysis")
+            log.error("Failed reachability analysis")
         raise e
 
 
@@ -104,22 +105,22 @@ def assemble(context: GlobalContext):
         comp_unit = lower_comp_unit(child_context.tree, context)
 
         for k, v in comp_unit.functions.items():
-            logging.info(f"old {v.body}")
+            log.info(f"old {v.body}")
             canonical = canonicalize_statement(v.body)
 
             visitor = CanonicalVisitor()
             result = visitor.visit(None, canonical)
-            logging.info(f"Canonical? {result}")
+            log.info(f"Canonical? {result}")
 
             v.body = canonical
-            logging.info(f"{canonical}")
-            logging.info("")
+            log.info(f"{canonical}")
+            log.info("")
 
         f = open(f"output/test{i}.s", "w")
 
         for func in comp_unit.functions.values():
             asm = "\n".join(tile_func(func))
-            logging.info(f"{asm}")
+            log.info(f"{asm}")
             f.write(asm)
             f.write("\n\n")
 
@@ -185,7 +186,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
     if custom_test_names_set:
         missed_tests = custom_test_names_set.difference(seen_custom_test_names_set)
         for test_name in missed_tests:
-            logging.info(
+            log.info(
                 f"Could not find test file or folder in assignment {assignment} with name {test_name}, skipping..."
             )
 
@@ -200,14 +201,14 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                 global_context = deepcopy(global_context_with_stdlib)
                 for test_file in test_files_list:
                     if not quiet:
-                        logging.info(f"Testing {test_file}")
+                        log.info(f"Testing {test_file}")
                     with open(os.path.join(test_directory, test_file), "r") as f:
                         test_file_contents = f.read()
                         res = lark.parse(test_file_contents)
                         Weeder(f.name).visit(res)
                         build_environment(res, global_context)
                         if not quiet:
-                            logging.info(f"{res.pretty()}")
+                            log.info(f"{res.pretty()}")
                 static_check(global_context, quiet)
                 assemble(global_context)
             if warning_list:
@@ -223,27 +224,27 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                 actual_result = SUCCESS
 
         if actual_result == expected_result:
-            logging.info(
+            log.info(
                 f"Passed: {test_files_list} (correctly returned {get_result_string(expected_result)})"
             )
             if warning_list:
-                logging.info(f"Warned: {[warning.message for warning in warning_list]}")
+                log.info(f"Warned: {[warning.message for warning in warning_list]}")
             passed += 1
         else:
-            logging.info(
+            log.info(
                 f"Failed: {test_files_list} (returned {get_result_string(actual_result)} instead of {get_result_string(expected_result)})"
             )
             if error:
-                logging.info(f"Threw: {error}")
+                log.info(f"Threw: {error}")
             if warning_list:
-                logging.info(f"Warned: {[warning.message for warning in warning_list]}")
+                log.info(f"Warned: {[warning.message for warning in warning_list]}")
             failed_tests.append(str(test_files_list))
             # raise error
-    logging.info("")
-    logging.info("=" * 50)
-    logging.info(f"Total passed: {passed}/{len(test_files_lists)}")
+    log.info("")
+    log.info("=" * 50)
+    log.info(f"Total passed: {passed}/{len(test_files_lists)}")
     if len(failed_tests) > 0:
-        logging.info(f"Failed tests: {', '.join(failed_tests)}")
+        log.info(f"Failed tests: {', '.join(failed_tests)}")
 
 
 def load_custom_testcases(test_names: List[str]):
@@ -251,23 +252,23 @@ def load_custom_testcases(test_names: List[str]):
     warning_list = []
 
     for test_name in test_names:
-        logging.info(f"Testing {test_name}")
+        log.info(f"Testing {test_name}")
         try:
             f = open(f"./custom_testcases/{test_name}.java", "r")
         except FileNotFoundError:
-            logging.info(f"Could not find test with name {test_name}.java, skipping...")
+            log.info(f"Could not find test with name {test_name}.java, skipping...")
         else:
             with warnings.catch_warnings(record=True) as w:
                 with f:
                     test_file_contents = f.read()
                     try:
                         res = lark.parse(test_file_contents)
-                        logging.debug(res.pretty())
+                        log.debug(res.pretty())
                         Weeder(f.name).visit(res)
-                        logging.info(f"{res.pretty()}")
+                        log.info(f"{res.pretty()}")
                         build_environment(res, global_context)
                     except Exception as e:
-                        logging.info(f"Failed {test_name}:", e)
+                        log.info(f"Failed {test_name}:", e)
                         raise e
             warning_list.extend(w)
 
@@ -276,14 +277,14 @@ def load_custom_testcases(test_names: List[str]):
             static_check(global_context)
             assemble(global_context)
         except Exception as e:
-            logging.info(f"Failed {test_name}:", e)
+            log.info(f"Failed {test_name}:", e)
             raise e
     warning_list.extend(w)
 
     if warning_list:
-        logging.info(f"Warned {test_name}: ", [warning.message for warning in warning_list])
+        log.info(f"Warned {test_name}: ", [warning.message for warning in warning_list])
     else:
-        logging.info(f"Passed {test_name}")
+        log.info(f"Passed {test_name}")
 
 
 def load_path_testcases(paths: List[str]):
@@ -294,18 +295,18 @@ def load_path_testcases(paths: List[str]):
         try:
             f = open(path, "r")
         except FileNotFoundError:
-            logging.info(f"Could not find test with name {path}, skipping...")
+            log.info(f"Could not find test with name {path}, skipping...")
         else:
             with warnings.catch_warnings(record=True) as w:
                 with f:
                     test_file_contents = f.read()
                     try:
                         res = lark.parse(test_file_contents)
-                        logging.debug(res.pretty())
+                        log.debug(res.pretty())
                         Weeder(f.name).visit(res)
                         build_environment(res, global_context)
                     except Exception as e:
-                        logging.exception(e)
+                        log.exception(e)
                         exit(42)
             warning_list.extend(w)
 
@@ -314,12 +315,12 @@ def load_path_testcases(paths: List[str]):
             static_check(global_context)
             assemble(global_context)
         except Exception as e:
-            logging.exception(e)
+            log.exception(e)
             exit(42)
 
     warning_list.extend(w)
     for warning in warning_list:
-        logging.warning(warning)
+        log.warning(warning)
 
     if warning_list:
         exit(43)
@@ -332,17 +333,17 @@ def load_parse_trees(paths: List[str]):
         try:
             f = open(path, "r")
         except FileNotFoundError:
-            logging.info(f"Could not find test with name {path}, skipping...")
+            log.info(f"Could not find test with name {path}, skipping...")
         else:
             with f:
                 test_file_contents = f.read()
                 try:
-                    logging.info(f"Parsing {f.name}")
+                    log.info(f"Parsing {f.name}")
                     res = lark.parse(test_file_contents)
                     Weeder(f.name).visit(res)
-                    logging.info(f"{res.pretty()}")
+                    log.info(f"{res.pretty()}")
                 except Exception as e:
-                    logging.error(e)
+                    log.error(e)
 
 
 if __name__ == "__main__":
