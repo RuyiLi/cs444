@@ -85,7 +85,10 @@ def process_expr(expr: IRExpr, local_var_dict: Dict[str, int], reg="ecx") -> Tup
         return (reg, tile_expr(expr, reg, local_var_dict))
 
     if isinstance(expr, IRMem):
-        return "temp_remove_this", []
+        address_expr = expr.address
+        address_reg, address_asm = process_expr(address_expr, local_var_dict)
+        asm_code = address_asm + [f"mov {reg}, [{address_reg}]"]
+        return (reg, asm_code)
 
     raise Exception(f"unable to process expr {expr}")
 
