@@ -73,6 +73,10 @@ def fmt_bp(index: int):
 
 def process_expr(expr: IRExpr, local_var_dict: Dict[str, int], reg = "ecx") -> Tuple[str | int, List[str]]:
 	log.info(f"processing expr {expr}, {local_var_dict}")
+
+	if hasattr(expr, "name"):
+		expr.name = expr.name.split(".")[0]
+
 	if isinstance(expr, IRTemp):
 		return (reg, [f"mov {reg}, {fmt_bp(local_var_dict.get(expr.name))}"])
 
@@ -81,6 +85,9 @@ def process_expr(expr: IRExpr, local_var_dict: Dict[str, int], reg = "ecx") -> T
 
 	if isinstance(expr, IRBinExpr):
 		return (reg, tile_expr(expr, reg, local_var_dict))
+
+	if isinstance(expr, IRMem):
+		return "temp_remove_this", []
 
 	raise Exception(f"unable to process expr {expr}")
 
@@ -151,6 +158,19 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int]) -> List[str]:
 								f"mov edx, {fmt_bp(left)}",
 								f"cmp edx, {right}",
 								f"jl {t.name}"
+							]
+						case "NOT_EQ":
+							return asm + [
+								f"mov edx, {fmt_bp(left)}",
+								f"cmp edx, {right}",
+								f"jne {t.name}"
+							]
+						case "LOGICAL_AND":
+							return asm + [
+								f"mov edx, {fmt_bp(left)}",
+								f"and edx, {right}",
+								"cmp edx, 1",
+								f"je {t.name}"
 							]
 						case x:
 							raise Exception(f"CJump with unimplemented cond IRBinExpr with optype {o}")
