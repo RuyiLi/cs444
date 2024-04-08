@@ -25,7 +25,9 @@ from tir import (
     IRTemp,
 )
 from type_check import resolve_expression
+
 log = logging.getLogger(__name__)
+
 
 def lower_comp_unit(tree: Tree, context: Context):
     return IRCompUnit(
@@ -249,7 +251,9 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                     IRMove(IRTemp("i"), IRConst(0)),
                     IRMove(IRTemp("c"), IRBinExpr("ADD", IRTemp("m"), IRConst(4))),
                     IRLabel(cond_label),
-                    IRCJump(IRBinExpr("LT", IRTemp("i"), IRTemp("n")), IRName(true_label), IRName(false_label)), # for (i = 0; i < n)
+                    IRCJump(
+                        IRBinExpr("LT", IRTemp("i"), IRTemp("n")), IRName(true_label), IRName(false_label)
+                    ),  # for (i = 0; i < n)
                     IRLabel(true_label),
                     IRMove(IRMem(IRTemp("c")), IRConst(0)),  # mem(c) = 0
                     IRMove(IRTemp("c"), IRBinExpr("ADD", IRTemp("c"), IRConst(4))),  # c += 4
