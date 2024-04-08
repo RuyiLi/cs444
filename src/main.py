@@ -56,6 +56,8 @@ logging.basicConfig(
 )
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
 STDLIB_VERSION = 5.1
+ASSIGNMENT_NUMBER = int(str(STDLIB_VERSION).split('.')[0])
+
 stdlib_files = glob.glob(f"stdlib/{STDLIB_VERSION}/java/**/*.java")
 global_context_with_stdlib = GlobalContext()
 for file in stdlib_files:
@@ -329,7 +331,7 @@ def load_path_testcases(paths: List[str]):
     for warning in warning_list:
         log.warning(warning)
 
-    if warning_list:
+    if warning_list and ASSIGNMENT_NUMBER == 4:
         exit(43)
     else:
         exit(0)
