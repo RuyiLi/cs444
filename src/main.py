@@ -1,6 +1,7 @@
 import glob
 import logging
 import os
+import traceback
 import warnings
 from copy import deepcopy
 from typing import List
@@ -18,6 +19,7 @@ from tir_visitor import CanonicalVisitor
 from type_check import type_check
 from type_link import type_link
 from weeder import Weeder
+
 log = logging.getLogger(__name__)
 
 grammar = ""
@@ -49,7 +51,7 @@ Tree.__deepcopy__ = __deepcopy__
 
 
 logging.basicConfig(
-    format="\033[2m[%(levelname)s] %(filename)s:%(lineno)d in function %(funcName)s\033[0m\n%(message)s\n",
+    format="\033[2m[%(levelname)s] %(filename)s:%(lineno)d in %(funcName)s\033[0m\n%(message)s\n",
     level=logging.ERROR,
 )
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
@@ -195,6 +197,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
     actual_result = SUCCESS
     for test_files_list in test_files_lists:
         error = None
+        error_traceback = None
         expected_result = get_expected_result(test_files_list[0])
         try:
             with warnings.catch_warnings(record=True) as warning_list:
@@ -218,15 +221,14 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
         except Exception as e:
             actual_result = ERROR
             error = e
+            error_traceback = traceback.format_exc()
 
         if assignment != 4:
             if actual_result == WARNING:
                 actual_result = SUCCESS
 
         if actual_result == expected_result:
-            log.info(
-                f"Passed: {test_files_list} (correctly returned {get_result_string(expected_result)})"
-            )
+            log.info(f"Passed: {test_files_list} (correctly returned {get_result_string(expected_result)})")
             if warning_list:
                 log.info(f"Warned: {[warning.message for warning in warning_list]}")
             passed += 1
@@ -236,6 +238,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
             )
             if error:
                 log.info(f"Threw: {error}")
+                log.info(f"Traceback: {error_traceback}")
             if warning_list:
                 log.info(f"Warned: {[warning.message for warning in warning_list]}")
             failed_tests.append(str(test_files_list))
@@ -269,6 +272,7 @@ def load_custom_testcases(test_names: List[str]):
                         build_environment(res, global_context)
                     except Exception as e:
                         log.info(f"Failed {test_name}:", e)
+                        log.info(f"Traceback: {traceback.format_exc()}")
                         raise e
             warning_list.extend(w)
 
@@ -278,6 +282,7 @@ def load_custom_testcases(test_names: List[str]):
             assemble(global_context)
         except Exception as e:
             log.info(f"Failed {test_name}:", e)
+            log.info(f"Traceback: {traceback.format_exc()}")
             raise e
     warning_list.extend(w)
 
@@ -307,6 +312,7 @@ def load_path_testcases(paths: List[str]):
                         build_environment(res, global_context)
                     except Exception as e:
                         log.exception(e)
+                        log.exception(f"Traceback: {traceback.format_exc()}")
                         exit(42)
             warning_list.extend(w)
 
@@ -316,6 +322,7 @@ def load_path_testcases(paths: List[str]):
             assemble(global_context)
         except Exception as e:
             log.exception(e)
+            log.exception(f"Traceback: {traceback.format_exc()}")
             exit(42)
 
     warning_list.extend(w)
@@ -344,6 +351,7 @@ def load_parse_trees(paths: List[str]):
                     log.info(f"{res.pretty()}")
                 except Exception as e:
                     log.error(e)
+                    log.error(f"Traceback: {traceback.format_exc()}")
 
 
 if __name__ == "__main__":
