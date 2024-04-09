@@ -204,7 +204,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                                 IRBinExpr("GT_EQ", IRTemp("i"), IRConst(0)),
                             ),
                             IRName(inbound_label),
-                            IRName(outbound_label),
+                            IRName(err_label),
                         ),
                         IRLabel(inbound_label),
                     ]
