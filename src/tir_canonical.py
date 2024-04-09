@@ -18,6 +18,7 @@ from tir import (
     IRStmt,
     IRTemp,
 )
+from tir_translation import get_id
 
 
 def canonicalize_expression(expr: IRExpr) -> Tuple[IRStmt, IRExpr]:
@@ -38,7 +39,7 @@ def canonicalize_expression(expr: IRExpr) -> Tuple[IRStmt, IRExpr]:
         cl_stmt, cl_expr = canonicalize_expression(expr.left)
         cr_stmt, cr_expr = canonicalize_expression(expr.right)
 
-        label = f"_{id(expr)}"
+        label = f"_{get_id()}"
 
         return (
             IRSeq([cl_stmt, IRMove(IRTemp(label), cl_expr), cr_stmt]),
@@ -47,7 +48,7 @@ def canonicalize_expression(expr: IRExpr) -> Tuple[IRStmt, IRExpr]:
 
     if isinstance(expr, IRCall):
         stmts = []
-        label = f"_{id(expr)}"
+        label = f"_{get_id()}"
 
         for i, arg in enumerate(expr.args):
             c_stmt, c_expr = canonicalize_expression(arg)
@@ -100,7 +101,7 @@ def canonicalize_statement(stmt: IRStmt) -> IRStmt:
             ct_stmt, ct_expr = canonicalize_expression(stmt.target.address)
             cs_stmt, cs_expr = canonicalize_expression(stmt.source)
 
-            label = f"_{id(stmt)}"
+            label = f"_{get_id()}"
 
             return IRSeq(
                 [ct_stmt, IRMove(IRTemp(label), ct_expr), cs_stmt, IRMove(IRMem(IRTemp(label)), cs_expr)]

@@ -6,14 +6,15 @@ import warnings
 from copy import deepcopy
 from typing import List
 
-from asm_tiling import tile_func
+from asm_tiling import tile_comp_unit
 from build_environment import build_environment
 from context import GlobalContext
 from hierarchy_check import hierarchy_check
 from lark import Lark, Tree, logger
 from name_disambiguation import disambiguate_names
 from reachability import analyze_reachability
-from tir_canonical import canonicalize_statement
+from tir import IRExp, IRSeq
+from tir_canonical import canonicalize_expression, canonicalize_statement
 from tir_translation import lower_comp_unit
 from tir_visitor import CanonicalVisitor
 from type_check import type_check
@@ -106,8 +107,9 @@ def static_check(context: GlobalContext, quiet=False):
 
 def assemble(context: GlobalContext):
     for i, child_context in enumerate(context.children):
-        comp_unit = lower_comp_unit(child_context.tree, context)
+        comp_unit = lower_comp_unit(child_context, context)
 
+        # Lower functions into canonical form
         for k, v in comp_unit.functions.items():
             log.info(f"old {v.body}")
             canonical = canonicalize_statement(v.body)
@@ -120,13 +122,24 @@ def assemble(context: GlobalContext):
             log.info(f"{canonical}")
             log.info("")
 
-        f = open(f"output/test{i}.s", "w")
+        # Lower fields into canonical form
+        for k, v in comp_unit.fields.items():
+            log.info(f"old {v}")
+            canonical = canonicalize_expression(v.expr)
+            v.canonical = canonical
 
-        for func in comp_unit.functions.values():
-            asm = "\n".join(tile_func(func))
-            log.info(f"{asm}")
-            f.write(asm)
-            f.write("\n\n")
+            visitor = CanonicalVisitor()
+            result = visitor.visit(None, v)
+            log.info(f"Canonical? {result}")
+
+            log.info(f"{canonical}")
+            log.info("")
+
+        asm = tile_comp_unit(comp_unit)
+
+        f = open(f"output/test{i}.s", "w")
+        f.write("\n".join(asm))
+        f.write("\n")
 
 
 ERROR = 42

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import reduce
-from typing import Dict, List, TypeVar
+from typing import Dict, List, Tuple, TypeVar
 
 T = TypeVar("T")
 
@@ -304,22 +304,58 @@ class IRFuncDecl(IRNode):
         return IRFuncDecl(self.name, child_body, self.params) if child_body != self.body else self
 
 
+class IRFieldDecl(IRNode):
+    name: str
+    expr: IRExpr
+    canonical: Tuple[IRStmt, IRExpr] | None
+
+    def __init__(self, name: str, expr: IRExpr, canonical: Tuple[IRStmt, IRExpr] | None = None):
+        super().__init__(list(canonical) if canonical is not None else [expr])
+        self.name = name
+        self.expr = expr
+        self.canonical = canonical
+
+    def __str__(self):
+        return f"FieldDecl({self.name}, {self.expr})"
+
+    def visit_children(self, visitor):
+        if self.canonical:
+            stmt, expr = self.canonical
+            child_stmt = visitor.visit(self, stmt)
+            child_expr = visitor.visit(self, expr)
+
+            if child_stmt != stmt or child_expr != expr:
+                return IRFieldDecl(self.name, self.expr, (child_stmt, child_expr))
+            return self
+
+        child_expr = visitor.visit(self, self.expr)
+        return IRFieldDecl(self.name, child_expr, None) if child_expr != self.expr else self
+
+    def aggregate_children(self, visitor):
+        children = self.canonical if self.canonical is not None else [self.expr]
+        return reduce(lambda a, c: visitor.bind(a, visitor.visit(self, c)), children, visitor.unit())
+
+
 class IRCompUnit(IRNode):
     name: str
+    fields: Dict[str, IRFieldDecl]
     functions: Dict[str, IRFuncDecl]
 
-    def __init__(self, name: str, functions: Dict[str, IRFuncDecl] = {}):
-        super().__init__(functions.values())
+    def __init__(self, name: str, fields: Dict[str, IRExpr], functions: Dict[str, IRFuncDecl] = {}):
+        super().__init__(list(fields.values()) + list(functions.values()))
         self.name = name
+        self.fields = fields
         self.functions = functions
 
     def __str__(self):
         return "COMPUNIT"
 
     def visit_children(self, visitor):
+        child_fields = [visitor.visit(self, field) for _, field in self.fields]
         child_funcs = [visitor.visit(self, func) for _, func in self.functions]
 
-        if any(func != child_funcs[i] for i, func in enumerate(self.functions)):
-            return IRCompUnit(self.name, child_funcs)
+        if (any(field != child_fields[i] for i, field in enumerate(self.fields)) or
+            any(func != child_funcs[i] for i, func in enumerate(self.functions))):
+            return IRCompUnit(self.name, child_fields, child_funcs)
 
         return self
