@@ -1,4 +1,4 @@
-.PHONY: all clean install joosc zip
+.PHONY: all clean zip unzip
 
 define JOOSC_FILE_CONTENTS
 #!/bin/bash
