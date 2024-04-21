@@ -56,7 +56,7 @@ logging.basicConfig(
     level=logging.ERROR,
 )
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
-STDLIB_VERSION = 6.1
+STDLIB_VERSION = 5.1
 ASSIGNMENT_NUMBER = int(str(STDLIB_VERSION).split(".")[0])
 
 stdlib_files = glob.glob(f"stdlib/{STDLIB_VERSION}/java/**/*.java")
