@@ -63,17 +63,23 @@ joosc:
 	chmod +x joosc
 
 bench:
-	@echo "Running benchmarks..."
-	@echo "opt,benchmark_name,time(ms)" > benchmarks/results.csv
-	@find benchmarks -mindepth 2 -type f | while read -r file; do \
-		start=$$(date +%s%3N); \
-		python src/main.py -p "$$file" > /dev/null; \
-		end=$$(date +%s%3N); \
-		duration=$$(($$end - $$start)); \
+	rm -f benchmarks/results.csv
+	touch benchmarks/results.csv
+	find benchmarks -mindepth 2 -type f | while read -r file; do \
+		start_unoptimized=$$(date +%s%3N); \
+		python src/main.py -q -p "$$file" > /dev/null; \
+		end_unoptimized=$$(date +%s%3N); \
+		duration_unoptimized=$$(($$end_unoptimized - $$start_unoptimized)); \
 		opt=$$(basename "$$(dirname "$$file")"); \
-		benchmark=$$(basename "$$file"); \
-		echo "$$opt,$$benchmark,$$duration" >> benchmarks/results.csv; \
+		start_optimized=$$(date +%s%3N); \
+		python src/main.py -q -p "$$file" -o "$$opt"> /dev/null; \
+		end_optimized=$$(date +%s%3N); \
+		duration_optimized=$$(($$end_optimized - $$start_optimized)); \
+		speedup=$$(echo "scale=3; $$duration_unoptimized / $$duration_optimized" | bc); \
+		benchmark_name=$$(basename "$$file"); \
+		echo "$$opt,$$benchmark_name,$$duration_optimized,$$duration_unoptimized,$$speedup" >> benchmarks/results.csv; \
 	done
+
 zip:
 	rm -rf joos_submission.zip
 	git --no-pager log > $(CURR_ASSIGNMENT).log
