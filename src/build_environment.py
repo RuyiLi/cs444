@@ -130,6 +130,7 @@ def parse_node(tree: ParseTree, context: Context):
             if (nested_tree := get_child_tree(tree, "block")) is not None:
                 nested_context = Context(context, symbol, nested_tree)
                 context.children.append(nested_context)
+                context.child_map["__constructor"] = nested_context
 
                 for p_type, p_name in zip(formal_param_types, formal_param_names):
                     nested_context.declare(LocalVarDecl(nested_context, p_name, p_type, tree.meta))
@@ -154,6 +155,7 @@ def parse_node(tree: ParseTree, context: Context):
             if nested_tree is not None:
                 nested_context = Context(context, symbol, nested_tree)
                 context.children.append(nested_context)
+                context.child_map[method_name] = nested_context
 
                 for p_type, p_name in zip(formal_param_types, formal_param_names):
                     nested_context.declare(LocalVarDecl(nested_context, p_name, p_type, tree.meta))

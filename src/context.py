@@ -43,11 +43,14 @@ class Context:
     symbol_map: Dict[str, Symbol]
     tree: Tree
     is_static: bool
+    children: List[Context]
+    child_map: Dict[str, Context]
 
     def __init__(self, parent: Context, parent_node: Symbol, tree: Tree, is_static: bool = False):
         self.parent = parent
         self.parent_node = parent_node
         self.children = []
+        self.child_map = dict()
         self.symbol_map = {}
         self.tree = tree
         self.is_static = is_static

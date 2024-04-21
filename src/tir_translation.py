@@ -57,14 +57,15 @@ local_vars = dict()
 def lower_function(tree: Tree, context: Context):
     method_name = get_nested_token(tree, "IDENTIFIER")
     formal_param_types, formal_param_names = get_formal_params(tree)
+    nested_context = context.child_map[method_name]
 
     if method_body := next(tree.find_data("method_body"), None):
         local_vars.clear()
-        body = lower_statement(method_body.children[0], context)
+        body = lower_statement(method_body.children[0], nested_context)
 
         # Add parameters to local var type dictionary
         for i in range(len(formal_param_names)):
-            local_vars[formal_param_names[i]] = get_enclosing_type_decl(context).resolve_type(formal_param_types[i])
+            local_vars[formal_param_names[i]] = get_enclosing_type_decl(nested_context).resolve_type(formal_param_types[i])
 
         return (
             method_name,
