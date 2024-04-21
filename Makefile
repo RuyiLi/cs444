@@ -62,6 +62,9 @@ joosc:
 	echo "$$JOOSC_FILE_CONTENTS" > joosc
 	chmod +x joosc
 
+bench:
+	echo "opt,benchmark_name,time_with_opt(ms),time_without_opt(ms),speedup" > benchmarks/results.csv
+
 zip:
 	rm -rf joos_submission.zip
 	git --no-pager log > $(CURR_ASSIGNMENT).log
