@@ -2,6 +2,7 @@ SQ_BRACKETS: "[]"
 
 MUL: "*"
 DIV: "/"
+MODULO: "%"
 
 EQ: "=="
 NOT_EQ: "!="
