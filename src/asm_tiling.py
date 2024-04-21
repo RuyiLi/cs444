@@ -36,29 +36,30 @@ def tile_comp_unit(comp_unit: IRCompUnit):
 
     asm += ["", "__err:", "call __exception", ""]
 
-    # Field initializers
-    asm += [
-        f"_{comp_unit.name}_init:",
-        "push ebp",
-        "mov ebp, esp"
-    ]
-    temps = reduce(lambda acc, field: acc.union(find_temps(field.canonical[0])), comp_unit.fields.values(), set())
-    temp_dict = dict([(temp, i) for i, temp in enumerate(temps)])
-    asm += [f"sub esp, {len(temps)*4}"]
+    if len(comp_unit.fields.keys()) > 0:
+        # Field initializers
+        asm += [
+            f"_{comp_unit.name}_init:",
+            "push ebp",
+            "mov ebp, esp"
+        ]
+        temps = reduce(lambda acc, field: acc.union(find_temps(field.canonical[0])), comp_unit.fields.values(), set())
+        temp_dict = dict([(temp, i) for i, temp in enumerate(temps)])
+        asm += [f"sub esp, {len(temps)*4}"]
 
-    for field in comp_unit.fields.values():
-        asm += tile_field(field, temp_dict, comp_unit, None)
-    asm += [
-        "mov esp, ebp",
-        "pop ebp",
-        "ret", ""
-    ]
+        for field in comp_unit.fields.values():
+            asm += tile_field(field, temp_dict, comp_unit, None)
+        asm += [
+            "mov esp, ebp",
+            "pop ebp",
+            "ret", ""
+        ]
 
     # Declared methods
     for name, func in comp_unit.functions.items():
         func_asm = tile_func(func, comp_unit) + [""]
 
-        if name == "test":
+        if name == "test" and len(comp_unit.fields.keys()) > 0:
             func_asm.insert(1, f"call _{comp_unit.name}_init")
 
         asm += func_asm
@@ -156,13 +157,13 @@ def process_expr(expr: IRExpr, temp_dict: Dict[str, int], comp_unit: IRCompUnit,
 
     return (reg, tile_expr(expr, reg, temp_dict, comp_unit, func))
 
-bin_op_to_asm = {
-    "EQ": "je",
-    "LT": "jl",
-    "GT": "jg",
-    "LT_EQ": "jle",
-    "GT_EQ": "jge",
-    "NOT_EQ": "jne"
+bin_op_to_short = {
+    "EQ": "e",
+    "LT": "l",
+    "GT": "g",
+    "LT_EQ": "le",
+    "GT_EQ": "ge",
+    "NOT_EQ": "ne",
 }
 
 def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl) -> List[str]:
@@ -210,8 +211,8 @@ def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, fu
                     right, r_asm = process_expr(r, temp_dict, comp_unit, func)
                     asm += r_asm
 
-                    if o in bin_op_to_asm.keys():
-                        return asm + [f"mov edx, {fmt_bp(left)}", f"cmp edx, {right}", f"{bin_op_to_asm[o]} {t.name}"]
+                    if o in bin_op_to_short.keys():
+                        return asm + [f"mov edx, {fmt_bp(left)}", f"cmp edx, {right}", f"j{bin_op_to_short[o]} {t.name}"]
 
                     match o:
                         case "LOGICAL_AND":
@@ -319,6 +320,9 @@ def tile_expr(expr: IRExpr, output_reg: str, temp_dict: Dict[str, int], comp_uni
                 asm.append(f"imul eax, {right}")
 
             elif o == "DIV":
+                # Zero-extend eax into edx for division
+                asm.append("cdq")
+
                 if isinstance(r, IRConst):
                     asm.append(f"mov ebx, {right}")
                     right = "ebx"
@@ -330,36 +334,14 @@ def tile_expr(expr: IRExpr, output_reg: str, temp_dict: Dict[str, int], comp_uni
                     f"jne _{label_id}_nonzero",
                     "call __exception",
                     f"_{label_id}_nonzero:",
-                    "xor edx, edx",  # Clear out edx for division
-                    f"div {right}",  # Quotient stored in eax, remainder stored in edx
+                    f"idiv {right}",  # Quotient stored in eax, remainder stored in edx
                 ]
 
-            elif o == "LT":
+            elif o in bin_op_to_short.keys():
                 asm += [
                     f"cmp eax, {right}",
-                    "setl al",
+                    f"set{bin_op_to_short[o]} al",
                     "movzx eax, al",  # Zero-extend AL into EAX
-                ]
-
-            elif o == "GT_EQ":
-                asm += [
-                    f"cmp eax, {right}",
-                    "setge al",
-                    "movzx eax, al",  # Zero-extend AL into EAX
-                ]
-
-            elif o == "EQ":
-                asm += [
-                    f"cmp eax, {right}",
-                    "sete al",
-                    "movzx eax, al",  # Zero-extend AL to EAX
-                ]
-
-            elif o == "NOT_EQ":
-                asm += [
-                    f"cmp eax, {right}",
-                    "setne al",
-                    "movzx eax, al",  # Zero-extend AL to EAX
                 ]
 
             elif o[:5] == "EAGER":

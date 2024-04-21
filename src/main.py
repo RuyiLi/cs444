@@ -160,6 +160,8 @@ def get_expected_result(path_name: str):
     match path_name[:2]:
         case "Je":
             return ERROR
+        case "J1e":
+            return ERROR
         case "Jw":
             return WARNING
         case _:

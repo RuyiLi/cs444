@@ -63,8 +63,17 @@ joosc:
 	chmod +x joosc
 
 bench:
-	echo "opt,benchmark_name,time_with_opt(ms),time_without_opt(ms),speedup" > benchmarks/results.csv
-
+	@echo "Running benchmarks..."
+	@echo "opt,benchmark_name,time(ms)" > benchmarks/results.csv
+	@find benchmarks -mindepth 2 -type f | while read -r file; do \
+		start=$$(date +%s%3N); \
+		python src/main.py -p "$$file" > /dev/null; \
+		end=$$(date +%s%3N); \
+		duration=$$(($$end - $$start)); \
+		opt=$$(basename "$$(dirname "$$file")"); \
+		benchmark=$$(basename "$$file"); \
+		echo "$$opt,$$benchmark,$$duration" >> benchmarks/results.csv; \
+	done
 zip:
 	rm -rf joos_submission.zip
 	git --no-pager log > $(CURR_ASSIGNMENT).log
