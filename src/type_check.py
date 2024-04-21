@@ -660,7 +660,7 @@ def resolve_expression(
             raise SemanticError(f"Cannot cast type {source_type.name} to {cast_type.name}")
 
         case "assignment":
-            lhs_tree = next(tree.find_data("lhs")).children[0]
+            lhs_tree = tree.children[0].children[0]
             get_final_modifier = True
             lhs = resolve_expression(
                 lhs_tree, context, None, get_final_modifier, field=field
