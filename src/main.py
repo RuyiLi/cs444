@@ -120,7 +120,6 @@ def assemble(context: GlobalContext):
 
             v.body = canonical
             log.info(f"{canonical}")
-            log.info("")
 
         # Lower fields into canonical form
         for k, v in comp_unit.fields.items():
@@ -133,7 +132,6 @@ def assemble(context: GlobalContext):
             log.info(f"Canonical? {result}")
 
             log.info(f"{canonical}")
-            log.info("")
 
         asm = tile_comp_unit(comp_unit)
 
