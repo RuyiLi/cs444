@@ -76,9 +76,8 @@ def canonicalize_statement(stmt: IRStmt) -> IRStmt:
         c_stmt, c_expr = canonicalize_expression(stmt.cond)
 
         return IRSeq(
-            [c_stmt, IRCJump(c_expr, stmt.true_label, None)] + [IRJump(stmt.false_label)]
-            if stmt.false_label is not None
-            else []
+            [c_stmt, IRCJump(c_expr, stmt.true_label, None)] +
+            ([IRJump(stmt.false_label)] if stmt.false_label is not None else [])
         )
 
     if isinstance(stmt, IRExp):

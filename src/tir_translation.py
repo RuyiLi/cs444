@@ -30,6 +30,7 @@ from type_check import resolve_expression
 log = logging.getLogger(__name__)
 
 global_id = 0
+err_label = "__err"
 
 def get_id():
     global global_id
@@ -196,7 +197,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             assert isinstance(lhs.stmt, IRSeq)
 
             lhs.stmt.stmts.append(IRMove(lhs.expr, rhs))
-            return IRESeq(lhs.stmt, rhs)
+            return IRESeq(lhs.stmt, lhs.expr)
 
         case "cast_expr":
             cast_target = tree.children[-1]
@@ -210,33 +211,28 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             ref_array, index = tree.children
             label_id = get_id()
 
-            err_label = f"_{get_id()}_lerr"
             nonnull_label = f"_{get_id()}_lnnull"
-            inbound_label = f"_{get_id()}_linbound"
 
             return IRESeq(
                 IRSeq(
                     [
                         IRMove(IRTemp("a"), lower_expression(ref_array, context)),
                         IRCJump(
-                            IRBinExpr("EQ", IRTemp("a"), IRConst(0)), IRName(err_label), IRName(nonnull_label)
+                            IRBinExpr("NOT_EQ", IRTemp("a"), IRConst(0)), IRName(nonnull_label), None
                         ),
-                        IRLabel(err_label),
-                        IRExp(IRCall(IRName("__exception"))),
+                        IRJump(IRName(err_label)),
                         IRLabel(nonnull_label),
                         IRMove(IRTemp("i"), lower_expression(index, context)),
                         IRCJump(
                             IRBinExpr(
-                                "LOGICAL_AND",
+                                "LOGICAL_OR",
                                 IRBinExpr(
-                                    "LT", IRTemp("i"), IRMem(IRBinExpr("SUB", IRTemp("a"), IRConst(4)))
+                                    "GT_EQ", IRTemp("i"), IRMem(IRBinExpr("SUB", IRTemp("a"), IRConst(4)))
                                 ),
-                                IRBinExpr("GT_EQ", IRTemp("i"), IRConst(0)),
+                                IRBinExpr("LT", IRTemp("i"), IRConst(0)),
                             ),
-                            IRName(inbound_label),
-                            IRName(err_label),
-                        ),
-                        IRLabel(inbound_label),
+                            IRName(err_label), None
+                        )
                     ]
                 ),
                 IRMem(
@@ -252,14 +248,12 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             _new_kw, _array_type, size_expr = tree.children
             label_id = get_id()
 
-            err_label = f"_{label_id}_lerr"
             nonneg_label = f"_{label_id}_lnneg"
 
             stmts: List[IRStmt] = [
                 IRMove(IRTemp("n"), lower_expression(size_expr, context)),
-                IRCJump(IRBinExpr("LT", IRTemp("n"), IRConst(0)), IRName(err_label), IRName(nonneg_label)),
-                IRLabel(err_label),
-                IRExp(IRCall(IRName("__exception"))),
+                IRCJump(IRBinExpr("GT_EQ", IRTemp("n"), IRConst(0)), IRName(nonneg_label), None),
+                IRJump(IRName(err_label)),
                 IRLabel(nonneg_label),
                 IRMove(
                     IRTemp("m"),
@@ -273,7 +267,6 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
 
             # Zero-initialize array
             cond_label = f"_{label_id}_cond"
-            true_label = f"_{label_id}_lt"
             false_label = f"_{label_id}_lf"
 
             # Cursed manual for loop in TIR
@@ -283,9 +276,8 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                     IRMove(IRTemp("c"), IRBinExpr("ADD", IRTemp("m"), IRConst(4))),
                     IRLabel(cond_label),
                     IRCJump(
-                        IRBinExpr("LT", IRTemp("i"), IRTemp("n")), IRName(true_label), IRName(false_label)
+                        IRBinExpr("EQ", IRTemp("i"), IRTemp("n")), IRName(false_label), None
                     ),  # for (i = 0; i < n)
-                    IRLabel(true_label),
                     IRMove(IRMem(IRTemp("c")), IRConst(0)),  # mem(c) = 0
                     IRMove(IRTemp("c"), IRBinExpr("ADD", IRTemp("c"), IRConst(4))),  # c += 4
                     IRMove(IRTemp("i"), IRBinExpr("ADD", IRTemp("i"), IRConst(1))),  # i++

@@ -34,7 +34,7 @@ def tile_comp_unit(comp_unit: IRCompUnit):
     else:
         asm += [f"global _{comp_unit.name}_init"]
 
-    asm += [""]
+    asm += ["", "__err:", "call __exception", ""]
 
     # Field initializers
     asm += [
@@ -221,6 +221,13 @@ def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, fu
                                 "cmp edx, 1",
                                 f"je {t.name}",
                             ]
+                        case "LOGICAL_OR":
+                            return asm + [
+                                f"mov edx, {fmt_bp(left)}",
+                                f"or edx, {right}",
+                                "cmp edx, 1",
+                                f"je {t.name}"
+                            ]
                         case "SUB":
                             return asm + [f"mov edx, {fmt_bp(left)}", f"sub edx, {right}", f"jle {t.name}"]
                         case x:
@@ -296,7 +303,7 @@ def tile_expr(expr: IRExpr, output_reg: str, temp_dict: Dict[str, int], comp_uni
 
     match expr:
         case IRConst(value=v):
-            hold = v
+            hold = v if v != "null" else 0
 
         case IRBinExpr(op_type=o, left=l, right=r):
             assert isinstance(l, IRTemp)
@@ -354,6 +361,9 @@ def tile_expr(expr: IRExpr, output_reg: str, temp_dict: Dict[str, int], comp_uni
                     "setne al",
                     "movzx eax, al",  # Zero-extend AL to EAX
                 ]
+
+            elif o[:5] == "EAGER":
+                asm.append(f"{o[6:].lower()} eax, {right}")
 
             else:
                 asm.append(f"{o.lower()} eax, {right}")
