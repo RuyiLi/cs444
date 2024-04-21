@@ -379,6 +379,7 @@ if __name__ == "__main__":
     parser.add_argument("-q", action="store_true", default=False, help="Only log errors")
     parser.add_argument("-v", action="store_true", default=False, help="Log everything")
     parser.add_argument("-g", type=str, nargs="+", help="View parse tree of files")
+    parser.add_argument("-o", type=str, nargs="+", help="Specify optimizations (e.g., opt-reg-only)")
 
     args = parser.parse_args()
 
@@ -391,6 +392,9 @@ if __name__ == "__main__":
 
     logger.setLevel(log_level)
     logging.root.setLevel(log_level)
+
+    if args.o is not None:
+        print("Optimizations specified:", args.o)
 
     if args.a is not None:
         load_assignment_testcases(args.a, quiet=args.q, custom_test_names=args.t)
