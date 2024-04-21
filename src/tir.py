@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from functools import reduce
-from typing import Dict, List, Tuple, TypeVar
+from typing import Dict, List, Tuple, TypeVar, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from joos_types import SymbolType
 
 T = TypeVar("T")
 
@@ -289,19 +292,21 @@ class IRFuncDecl(IRNode):
     name: str
     body: IRStmt
     params: List[str]
+    local_vars: Dict[str, SymbolType]
 
-    def __init__(self, name: str, body: IRStmt, params: List[str]):
+    def __init__(self, name: str, body: IRStmt, params: List[str], local_vars: Dict[str, SymbolType]):
         super().__init__([body])
         self.name = name
         self.body = body
         self.params = params
+        self.local_vars = local_vars
 
     def __str__(self):
         return f"FuncDecl({self.name}, {self.body})"
 
     def visit_children(self, visitor):
         child_body = visitor.visit(self, self.body)
-        return IRFuncDecl(self.name, child_body, self.params) if child_body != self.body else self
+        return IRFuncDecl(self.name, child_body, self.params, self.local_vars) if child_body != self.body else self
 
 
 class IRFieldDecl(IRNode):
@@ -341,7 +346,7 @@ class IRCompUnit(IRNode):
     fields: Dict[str, IRFieldDecl]
     functions: Dict[str, IRFuncDecl]
 
-    def __init__(self, name: str, fields: Dict[str, IRExpr], functions: Dict[str, IRFuncDecl] = {}):
+    def __init__(self, name: str, fields: Dict[str, IRFieldDecl], functions: Dict[str, IRFuncDecl] = {}):
         super().__init__(list(fields.values()) + list(functions.values()))
         self.name = name
         self.fields = fields

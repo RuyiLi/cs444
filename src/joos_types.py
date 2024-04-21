@@ -54,6 +54,12 @@ class PrimitiveType(SymbolType):
     def __eq__(self, other):
         return self.name == other
 
+    def __str__(self):
+        return f"PrimitiveType({self.name})"
+
+    def __repr__(self):
+        return f"PrimitiveType({self.name})"
+
 
 class ReferenceType(SymbolType):
     node_type = "reference_type"
@@ -63,6 +69,12 @@ class ReferenceType(SymbolType):
         self.name = type_decl.name
         self.referenced_type = type_decl
         self.static = static
+
+    def __str__(self):
+        return f"ReferenceType({self.name})"
+
+    def __repr__(self):
+        return f"ReferenceType({self.name})"
 
     def resolve_field(self, field_name: str, accessor: C.ClassInterfaceDecl) -> Optional[C.FieldDecl]:
         return self.referenced_type.resolve_field(field_name, accessor, self.static)

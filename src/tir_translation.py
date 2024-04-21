@@ -2,7 +2,7 @@ import logging
 from typing import List
 
 from context import Context, GlobalContext
-from helper import extract_name, get_child_tree, get_formal_params, get_nested_token, get_tree_token
+from helper import extract_name, get_child_tree, get_enclosing_type_decl, get_formal_params, get_nested_token, get_tree_token
 from lark import Token, Tree
 from tir import (
     IRBinExpr,
@@ -39,8 +39,8 @@ def get_id():
 def lower_comp_unit(context: Context, parent_context: GlobalContext):
     return IRCompUnit(
         context.parent_node.name,
-        dict([lower_field(f, parent_context) for f in list(context.tree.find_data("field_declaration"))]),
-        dict([lower_function(f, parent_context) for f in list(context.tree.find_data("method_declaration"))])
+        dict([lower_field(f, context) for f in list(context.tree.find_data("field_declaration"))]),
+        dict([lower_function(f, context) for f in list(context.tree.find_data("method_declaration"))])
     )
 
 
@@ -52,18 +52,26 @@ def lower_field(tree: Tree, context: Context):
 
     return (field_name, IRFieldDecl(field_name, lower_expression(rhs_tree.children[0], context)))
 
+local_vars = dict()
 
 def lower_function(tree: Tree, context: Context):
     method_name = get_nested_token(tree, "IDENTIFIER")
     formal_param_types, formal_param_names = get_formal_params(tree)
 
     if method_body := next(tree.find_data("method_body"), None):
+        local_vars.clear()
+        body = lower_statement(method_body.children[0], context)
+
+        # Add parameters to local var type dictionary
+        for i in range(len(formal_param_names)):
+            local_vars[formal_param_names[i]] = get_enclosing_type_decl(context).resolve_type(formal_param_types[i])
+
         return (
             method_name,
-            IRFuncDecl(method_name, lower_statement(method_body.children[0], context), formal_param_names),
+            IRFuncDecl(method_name, body, formal_param_names, local_vars.copy()),
         )
 
-    return (method_name, IRFuncDecl(method_name, IRStmt(), formal_param_names))
+    return (method_name, IRFuncDecl(method_name, IRStmt(), formal_param_names, dict()))
 
 
 def lower_token(token: Token):
@@ -185,7 +193,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             assert isinstance(lhs, IRESeq)
             assert isinstance(lhs.stmt, IRSeq)
 
-            lhs.stmt.stmts.append(IRMove(IRMem(lhs.expr), rhs))
+            lhs.stmt.stmts.append(IRMove(lhs.expr, rhs))
             return IRESeq(lhs.stmt, rhs)
 
         case "cast_expr":
@@ -307,7 +315,7 @@ def lower_c(expr: Tree | Token, context: Context, true_label: IRName, false_labe
 
             case "and_expr":
                 left, right = [expr.children[i] for i in [0, -1]]
-                label_id = get_id()
+                label_id = f"{get_id()}"
 
                 return IRSeq(
                     [
@@ -319,7 +327,7 @@ def lower_c(expr: Tree | Token, context: Context, true_label: IRName, false_labe
 
             case "or_expr":
                 left, right = [expr.children[i] for i in [0, -1]]
-                label_id = get_id()
+                label_id = f"{get_id()}"
 
                 return IRSeq(
                     [
@@ -349,6 +357,8 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
         case "local_var_declaration":
             expr = next(tree.find_data("var_initializer")).children[0]
             var_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
+
+            local_vars[var_name] = resolve_expression(expr, context)
 
             return IRMove(IRTemp(var_name), lower_expression(expr, context))
 

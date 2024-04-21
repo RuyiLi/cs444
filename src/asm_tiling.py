@@ -1,6 +1,6 @@
 import logging
 from functools import reduce
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, TYPE_CHECKING
 
 from tir import (
     IRBinExpr,
@@ -39,7 +39,7 @@ def tile_comp_unit(comp_unit: IRCompUnit):
     # Field initializers
     asm += [f"_{comp_unit.name}_init:"]
     for field in comp_unit.fields.values():
-        asm += tile_field(field, comp_unit)
+        asm += tile_field(field, comp_unit, None)
     asm += ["ret", ""]
 
     # Declared methods
@@ -65,18 +65,18 @@ def tile_comp_unit(comp_unit: IRCompUnit):
     return asm
 
 
-def tile_field(field: IRFieldDecl, comp_unit: IRCompUnit) -> List[str]:
+def tile_field(field: IRFieldDecl, comp_unit: IRCompUnit, func: IRFuncDecl) -> List[str]:
     stmt, expr = field.canonical
-    asm = tile_stmt(stmt, {}, comp_unit) if stmt.__str__() != "EMPTY" else []
+    asm = tile_stmt(stmt, {}, comp_unit, func) if stmt.__str__() != "EMPTY" else []
 
-    return asm + tile_stmt(IRMove(IRTemp(f"{comp_unit.name}.{field.name}"), expr), {}, comp_unit)
+    return asm + tile_stmt(IRMove(IRTemp(f"{comp_unit.name}.{field.name}"), expr), {}, comp_unit, func)
 
 
-def find_local_vars(node: IRNode) -> Set[str]:
+def find_temps(node: IRNode) -> Set[str]:
     local_vars = set()
 
     for child in node.children:
-        local_vars = local_vars.union(find_local_vars(child))
+        local_vars = local_vars.union(find_temps(child))
 
     if isinstance(node, IRTemp):
         return { node.name }
@@ -98,17 +98,17 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit) -> List[str]:
     asm += ["mov ebp, esp"]  # Update base pointer to start in this call frame
 
     # Parameters are behind the return address on the stack, so we make them -2
-    local_var_dict = dict([(param, -(i + 2)) for i, param in enumerate(func.params)])
-    local_var_dict["%RET"] = -100
+    temp_dict = dict([(param, -(i + 2)) for i, param in enumerate(func.params)])
+    temp_dict["%RET"] = -100
 
-    # Allocate space for local variables
-    local_vars = find_local_vars(func.body) - set(func.params) - { "%RET" }
-    asm += [f"add esp, {len(local_vars)*4}"]
+    # Allocate space for local temps
+    temps = find_temps(func.body) - set(func.params) - { "%RET" }
+    asm += [f"sub esp, {len(temps)*4}"]
 
-    for i, var in enumerate(local_vars):
-        local_var_dict[var] = i
+    for i, var in enumerate(temps):
+        temp_dict[var] = i
 
-    asm += tile_stmt(func.body, local_var_dict, comp_unit)
+    asm += tile_stmt(func.body, temp_dict, comp_unit, func)
 
     if func.name != "test":
         asm += ["mov esp, ebp", "pop ebp"]      # Restore stack and base pointers
@@ -124,7 +124,7 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit) -> List[str]:
     return reduce(lambda a, c: a + ([c] if c != "ret" else main_return), asm, [])
 
 
-def fmt_bp(index: int):
+def fmt_bp(index: int | None):
     if index is None:
         raise Exception("Attempted to format with None index!")
 
@@ -138,26 +138,26 @@ def fmt_bp(index: int):
     return f"[ebp-{4*index}]"
 
 
-def process_expr(expr: IRExpr, local_var_dict: Dict[str, int], comp_unit: IRCompUnit, reg="ecx") -> Tuple[str | int, List[str]]:
+def process_expr(expr: IRExpr, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl, reg="ecx") -> Tuple[str | int, List[str]]:
     if isinstance(expr, IRConst):
         return (expr.value, [])
 
-    return (reg, tile_expr(expr, reg, local_var_dict, comp_unit))
+    return (reg, tile_expr(expr, reg, temp_dict, comp_unit, func))
 
 
-def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int], comp_unit: IRCompUnit) -> List[str]:
+def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl) -> List[str]:
     log.info(f"tiling stmt {stmt}")
 
     match stmt:
         case IRCall(target=t, args=args):
             if t.name == "__malloc":
                 # malloc() allocates eax bytes and returns address in eax
-                return tile_expr(args[0], "eax", local_var_dict, comp_unit) + ["call __malloc"]
+                return tile_expr(args[0], "eax", temp_dict, comp_unit, func) + ["call __malloc"]
 
             asm = []
 
             for arg in args:
-                r, r_asm = process_expr(arg, local_var_dict, comp_unit)
+                r, r_asm = process_expr(arg, temp_dict, comp_unit, func)
                 asm += r_asm + [f"push {r}"]
 
             asm += [
@@ -177,7 +177,7 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int], comp_unit: IRCompUni
                     raise Exception(f"CJump with constant value {v} not 0 or 1!!")
 
                 case IRTemp(name=n):
-                    if (loc := local_var_dict.get(n, None)) is not None:
+                    if (loc := temp_dict.get(n, None)) is not None:
                         return [f"mov eax, {fmt_bp(loc)}", "cmp eax, 1", f"je {t.name}"]
                     raise Exception(f"CJump with unbound variable {n}")
 
@@ -185,9 +185,9 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int], comp_unit: IRCompUni
                     asm = []
                     assert isinstance(l, IRTemp)
 
-                    left = local_var_dict.get(l.name)
+                    left = temp_dict.get(l.name)
 
-                    right, r_asm = process_expr(r, local_var_dict, comp_unit)
+                    right, r_asm = process_expr(r, temp_dict, comp_unit, func)
                     asm += r_asm
 
                     match o:
@@ -220,15 +220,15 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int], comp_unit: IRCompUni
             return [f"{n}:"]
 
         case IRMove(target=t, source=s):
-            asm = tile_expr(s, "ecx", local_var_dict, comp_unit)
+            asm = tile_expr(s, "ecx", temp_dict, comp_unit, func)
 
             match t:
                 case IRTemp(name=n):
                     if "." in n:
                         parts = n.split(".")
 
-                        if (loc := local_var_dict.get(parts[0], None)) is not None:
-                            return asm + [f"mov {fmt_bp(local_var_dict.get(parts[0]))}, ecx"]
+                        if (loc := temp_dict.get(parts[0], None)) is not None:
+                            return asm + [f"mov {fmt_bp(temp_dict.get(parts[0]))}, ecx"]
                             # raise Exception(f"unimplemented field access of objects!")
 
                         # Must be a class name then
@@ -238,15 +238,14 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int], comp_unit: IRCompUni
                         index = list(comp_unit.fields.keys()).index(parts[-1])
                         return asm + [f"mov [_class_{comp_unit.name} + 4*{index}], ecx"]
 
-                    if (loc := local_var_dict.get(n, None)) is not None:
-                        log.info(f"VARIABLE {n} EXISTS AT {loc}")
+                    if (loc := temp_dict.get(n, None)) is not None:
                         return asm + [f"mov {fmt_bp(loc)}, ecx"]
 
-                    raise Exception(f"CREATING NEW VAR {n} AT LOC {local_var_dict[n]}")
+                    raise Exception(f"CREATING NEW VAR {n} AT LOC {temp_dict[n]}")
 
                 case IRMem(address=a):
                     assert isinstance(a, IRTemp)
-                    l, l_asm = process_expr(a, local_var_dict, comp_unit, "eax")
+                    l, l_asm = process_expr(a, temp_dict, comp_unit, func, "eax")
 
                     return l_asm + asm + [f"mov [{l}], ecx"]
 
@@ -255,13 +254,13 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int], comp_unit: IRCompUni
                 return []
 
             # Return always uses eax register
-            stmts = tile_expr(stmt.ret, "eax", local_var_dict, comp_unit)
+            stmts = tile_expr(stmt.ret, "eax", temp_dict, comp_unit, func)
             return stmts + ["mov esp, ebp", "pop ebp", "ret"]
 
         case IRSeq(stmts=ss):
             asm = []
             for s in ss:
-                tiled = tile_stmt(s, local_var_dict, comp_unit)
+                tiled = tile_stmt(s, temp_dict, comp_unit, func)
                 log.info(f"tiled to {tiled}")
                 asm += tiled
             return asm
@@ -272,7 +271,7 @@ def tile_stmt(stmt: IRStmt, local_var_dict: Dict[str, int], comp_unit: IRCompUni
     return []
 
 
-def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int], comp_unit: IRCompUnit) -> List[str]:
+def tile_expr(expr: IRExpr, output_reg: str, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl) -> List[str]:
     asm = []
     hold = ""
 
@@ -285,9 +284,9 @@ def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int], com
         case IRBinExpr(op_type=o, left=l, right=r):
             assert isinstance(l, IRTemp)
 
-            left = local_var_dict.get(l.name)
+            left = temp_dict.get(l.name)
 
-            right, r_asm = process_expr(r, local_var_dict, comp_unit)
+            right, r_asm = process_expr(r, temp_dict, comp_unit, func)
             asm += r_asm
 
             asm.append(f"mov eax, {fmt_bp(left)}")
@@ -339,23 +338,30 @@ def tile_expr(expr: IRExpr, output_reg: str, local_var_dict: Dict[str, int], com
             hold = "eax"
 
         case IRMem(address=a):
-            address_reg, address_asm = process_expr(a, local_var_dict, comp_unit)
+            address_reg, address_asm = process_expr(a, temp_dict, comp_unit, func)
             asm += address_asm + [f"mov {address_reg}, [{address_reg}]"]
             hold = address_reg
 
         case IRTemp(name=n):
             if "." not in expr.name:
-                if (loc := local_var_dict.get(n, None)) is not None:
+                if (loc := temp_dict.get(n, None)) is not None:
                     hold = fmt_bp(loc)
                 else:
-                    log.info(f"{local_var_dict.get(n, None)}")
-                    log.info(f"{local_var_dict}")
+                    log.info(f"{temp_dict.get(n, None)}")
+                    log.info(f"{temp_dict}")
                     raise Exception(f"couldn't find local var {n} in dict!")
             else:
                 parts = expr.name.split(".")
 
-                if (loc := local_var_dict.get(parts[0], None)) is not None:
-                    asm += [f"mov eax, {fmt_bp(local_var_dict.get(parts[0]))}"]
+                if (loc := temp_dict.get(parts[0], None)) is not None:
+                    asm += [f"mov eax, {fmt_bp(temp_dict.get(parts[0]))}"]
+
+                    var_type = func.local_vars.get(parts[0])
+
+                    # Accessing array.length
+                    if var_type.node_type == "array_type":
+                        asm += [f"mov eax, [eax - 4]"]
+
                     hold = "eax"
                     # raise Exception(f"unimplemented field access of objects!")
                 else:
