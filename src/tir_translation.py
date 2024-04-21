@@ -55,7 +55,8 @@ def lower_field(tree: Tree, context: Context):
 local_vars = dict()
 
 def lower_function(tree: Tree, context: Context):
-    method_name = get_nested_token(tree, "IDENTIFIER")
+    method_declarator = next(tree.find_data("method_declarator"))
+    method_name = get_nested_token(method_declarator, "IDENTIFIER")
     formal_param_types, formal_param_names = get_formal_params(tree)
     nested_context = context.child_map[method_name]
 
@@ -300,7 +301,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
 
         case _:
             log.info(f"{tree}")
-            raise Exception(f"! Lower for {tree.data} not implemented")
+            raise Exception(f"! Lower for {tree.data} not implemented {tree}")
 
 
 def lower_c(expr: Tree | Token, context: Context, true_label: IRName, false_label: IRName) -> IRStmt:
@@ -353,7 +354,8 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
             if len(tree.children) == 0:
                 return IRStmt()
 
-            return IRSeq([lower_statement(child, context) for child in tree.children])
+            nested_context = context.child_map.get(f"{hash(tree)}", context)
+            return IRSeq([lower_statement(child, nested_context) for child in tree.children])
 
         case "local_var_declaration":
             expr = next(tree.find_data("var_initializer")).children[0]
@@ -365,6 +367,7 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
 
         case "if_st" | "if_st_no_short_if":
             _if_kw, cond, true_block = tree.children
+            nested_context = context.child_map[f"{hash(tree)}"]
             label_id = get_id()
 
             true_label = f"_{label_id}_lt"
@@ -374,13 +377,14 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
                 [
                     lower_c(cond, context, IRName(true_label), IRName(false_label)),
                     IRLabel(true_label),
-                    lower_statement(true_block, context),
+                    lower_statement(true_block, nested_context),
                     IRLabel(false_label),
                 ]
             )
 
         case "if_else_st" | "if_else_st_no_short_if":
             _if_kw, cond, true_block, _else_kw, false_block = tree.children
+            nested_context = context.child_map[f"{hash(tree)}"]
             label_id = get_id()
 
             true_label = f"_{label_id}_lt"
@@ -390,14 +394,15 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
                 [
                     lower_c(cond, context, IRName(true_label), IRName(false_label)),
                     IRLabel(true_label),
-                    lower_statement(true_block, context),
+                    lower_statement(true_block, nested_context),
                     IRLabel(false_label),
-                    lower_statement(false_block, context),
+                    lower_statement(false_block, nested_context),
                 ]
             )
 
         case "while_st" | "while_st_no_short_if":
             _while_kw, cond, loop_body = tree.children
+            nested_context = context.child_map[f"{hash(tree)}"]
             label_id = get_id()
 
             # Check for constant condition?
@@ -411,7 +416,7 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
                     IRLabel(cond_label),
                     lower_c(cond, context, IRName(true_label), IRName(false_label)),
                     IRLabel(true_label),
-                    lower_statement(loop_body, context),
+                    lower_statement(loop_body, nested_context),
                     IRJump(IRName(cond_label)),
                     IRLabel(false_label),
                 ]
@@ -422,6 +427,7 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
                 get_child_tree(tree, name) for name in ["for_init", "expr", "for_update"]
             ]
             loop_body = tree.children[-1]
+            nested_context = context.child_map[f"{hash(tree)}"]
             label_id = get_id()
 
             # Check for constant condition?
@@ -432,12 +438,12 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
 
             return IRSeq(
                 [
-                    lower_statement(for_init, context),
+                    lower_statement(for_init, nested_context),
                     IRLabel(cond_label),
                     lower_c(for_cond, context, IRName(true_label), IRName(false_label)),
                     IRLabel(true_label),
-                    lower_statement(loop_body, context),
-                    IRExp(lower_expression(for_update, context)),
+                    lower_statement(loop_body, nested_context),
+                    IRExp(lower_expression(for_update, nested_context)),
                     IRJump(IRName(cond_label)),
                     IRLabel(false_label),
                 ]

@@ -156,6 +156,14 @@ def process_expr(expr: IRExpr, temp_dict: Dict[str, int], comp_unit: IRCompUnit,
 
     return (reg, tile_expr(expr, reg, temp_dict, comp_unit, func))
 
+bin_op_to_asm = {
+    "EQ": "je",
+    "LT": "jl",
+    "GT": "jg",
+    "LT_EQ": "jle",
+    "GT_EQ": "jge",
+    "NOT_EQ": "jne"
+}
 
 def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl) -> List[str]:
     # log.info(f"tiling stmt {stmt}")
@@ -202,13 +210,10 @@ def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, fu
                     right, r_asm = process_expr(r, temp_dict, comp_unit, func)
                     asm += r_asm
 
+                    if o in bin_op_to_asm.keys():
+                        return asm + [f"mov edx, {fmt_bp(left)}", f"cmp edx, {right}", f"{bin_op_to_asm[o]} {t.name}"]
+
                     match o:
-                        case "EQ":
-                            return asm + [f"mov edx, {fmt_bp(left)}", f"cmp edx, {right}", f"je {t.name}"]
-                        case "LT":
-                            return asm + [f"mov edx, {fmt_bp(left)}", f"cmp edx, {right}", f"jl {t.name}"]
-                        case "NOT_EQ":
-                            return asm + [f"mov edx, {fmt_bp(left)}", f"cmp edx, {right}", f"jne {t.name}"]
                         case "LOGICAL_AND":
                             return asm + [
                                 f"mov edx, {fmt_bp(left)}",
@@ -311,7 +316,13 @@ def tile_expr(expr: IRExpr, output_reg: str, temp_dict: Dict[str, int], comp_uni
                     asm.append(f"mov ebx, {right}")
                     right = "ebx"
 
+                label_id = id(expr)
+
                 asm += [
+                    f"cmp {right}, 0",
+                    f"jne _{label_id}_nonzero",
+                    "call __exception",
+                    f"_{label_id}_nonzero:",
                     "xor edx, edx",  # Clear out edx for division
                     f"div {right}",  # Quotient stored in eax, remainder stored in edx
                 ]

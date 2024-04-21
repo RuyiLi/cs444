@@ -185,6 +185,7 @@ def parse_node(tree: ParseTree, context: Context):
                 # Blocks inside blocks have the same parent node
                 nested_context = Context(context, context.parent_node, nested_block)
                 context.children.append(nested_context)
+                context.child_map[f"{hash(nested_block)}"] = nested_context
                 build_environment(nested_block, nested_context)
 
         case _:
