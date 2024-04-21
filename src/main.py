@@ -57,7 +57,7 @@ logging.basicConfig(
 )
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
 STDLIB_VERSION = 5.1
-ASSIGNMENT_NUMBER = int(str(STDLIB_VERSION).split('.')[0])
+ASSIGNMENT_NUMBER = int(str(STDLIB_VERSION).split(".")[0])
 
 stdlib_files = glob.glob(f"stdlib/{STDLIB_VERSION}/java/**/*.java")
 global_context_with_stdlib = GlobalContext()
@@ -201,7 +201,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
     if custom_test_names_set:
         missed_tests = custom_test_names_set.difference(seen_custom_test_names_set)
         for test_name in missed_tests:
-            log.info(
+            print(
                 f"Could not find test file or folder in assignment {assignment} with name {test_name}, skipping..."
             )
 
@@ -256,11 +256,11 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                 log.info(f"Warned: {[warning.message for warning in warning_list]}")
             failed_tests.append(str(test_files_list))
             # raise error
-    log.info("")
-    log.info("=" * 50)
-    log.info(f"Total passed: {passed}/{len(test_files_lists)}")
+    print("")
+    print("=" * 50)
+    print(f"Total passed: {passed}/{len(test_files_lists)}")
     if len(failed_tests) > 0:
-        log.info(f"Failed tests: {', '.join(failed_tests)}")
+        print(f"Failed tests: {', '.join(failed_tests)}")
 
 
 def load_custom_testcases(test_names: List[str]):
@@ -272,7 +272,7 @@ def load_custom_testcases(test_names: List[str]):
         try:
             f = open(f"./custom_testcases/{test_name}.java", "r")
         except FileNotFoundError:
-            log.info(f"Could not find test with name {test_name}.java, skipping...")
+            print(f"Could not find test with name {test_name}.java, skipping...")
         else:
             with warnings.catch_warnings(record=True) as w:
                 with f:
@@ -284,7 +284,7 @@ def load_custom_testcases(test_names: List[str]):
                         log.info(f"{res.pretty()}")
                         build_environment(res, global_context)
                     except Exception as e:
-                        log.info(f"Failed {test_name}:", e)
+                        print(f"Failed {test_name}:", e)
                         log.info(f"Traceback: {traceback.format_exc()}")
                         raise e
             warning_list.extend(w)
@@ -294,15 +294,15 @@ def load_custom_testcases(test_names: List[str]):
             static_check(global_context)
             assemble(global_context)
         except Exception as e:
-            log.info(f"Failed {test_name}:", e)
+            print(f"Failed {test_name}:", e)
             log.info(f"Traceback: {traceback.format_exc()}")
             raise e
     warning_list.extend(w)
 
     if warning_list:
-        log.info(f"Warned {test_name}: ", [warning.message for warning in warning_list])
+        print(f"Warned {test_name}: ", [warning.message for warning in warning_list])
     else:
-        log.info(f"Passed {test_name}")
+        print(f"Passed {test_name}")
 
 
 def load_path_testcases(paths: List[str]):
@@ -313,7 +313,7 @@ def load_path_testcases(paths: List[str]):
         try:
             f = open(path, "r")
         except FileNotFoundError:
-            log.info(f"Could not find test with name {path}, skipping...")
+            print(f"Could not find test with name {path}, skipping...")
         else:
             with warnings.catch_warnings(record=True) as w:
                 with f:
@@ -353,7 +353,7 @@ def load_parse_trees(paths: List[str]):
         try:
             f = open(path, "r")
         except FileNotFoundError:
-            log.info(f"Could not find test with name {path}, skipping...")
+            print(f"Could not find test with name {path}, skipping...")
         else:
             with f:
                 test_file_contents = f.read()
