@@ -49,7 +49,8 @@ def lower_field(tree: Tree, context: Context):
     field_name = get_nested_token(tree, "IDENTIFIER")
 
     rhs_tree = next(tree.find_data("var_initializer"), None)
-    assert rhs_tree is not None
+    if rhs_tree is None:
+        return (field_name, IRFieldDecl(field_name, IRConst('null')))
 
     return (field_name, IRFieldDecl(field_name, lower_expression(rhs_tree.children[0], context)))
 
@@ -99,6 +100,10 @@ def get_arguments(context: Context, tree: Tree) -> List[IRExpr]:
 def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
     if isinstance(tree, Token):
         return lower_token(tree)
+    
+    if not isinstance(tree, Tree):
+        # assume primitive python value
+        return IRConst(tree)
 
     match tree.data:
         case "expr":
