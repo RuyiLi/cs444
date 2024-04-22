@@ -1,6 +1,7 @@
 import glob
 import logging
 import os
+import subprocess
 import traceback
 import warnings
 from copy import deepcopy
@@ -141,13 +142,18 @@ def assemble(context: GlobalContext):
 
 
 ERROR = 42
+EXCEPTION = 13
 WARNING = 43
 SUCCESS = 0
+
+CORRECTLY_ASSEMBLED_OUTPUT = 123
 
 
 def get_result_string(result: int):
     if result == ERROR:
         return "error"
+    elif result == EXCEPTION:
+        return "exception"
     elif result == WARNING:
         return "warning"
     elif result == SUCCESS:
@@ -157,15 +163,24 @@ def get_result_string(result: int):
 
 
 def get_expected_result(path_name: str):
-    match path_name[:2]:
-        case "Je":
-            return ERROR
-        case "J1e":
-            return ERROR
-        case "Jw":
-            return WARNING
-        case _:
-            return SUCCESS
+    possible_results = {"Je": ERROR, "J1e": EXCEPTION, "Jw": WARNING}
+    for key, val in possible_results.items():
+        if path_name.startswith(key):
+            return val
+    return SUCCESS
+
+
+ASSEMBLE_SCRIPT_PATH = "assemble"
+
+def get_assembled_output():
+    try:
+        os.chdir("output")
+        result = subprocess.run(["bash", ASSEMBLE_SCRIPT_PATH], capture_output=True, check=True, text=True)
+        return int(result.stdout)
+    except subprocess.CalledProcessError:
+        raise Exception("Failed to assemble the code")
+    finally:
+        os.chdir("..")
 
 
 def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: List[str]):
@@ -229,7 +244,12 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                             log.info(f"{res.pretty()}")
                 static_check(global_context, quiet)
                 assemble(global_context)
-            if warning_list:
+                assembled_output = get_assembled_output()
+            if assembled_output == EXCEPTION:
+                actual_result = EXCEPTION
+            elif assembled_output != CORRECTLY_ASSEMBLED_OUTPUT:
+                actual_result = ERROR
+            elif warning_list:
                 actual_result = WARNING
             else:
                 actual_result = SUCCESS
@@ -240,6 +260,10 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
 
         if assignment != 4:
             if actual_result == WARNING:
+                actual_result = SUCCESS
+
+        if assignment != 5 and assignment != 6:
+            if actual_result == EXCEPTION:
                 actual_result = SUCCESS
 
         if actual_result == expected_result:
