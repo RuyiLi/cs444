@@ -1,4 +1,4 @@
-.PHONY: all clean zip unzip
+.PHONY: all clean zip unzip joosc
 
 define JOOSC_FILE_CONTENTS
 #!/bin/bash
@@ -51,7 +51,7 @@ export JOOSC_FILE_CONTENTS
 
 TEST_DIR := test
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
-CURR_ASSIGNMENT = a5
+CURR_ASSIGNMENT = a6
 all: joosc
 
 clean:
@@ -62,6 +62,7 @@ clean:
 	pip uninstall -r requirements.txt -y
 
 joosc:
+	rm -f joosc
 	pip install -r requirements.txt
 	echo "$$JOOSC_FILE_CONTENTS" > joosc
 	chmod +x joosc
