@@ -48,7 +48,7 @@ pre_dec_expr.1: "--" unary_expr     // prioritize over unary_neg
           | "(" expr ")" unary_expr_not_plus_minus
 
 ?mult_expr: unary_expr
-          | mult_expr (MUL | DIV | "%") unary_expr
+          | mult_expr (MUL | DIV | MODULO) unary_expr
 
 ?sub_expr: mult_expr
          | sub_expr "-" mult_expr

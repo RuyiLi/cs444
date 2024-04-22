@@ -111,7 +111,7 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit) -> List[str]:
     asm += ["mov ebp, esp"]  # Update base pointer to start in this call frame
 
     # Parameters are behind the return address on the stack, so we make them -2
-    temp_dict = dict([(param, -(i + 2)) for i, param in enumerate(func.params)])
+    temp_dict = dict([(param, -(i + 2)) for i, param in enumerate(reversed(func.params))])
     temp_dict["%RET"] = -100
 
     # Allocate space for local temps
@@ -335,6 +335,25 @@ def tile_expr(expr: IRExpr, output_reg: str, temp_dict: Dict[str, int], comp_uni
                     "call __exception",
                     f"_{label_id}_nonzero:",
                     f"idiv {right}",  # Quotient stored in eax, remainder stored in edx
+                ]
+
+            elif o == "MODULO":
+                # Zero-extend eax into edx for division
+                asm.append("cdq")
+
+                if isinstance(r, IRConst):
+                    asm.append(f"mov ebx, {right}")
+                    right = "ebx"
+
+                label_id = id(expr)
+
+                asm += [
+                    f"cmp {right}, 0",
+                    f"jne _{label_id}_nonzero",
+                    "call __exception",
+                    f"_{label_id}_nonzero:",
+                    f"idiv {right}",  # Quotient stored in eax, remainder stored in edx
+                    "mov eax, edx"
                 ]
 
             elif o in bin_op_to_short.keys():
