@@ -40,9 +40,9 @@ def tile_comp_unit(comp_unit: IRCompUnit):
     if len(comp_unit.fields.keys()) > 0:
         # Field initializers
         asm += [f"_{comp_unit.name}_init:", "push ebp", "mov ebp, esp"]
-        temps = reduce(
+        temps = sorted(reduce(
             lambda acc, field: acc.union(find_temps(field.canonical[0])), comp_unit.fields.values(), set()
-        )
+        ))
         temp_dict = dict([(temp, i) for i, temp in enumerate(temps)])
         asm += [f"sub esp, {len(temps)*4}"]
 
@@ -112,7 +112,7 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit) -> List[str]:
     temp_dict["%RET"] = -100
 
     # Allocate space for local temps
-    temps = find_temps(func.body) - set(func.params) - {"%RET"}
+    temps = sorted(find_temps(func.body) - set(func.params) - {"%RET"})
     print("TEMPS", temps)
     asm += [f"sub esp, {len(temps)*4}"]
 
@@ -278,9 +278,7 @@ def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, fu
 
                 case IRMem(address=a):
                     assert isinstance(a, IRTemp)
-                    l, l_asm = process_expr(a, temp_dict, comp_unit, func, "eax")
-
-                    return l_asm + asm + [f"mov [{l}], ecx"]
+                    return asm + tile_expr(a, "eax", temp_dict, comp_unit, func) + [f"mov [eax], ecx"]
 
         case IRReturn(ret=ret):
             if stmt.ret is None:

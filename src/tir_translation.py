@@ -140,43 +140,47 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             left, right = [tree.children[i] for i in [0, -1]]
             label_id = get_id()
 
+            save_temp = f"_{label_id}_save"
+
             return IRESeq(
                 IRSeq(
                     [
-                        IRMove(IRTemp("t"), IRConst(0)),
+                        IRMove(IRTemp(save_temp), IRConst(0)),
                         IRCJump(
                             lower_expression(left, context),
                             IRName(f"_{label_id}_lt"),
                             IRName(f"_{label_id}_lf"),
                         ),
                         IRLabel(f"_{label_id}_lt"),
-                        IRMove(IRTemp("t"), lower_expression(right, context)),
+                        IRMove(IRTemp(save_temp), lower_expression(right, context)),
                         IRLabel(f"_{label_id}_lf"),
                     ]
                 ),
-                IRTemp("t"),
+                IRTemp(save_temp),
             )
 
         case "or_expr":
             left, right = [tree.children[i] for i in [0, -1]]
             label_id = get_id()
 
+            save_temp = f"_{label_id}_save"
+
             return IRESeq(
                 IRSeq(
                     [
-                        IRMove(IRTemp("t"), IRConst(0)),
+                        IRMove(IRTemp(save_temp), IRConst(0)),
                         IRCJump(
                             lower_expression(left, context),
                             IRName(f"_{label_id}_lt"),
                             IRName(f"_{label_id}_lf"),
                         ),
                         IRLabel(f"_{label_id}_lt"),
-                        IRMove(IRTemp("t"), IRConst(1)),
+                        IRMove(IRTemp(save_temp), IRConst(1)),
                         IRLabel(f"_{label_id}_lf"),
-                        IRMove(IRTemp("t"), lower_expression(right, context)),
+                        IRMove(IRTemp(save_temp), lower_expression(right, context)),
                     ]
                 ),
-                IRTemp("t"),
+                IRTemp(save_temp),
             )
 
         case "expression_name":
@@ -230,23 +234,25 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             ref_array, index = tree.children
             label_id = get_id()
 
-            nonnull_label = f"_{get_id()}_lnnull"
+            nonnull_label = f"_{label_id}_lnnull"
+            ref_temp = f"_{label_id}_ref"
+            index_temp = f"_{label_id}_index"
 
             return IRESeq(
                 IRSeq(
                     [
-                        IRMove(IRTemp("a"), lower_expression(ref_array, context)),
-                        IRCJump(IRBinExpr("NOT_EQ", IRTemp("a"), IRConst(0)), IRName(nonnull_label), None),
+                        IRMove(IRTemp(ref_temp), lower_expression(ref_array, context)),
+                        IRCJump(IRBinExpr("NOT_EQ", IRTemp(ref_temp), IRConst(0)), IRName(nonnull_label), None),
                         IRJump(IRName(err_label)),
                         IRLabel(nonnull_label),
-                        IRMove(IRTemp("i"), lower_expression(index, context)),
+                        IRMove(IRTemp(index_temp), lower_expression(index, context)),
                         IRCJump(
                             IRBinExpr(
                                 "LOGICAL_OR",
                                 IRBinExpr(
-                                    "GT_EQ", IRTemp("i"), IRMem(IRBinExpr("SUB", IRTemp("a"), IRConst(4)))
+                                    "GT_EQ", IRTemp(index_temp), IRMem(IRBinExpr("SUB", IRTemp(ref_temp), IRConst(4)))
                                 ),
-                                IRBinExpr("LT", IRTemp("i"), IRConst(0)),
+                                IRBinExpr("LT", IRTemp(index_temp), IRConst(0)),
                             ),
                             IRName(err_label),
                             None,
@@ -257,8 +263,8 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                 IRMem(
                     IRBinExpr(
                         "ADD",
-                        IRTemp("a"),
-                        IRBinExpr("ADD", IRBinExpr("MUL", IRConst(4), IRTemp("i")), IRConst(4)),
+                        IRTemp(ref_temp),
+                        IRBinExpr("ADD", IRBinExpr("MUL", IRConst(4), IRTemp(index_temp)), IRConst(4)),
                     )
                 ),
             )
@@ -268,44 +274,48 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             label_id = get_id()
 
             nonneg_label = f"_{label_id}_lnneg"
+            size_temp = f"_{label_id}_size"
+            ref_temp = f"_{label_id}_ref"
 
             stmts: List[IRStmt] = [
-                IRMove(IRTemp("n"), lower_expression(size_expr, context)),
-                IRCJump(IRBinExpr("GT_EQ", IRTemp("n"), IRConst(0)), IRName(nonneg_label), None),
+                IRMove(IRTemp(size_temp), lower_expression(size_expr, context)),
+                IRCJump(IRBinExpr("GT_EQ", IRTemp(size_temp), IRConst(0)), IRName(nonneg_label), None),
                 IRJump(IRName(err_label)),
                 IRLabel(nonneg_label),
                 IRMove(
-                    IRTemp("m"),
+                    IRTemp(ref_temp),
                     IRCall(
                         IRName("__malloc"),
-                        [IRBinExpr("ADD", IRBinExpr("MUL", IRTemp("n"), IRConst(4)), IRConst(8))],
+                        [IRBinExpr("ADD", IRBinExpr("MUL", IRTemp(size_temp), IRConst(4)), IRConst(8))],
                     ),
                 ),
-                IRMove(IRMem(IRTemp("m")), IRTemp("n")),
+                IRMove(IRMem(IRTemp(ref_temp)), IRTemp(size_temp)),
             ]
 
             # Zero-initialize array
             cond_label = f"_{label_id}_cond"
             false_label = f"_{label_id}_lf"
+            index_temp = f"_{label_id}_index"
+            counter_temp = f"_{label_id}_counter"
 
             # Cursed manual for loop in TIR
             stmts.extend(
                 [
-                    IRMove(IRTemp("i"), IRConst(0)),
-                    IRMove(IRTemp("c"), IRBinExpr("ADD", IRTemp("m"), IRConst(4))),
+                    IRMove(IRTemp(index_temp), IRConst(0)),
+                    IRMove(IRTemp(counter_temp), IRBinExpr("ADD", IRTemp(ref_temp), IRConst(4))),
                     IRLabel(cond_label),
                     IRCJump(
-                        IRBinExpr("EQ", IRTemp("i"), IRTemp("n")), IRName(false_label), None
+                        IRBinExpr("EQ", IRTemp(index_temp), IRTemp(size_temp)), IRName(false_label), None
                     ),  # for (i = 0; i < n)
-                    IRMove(IRMem(IRTemp("c")), IRConst(0)),  # mem(c) = 0
-                    IRMove(IRTemp("c"), IRBinExpr("ADD", IRTemp("c"), IRConst(4))),  # c += 4
-                    IRMove(IRTemp("i"), IRBinExpr("ADD", IRTemp("i"), IRConst(1))),  # i++
+                    IRMove(IRMem(IRTemp(counter_temp)), IRConst(0)),  # mem(c) = 0
+                    IRMove(IRTemp(counter_temp), IRBinExpr("ADD", IRTemp(counter_temp), IRConst(4))),  # c += 4
+                    IRMove(IRTemp(index_temp), IRBinExpr("ADD", IRTemp(index_temp), IRConst(1))),  # i++
                     IRJump(IRName(cond_label)),
                     IRLabel(false_label),
                 ]
             )
 
-            return IRESeq(IRSeq(stmts), IRBinExpr("ADD", IRTemp("m"), IRConst(4)))
+            return IRESeq(IRSeq(stmts), IRBinExpr("ADD", IRTemp(ref_temp), IRConst(4)))
 
         case "char_l":
             return IRConst(tree.children[0].value)
@@ -328,7 +338,7 @@ def lower_c(expr: Tree | Token, context: Context, true_label: IRName, false_labe
 
             case "and_expr":
                 left, right = [expr.children[i] for i in [0, -1]]
-                label_id = f"{get_id()}"
+                label_id = f"_{get_id()}"
 
                 return IRSeq(
                     [
@@ -340,7 +350,7 @@ def lower_c(expr: Tree | Token, context: Context, true_label: IRName, false_labe
 
             case "or_expr":
                 left, right = [expr.children[i] for i in [0, -1]]
-                label_id = f"{get_id()}"
+                label_id = f"_{get_id()}"
 
                 return IRSeq(
                     [
