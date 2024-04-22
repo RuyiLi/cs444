@@ -168,16 +168,14 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             return IRESeq(
                 IRSeq(
                     [
-                        IRMove(IRTemp(save_temp), IRConst(0)),
+                        IRMove(IRTemp(save_temp), IRConst(1)),
                         IRCJump(
                             lower_expression(left, context),
                             IRName(f"_{label_id}_lt"),
-                            IRName(f"_{label_id}_lf"),
+                            None,
                         ),
-                        IRLabel(f"_{label_id}_lt"),
-                        IRMove(IRTemp(save_temp), IRConst(1)),
-                        IRLabel(f"_{label_id}_lf"),
                         IRMove(IRTemp(save_temp), lower_expression(right, context)),
+                        IRLabel(f"_{label_id}_lt"),
                     ]
                 ),
                 IRTemp(save_temp),
