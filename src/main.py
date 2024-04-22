@@ -1,6 +1,7 @@
 import glob
 import logging
 import os
+import subprocess
 import traceback
 import warnings
 from copy import deepcopy
@@ -169,6 +170,19 @@ def get_expected_result(path_name: str):
     return SUCCESS
 
 
+ASSEMBLE_SCRIPT_PATH = "assemble"
+
+def get_assembled_output():
+    try:
+        os.chdir("output")
+        result = subprocess.run(["bash", ASSEMBLE_SCRIPT_PATH], capture_output=True, check=True, text=True)
+        return int(result.stdout)
+    except subprocess.CalledProcessError:
+        raise Exception("Failed to assemble the code")
+    finally:
+        os.chdir("..")
+
+
 def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: List[str]):
     test_directory = os.path.join(os.getcwd(), f"assignment_testcases/a{assignment}")
     test_files_lists = []
@@ -230,7 +244,12 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                             log.info(f"{res.pretty()}")
                 static_check(global_context, quiet)
                 assemble(global_context)
-            if warning_list:
+                assembled_output = get_assembled_output()
+            if assembled_output == EXCEPTION:
+                actual_result = EXCEPTION
+            elif assembled_output != CORRECTLY_ASSEMBLED_OUTPUT:
+                actual_result = ERROR
+            elif warning_list:
                 actual_result = WARNING
             else:
                 actual_result = SUCCESS
