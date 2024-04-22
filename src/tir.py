@@ -23,6 +23,17 @@ class IRNode:
         return reduce(lambda a, c: visitor.bind(a, visitor.visit(self, c)), self.children, visitor.unit())
 
 
+class IRComment(IRNode):
+    comment: str
+
+    def __init__(self, comment: str):
+        super().__init__()
+        self.comment = comment
+
+    def __str__(self):
+        return f"COMMENT({self.comment})"
+
+
 class IRStmt(IRNode):
     def __str__(self) -> str:
         return "EMPTY"
@@ -306,7 +317,11 @@ class IRFuncDecl(IRNode):
 
     def visit_children(self, visitor):
         child_body = visitor.visit(self, self.body)
-        return IRFuncDecl(self.name, child_body, self.params, self.local_vars) if child_body != self.body else self
+        return (
+            IRFuncDecl(self.name, child_body, self.params, self.local_vars)
+            if child_body != self.body
+            else self
+        )
 
 
 class IRFieldDecl(IRNode):
@@ -359,8 +374,9 @@ class IRCompUnit(IRNode):
         child_fields = [visitor.visit(self, field) for _, field in self.fields]
         child_funcs = [visitor.visit(self, func) for _, func in self.functions]
 
-        if (any(field != child_fields[i] for i, field in enumerate(self.fields)) or
-            any(func != child_funcs[i] for i, func in enumerate(self.functions))):
+        if any(field != child_fields[i] for i, field in enumerate(self.fields)) or any(
+            func != child_funcs[i] for i, func in enumerate(self.functions)
+        ):
             return IRCompUnit(self.name, child_fields, child_funcs)
 
         return self

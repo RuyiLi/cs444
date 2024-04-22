@@ -17,6 +17,7 @@ from tir import (
     IRSeq,
     IRStmt,
     IRTemp,
+    IRComment,
 )
 from tir_translation import get_id
 
@@ -76,8 +77,8 @@ def canonicalize_statement(stmt: IRStmt) -> IRStmt:
         c_stmt, c_expr = canonicalize_expression(stmt.cond)
 
         return IRSeq(
-            [c_stmt, IRCJump(c_expr, stmt.true_label, None)] +
-            ([IRJump(stmt.false_label)] if stmt.false_label is not None else [])
+            [c_stmt, IRCJump(c_expr, stmt.true_label, None)]
+            + ([IRJump(stmt.false_label)] if stmt.false_label is not None else [])
         )
 
     if isinstance(stmt, IRExp):
@@ -105,6 +106,12 @@ def canonicalize_statement(stmt: IRStmt) -> IRStmt:
             return IRSeq(
                 [ct_stmt, IRMove(IRTemp(label), ct_expr), cs_stmt, IRMove(IRMem(IRTemp(label)), cs_expr)]
             )
+
+    if isinstance(stmt, IRStmt) and str(stmt) == "EMPTY":
+        return IRSeq([])
+
+    if isinstance(stmt, IRComment):
+        return stmt
 
     raise Exception(f"couldn't canonicalize stmt {stmt}")
 

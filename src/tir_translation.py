@@ -2,7 +2,14 @@ import logging
 from typing import List
 
 from context import Context, GlobalContext
-from helper import extract_name, get_child_tree, get_enclosing_type_decl, get_formal_params, get_nested_token, get_tree_token
+from helper import (
+    extract_name,
+    get_child_tree,
+    get_enclosing_type_decl,
+    get_formal_params,
+    get_nested_token,
+    get_tree_token,
+)
 from lark import Token, Tree
 from tir import (
     IRBinExpr,
@@ -24,6 +31,7 @@ from tir import (
     IRSeq,
     IRStmt,
     IRTemp,
+    IRComment,
 )
 from type_check import resolve_expression
 
@@ -32,16 +40,18 @@ log = logging.getLogger(__name__)
 global_id = 0
 err_label = "__err"
 
+
 def get_id():
     global global_id
     global_id += 1
     return global_id
 
+
 def lower_comp_unit(context: Context, parent_context: GlobalContext):
     return IRCompUnit(
         context.parent_node.name,
         dict([lower_field(f, context) for f in list(context.tree.find_data("field_declaration"))]),
-        dict([lower_function(f, context) for f in list(context.tree.find_data("method_declaration"))])
+        dict([lower_function(f, context) for f in list(context.tree.find_data("method_declaration"))]),
     )
 
 
@@ -50,11 +60,13 @@ def lower_field(tree: Tree, context: Context):
 
     rhs_tree = next(tree.find_data("var_initializer"), None)
     if rhs_tree is None:
-        return (field_name, IRFieldDecl(field_name, IRConst('null')))
+        return (field_name, IRFieldDecl(field_name, IRConst("null")))
 
     return (field_name, IRFieldDecl(field_name, lower_expression(rhs_tree.children[0], context)))
 
+
 local_vars = dict()
+
 
 def lower_function(tree: Tree, context: Context):
     method_declarator = next(tree.find_data("method_declarator"))
@@ -68,7 +80,9 @@ def lower_function(tree: Tree, context: Context):
 
         # Add parameters to local var type dictionary
         for i in range(len(formal_param_names)):
-            local_vars[formal_param_names[i]] = get_enclosing_type_decl(nested_context).resolve_type(formal_param_types[i])
+            local_vars[formal_param_names[i]] = get_enclosing_type_decl(nested_context).resolve_type(
+                formal_param_types[i]
+            )
 
         return (
             method_name,
@@ -100,7 +114,7 @@ def get_arguments(context: Context, tree: Tree) -> List[IRExpr]:
 def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
     if isinstance(tree, Token):
         return lower_token(tree)
-    
+
     if not isinstance(tree, Tree):
         # assume primitive python value
         return IRConst(tree)
@@ -222,9 +236,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                 IRSeq(
                     [
                         IRMove(IRTemp("a"), lower_expression(ref_array, context)),
-                        IRCJump(
-                            IRBinExpr("NOT_EQ", IRTemp("a"), IRConst(0)), IRName(nonnull_label), None
-                        ),
+                        IRCJump(IRBinExpr("NOT_EQ", IRTemp("a"), IRConst(0)), IRName(nonnull_label), None),
                         IRJump(IRName(err_label)),
                         IRLabel(nonnull_label),
                         IRMove(IRTemp("i"), lower_expression(index, context)),
@@ -236,8 +248,10 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                                 ),
                                 IRBinExpr("LT", IRTemp("i"), IRConst(0)),
                             ),
-                            IRName(err_label), None
-                        )
+                            IRName(err_label),
+                            None,
+                        ),
+                        IRComment("array access end"),
                     ]
                 ),
                 IRMem(
@@ -335,6 +349,9 @@ def lower_c(expr: Tree | Token, context: Context, true_label: IRName, false_labe
                         lower_c(right, context, true_label, false_label),
                     ]
                 )
+
+            case "expr":
+                return lower_c(expr.children[0], context, true_label, false_label)
 
     return IRCJump(lower_expression(expr, context), true_label, false_label)
 

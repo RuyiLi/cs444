@@ -21,6 +21,7 @@ from tir import (
     IRSeq,
     IRStmt,
     IRTemp,
+    IRComment,
 )
 
 log = logging.getLogger(__name__)
@@ -38,22 +39,16 @@ def tile_comp_unit(comp_unit: IRCompUnit):
 
     if len(comp_unit.fields.keys()) > 0:
         # Field initializers
-        asm += [
-            f"_{comp_unit.name}_init:",
-            "push ebp",
-            "mov ebp, esp"
-        ]
-        temps = reduce(lambda acc, field: acc.union(find_temps(field.canonical[0])), comp_unit.fields.values(), set())
+        asm += [f"_{comp_unit.name}_init:", "push ebp", "mov ebp, esp"]
+        temps = reduce(
+            lambda acc, field: acc.union(find_temps(field.canonical[0])), comp_unit.fields.values(), set()
+        )
         temp_dict = dict([(temp, i) for i, temp in enumerate(temps)])
         asm += [f"sub esp, {len(temps)*4}"]
 
         for field in comp_unit.fields.values():
             asm += tile_field(field, temp_dict, comp_unit, None)
-        asm += [
-            "mov esp, ebp",
-            "pop ebp",
-            "ret", ""
-        ]
+        asm += ["mov esp, ebp", "pop ebp", "ret", ""]
 
     # Declared methods
     for name, func in comp_unit.functions.items():
@@ -64,7 +59,7 @@ def tile_comp_unit(comp_unit: IRCompUnit):
 
         asm += func_asm
 
-     # Class vtable
+    # Class vtable
     asm += ["section .data", f"_class_{comp_unit.name}:"]
 
     for field in comp_unit.fields.keys():
@@ -78,7 +73,9 @@ def tile_comp_unit(comp_unit: IRCompUnit):
     return asm
 
 
-def tile_field(field: IRFieldDecl, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl) -> List[str]:
+def tile_field(
+    field: IRFieldDecl, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl
+) -> List[str]:
     stmt, expr = field.canonical
     asm = tile_stmt(stmt, temp_dict, comp_unit, func) if stmt.__str__() != "EMPTY" else []
 
@@ -92,7 +89,7 @@ def find_temps(node: IRNode) -> Set[str]:
         temps = temps.union(find_temps(child))
 
     if isinstance(node, IRTemp):
-        return { node.name }
+        return {node.name}
 
     return temps
 
@@ -115,7 +112,8 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit) -> List[str]:
     temp_dict["%RET"] = -100
 
     # Allocate space for local temps
-    temps = find_temps(func.body) - set(func.params) - { "%RET" }
+    temps = find_temps(func.body) - set(func.params) - {"%RET"}
+    print("TEMPS", temps)
     asm += [f"sub esp, {len(temps)*4}"]
 
     for i, var in enumerate(temps):
@@ -124,7 +122,7 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit) -> List[str]:
     asm += tile_stmt(func.body, temp_dict, comp_unit, func)
 
     if func.name != "test":
-        asm += ["mov esp, ebp", "pop ebp"]      # Restore stack and base pointers
+        asm += ["mov esp, ebp", "pop ebp", "ret"]  # Restore stack and base pointers
         return asm
 
     main_return = [
@@ -151,11 +149,14 @@ def fmt_bp(index: int | None):
     return f"[ebp-{4*index}]"
 
 
-def process_expr(expr: IRExpr, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl, reg="ecx") -> Tuple[str | int, List[str]]:
+def process_expr(
+    expr: IRExpr, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl, reg="ecx"
+) -> Tuple[str | int, List[str]]:
     if isinstance(expr, IRConst):
         return (expr.value, [])
 
     return (reg, tile_expr(expr, reg, temp_dict, comp_unit, func))
+
 
 bin_op_to_short = {
     "EQ": "e",
@@ -165,6 +166,7 @@ bin_op_to_short = {
     "GT_EQ": "ge",
     "NOT_EQ": "ne",
 }
+
 
 def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl) -> List[str]:
     # log.info(f"tiling stmt {stmt}")
@@ -182,7 +184,9 @@ def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, fu
                 asm += r_asm + [f"push {r}"]
 
             asm += [
-                f"call _{comp_unit.name}_{t.name.split('.')[-1]}" if t.name != "__exception" else f"call __exception",
+                f"call _{comp_unit.name}_{t.name.split('.')[-1]}"
+                if t.name != "__exception"
+                else f"call __exception",
                 f"add esp, {len(args)*4}",  # pop off arguments
             ]
             return asm
@@ -212,7 +216,11 @@ def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, fu
                     asm += r_asm
 
                     if o in bin_op_to_short.keys():
-                        return asm + [f"mov edx, {fmt_bp(left)}", f"cmp edx, {right}", f"j{bin_op_to_short[o]} {t.name}"]
+                        return asm + [
+                            f"mov edx, {fmt_bp(left)}",
+                            f"cmp edx, {right}",
+                            f"j{bin_op_to_short[o]} {t.name}",
+                        ]
 
                     match o:
                         case "LOGICAL_AND":
@@ -227,7 +235,7 @@ def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, fu
                                 f"mov edx, {fmt_bp(left)}",
                                 f"or edx, {right}",
                                 "cmp edx, 1",
-                                f"je {t.name}"
+                                f"je {t.name}",
                             ]
                         case "SUB":
                             return asm + [f"mov edx, {fmt_bp(left)}", f"sub edx, {right}", f"jle {t.name}"]
@@ -290,13 +298,18 @@ def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, fu
                 asm += tiled
             return asm
 
+        case IRComment(comment=c):
+            return [f"; {c}"]
+
         case x:
             raise Exception(f"Unknown tiling for statement {x}")
 
     return []
 
 
-def tile_expr(expr: IRExpr, output_reg: str, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl) -> List[str]:
+def tile_expr(
+    expr: IRExpr, output_reg: str, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl
+) -> List[str]:
     asm = []
     hold = ""
 
