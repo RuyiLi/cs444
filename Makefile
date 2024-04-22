@@ -5,17 +5,17 @@ define JOOSC_FILE_CONTENTS
 
 # Check if filename argument is provided
 if [ "$$#" -eq 0 ]; then
-    echo "Usage: $$0 <filename> [<filename> ...]"
-    exit 1
+	echo "Usage: $$0 <filename> [<filename> ...]"
+	exit 1
 fi
 
 # Loop through each filename provided
 for filename in "$$@"; do
-    # Check if the input file exists
-    if [ ! -f "$$filename" ]; then
-        echo "Error: File '$$filename' not found."
-        exit 1
-    fi
+	# Check if the input file exists
+	if [ ! -f "$$filename" ]; then
+		echo "Error: File '$$filename' not found."
+		exit 1
+	fi
 done
 
 # Call the Python script with all input filenames
@@ -23,21 +23,25 @@ python src/main.py -p "$$@"
 
 # Check the exit status of the Python script
 case $$? in
-    0)
-        echo "All input files are lexically and syntactically valid Joos 1W."
-        ;;
-    42)
-        echo "Error: One or more input files are not lexically or syntactically valid Joos 1W."
-        exit 42
-        ;;
-    43)
-        echo "Warning: One or more input files have warnings but are still lexically and syntactically valid Joos 1W."
-        exit 43
-        ;;
-    *)
-        echo "Error: Your compiler crashed while processing the input files."
-        exit 2
-        ;;
+	0)
+		echo "All input files are lexically and syntactically valid Joos 1W."
+		;;
+	13)
+		echo "Error: An exception occurred during compilation."
+		exit 13
+		;;
+	42)
+		echo "Error: One or more input files are not lexically or syntactically valid Joos 1W."
+		exit 42
+		;;
+	43)
+		echo "Warning: One or more input files have warnings but are still lexically and syntactically valid Joos 1W."
+		exit 43
+		;;
+	*)
+		echo "Error: Your compiler crashed while processing the input files."
+		exit 2
+		;;
 esac
 
 exit 0
