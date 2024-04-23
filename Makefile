@@ -47,7 +47,7 @@ done
 if [ "$$opt_none" = true ]; then
 	python src/main.py -o "opt-none" -p "$$@"
 else
-	python src/main.py -p "$$@"
+	python src/main.py -o "opt-reg-only" -p "$$@"
 fi
 
 # Check the exit status of the Python script

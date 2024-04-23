@@ -8,7 +8,7 @@ log = logging.getLogger(__name__)
 
 
 def register_allocation(comp_unit: IRCompUnit):
-    pass
+    return comp_unit
 
 def no_optimization(comp_unit: IRCompUnit):
     return comp_unit
