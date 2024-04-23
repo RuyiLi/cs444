@@ -3,10 +3,35 @@
 define JOOSC_FILE_CONTENTS
 #!/bin/bash
 
+# Define usage message
+usage() {
+	echo "Usage: $$0 [-h] [--opt-none] <filename> [<filename> ...]"
+	echo "Options:"
+	echo "  -h, --help   Show this help message and exit"
+	echo "  --opt-none   Disable optimizations including register allocation"
+	exit 1
+}
+
+# Parse command-line options
+while [ $$# -gt 0 ]; do
+	case "$$1" in
+		-h|--help)
+			usage
+			;;
+		--opt-none)
+			opt_none=true
+			shift
+			;;
+		*)
+			break
+			;;
+	esac
+done
+
 # Check if filename argument is provided
 if [ "$$#" -eq 0 ]; then
-	echo "Usage: $$0 <filename> [<filename> ...]"
-	exit 1
+	echo "Error: No input files provided."
+	usage
 fi
 
 # Loop through each filename provided
@@ -19,7 +44,11 @@ for filename in "$$@"; do
 done
 
 # Call the Python script with all input filenames
-python src/main.py -p "$$@"
+if [ "$$opt_none" = true ]; then
+	python src/main.py -o "opt-none" -p "$$@"
+else
+	python src/main.py -p "$$@"
+fi
 
 # Check the exit status of the Python script
 case $$? in
@@ -51,7 +80,7 @@ export JOOSC_FILE_CONTENTS
 
 TEST_DIR := test
 # !!!!!! THIS NEEDS TO BE CHANGED EVERY ASSIGNMENT !!!!!!
-CURR_ASSIGNMENT = a6
+CURR_ASSIGNMENT = a5
 all: joosc
 
 clean:
