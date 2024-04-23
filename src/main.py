@@ -13,6 +13,7 @@ from context import GlobalContext
 from hierarchy_check import hierarchy_check
 from lark import Lark, Tree, logger
 from name_disambiguation import disambiguate_names
+from optimizations import no_optimization, register_allocation
 from reachability import analyze_reachability
 from tir import IRExp, IRSeq
 from tir_canonical import canonicalize_expression, canonicalize_statement
@@ -106,7 +107,10 @@ def static_check(context: GlobalContext, quiet=False):
         raise e
 
 
-def assemble(context: GlobalContext):
+OPTIMIZATIONS_MAP = {"opt-reg-only": register_allocation, "opt-none": no_optimization}
+
+
+def assemble(context: GlobalContext, optimizations_set: set[str]):
     for i, child_context in enumerate(context.children):
         comp_unit = lower_comp_unit(child_context, context)
 
@@ -134,6 +138,12 @@ def assemble(context: GlobalContext):
 
             log.info(f"{canonical}")
 
+        for optimization in optimizations_set:
+            if optimization in OPTIMIZATIONS_MAP:
+                optimization_function = OPTIMIZATIONS_MAP[optimization]
+                comp_unit = optimization_function(comp_unit)
+            else:
+                print(f"Could not find optimization {optimization} in the OPTIMIZATIONS_MAP")
         asm = tile_comp_unit(comp_unit)
 
         f = open(f"output/test{i}.s", "w")
@@ -172,6 +182,7 @@ def get_expected_result(path_name: str):
 
 ASSEMBLE_SCRIPT_PATH = "assemble"
 
+
 def get_assembled_output():
     try:
         os.chdir("output")
@@ -183,10 +194,13 @@ def get_assembled_output():
         os.chdir("..")
 
 
-def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: List[str]):
+def load_assignment_testcases(
+    assignment: int, quiet: bool, custom_test_names: List[str], optimizations: List[str]
+):
     test_directory = os.path.join(os.getcwd(), f"assignment_testcases/a{assignment}")
     test_files_lists = []
-    custom_test_names_set = set(custom_test_names) if custom_test_names else None
+    custom_test_names_set = set(custom_test_names) if custom_test_names else set()
+    optimizations_set = set(optimizations) if optimizations else set()
     seen_custom_test_names_set = set()
 
     for entry in sorted(os.listdir(test_directory)):
@@ -230,6 +244,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
         error_traceback = None
         expected_result = get_expected_result(test_files_list[0])
         try:
+            assembled_output = CORRECTLY_ASSEMBLED_OUTPUT
             with warnings.catch_warnings(record=True) as warning_list:
                 global_context = deepcopy(global_context_with_stdlib)
                 for test_file in test_files_list:
@@ -243,7 +258,7 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
                         if not quiet:
                             log.info(f"{res.pretty()}")
                 static_check(global_context, quiet)
-                assemble(global_context)
+                assemble(global_context, optimizations_set)
                 assembled_output = get_assembled_output()
             if assembled_output == EXCEPTION:
                 actual_result = EXCEPTION
@@ -289,10 +304,10 @@ def load_assignment_testcases(assignment: int, quiet: bool, custom_test_names: L
         print(f"Failed tests: {', '.join(failed_tests)}")
 
 
-def load_custom_testcases(test_names: List[str]):
+def load_custom_testcases(test_names: List[str], optimizations: List[str]):
     global_context = deepcopy(global_context_with_stdlib)
     warning_list = []
-
+    optimizations_set = set(optimizations) if optimizations else set()
     for test_name in test_names:
         log.info(f"Testing {test_name}")
         try:
@@ -315,24 +330,32 @@ def load_custom_testcases(test_names: List[str]):
                         raise e
             warning_list.extend(w)
 
+    assembled_output = CORRECTLY_ASSEMBLED_OUTPUT
+
     with warnings.catch_warnings(record=True) as w:
         try:
             static_check(global_context)
-            assemble(global_context)
+            assemble(global_context, optimizations_set)
+            assembled_output = get_assembled_output()
         except Exception as e:
             print(f"Failed {test_name}:", e)
             log.info(f"Traceback: {traceback.format_exc()}")
             raise e
     warning_list.extend(w)
 
-    if warning_list:
+    if assembled_output == EXCEPTION:
+        print(f"Exceptioned {test_name}")
+    elif assembled_output != CORRECTLY_ASSEMBLED_OUTPUT:
+        print(f"Failed assembly {test_name}")
+    elif warning_list:
         print(f"Warned {test_name}: ", [warning.message for warning in warning_list])
     else:
         print(f"Passed {test_name}")
 
 
-def load_path_testcases(paths: List[str]):
+def load_path_testcases(paths: List[str], optimizations: List[str]):
     global_context = deepcopy(global_context_with_stdlib)
+    optimizations_set = set(optimizations) if optimizations else set()
     warning_list = []
 
     for path in paths:
@@ -358,7 +381,8 @@ def load_path_testcases(paths: List[str]):
     with warnings.catch_warnings(record=True) as w:
         try:
             static_check(global_context)
-            assemble(global_context)
+            assemble(global_context, optimizations_set)
+            assembled_output = get_assembled_output()
         except Exception as e:
             log.exception(e)
             log.exception(f"Traceback: {traceback.format_exc()}")
@@ -368,7 +392,11 @@ def load_path_testcases(paths: List[str]):
     for warning in warning_list:
         log.warning(warning)
 
-    if warning_list and ASSIGNMENT_NUMBER == 4:
+    if assembled_output == EXCEPTION:
+        exit(13)
+    elif assembled_output != CORRECTLY_ASSEMBLED_OUTPUT:
+        exit(42)
+    elif warning_list and ASSIGNMENT_NUMBER == 4:
         exit(43)
     else:
         exit(0)
@@ -417,17 +445,14 @@ if __name__ == "__main__":
     logger.setLevel(log_level)
     logging.root.setLevel(log_level)
 
-    if args.o is not None:
-        print("Optimizations specified:", args.o)
-
     if args.a is not None:
-        load_assignment_testcases(args.a, quiet=args.q, custom_test_names=args.t)
+        load_assignment_testcases(args.a, quiet=args.q, custom_test_names=args.t, optimizations=args.o)
 
     elif args.t is not None:
-        load_custom_testcases(args.t)
+        load_custom_testcases(args.t, optimizations=args.o)
 
     elif args.p is not None:
-        load_path_testcases(args.p)
+        load_path_testcases(args.p, optimizations=args.o)
 
     elif args.g is not None:
         load_parse_trees(args.g)
