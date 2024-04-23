@@ -11,6 +11,7 @@ from helper import (
     get_tree_token,
 )
 from lark import Token, Tree
+from joos_types import ArrayType, ReferenceType
 from tir import (
     IRBinExpr,
     IRCall,
@@ -185,8 +186,19 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             name = extract_name(tree)
             return IRTemp(name)  # if context.resolve(LocalVarDecl, name)
 
-        # case "field_access":
-        #     return lower_expression(tree.children[0], context)
+        case "field_access":
+            primary, identifier = tree.children
+
+            primary_expr = lower_expression(primary, context)
+            assert isinstance(primary_expr, IRESeq)
+
+            primary_type = resolve_expression(primary, context)
+            assert isinstance(primary_type, ReferenceType)
+
+            if isinstance(primary_type, ArrayType):
+                return IRESeq(primary_expr.stmt, IRMem(IRBinExpr("SUB", primary_expr.expr, IRConst(4))));
+
+            raise Exception(f"unimplemented field access on {primary}, {identifier}!")
 
         case "method_invocation":
             if isinstance(tree.children[0], Tree) and tree.children[0].data == "method_name":

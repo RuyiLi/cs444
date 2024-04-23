@@ -29,17 +29,19 @@ log = logging.getLogger(__name__)
 
 def tile_comp_unit(comp_unit: IRCompUnit):
     asm = ["extern __malloc", "extern __exception", "extern __debexit"]
+    init_label = f"_{comp_unit.name}_init"
+    data_label = f"_class_{comp_unit.name}"
 
     if any(func == "test" for func in comp_unit.functions.keys()):
         asm += ["global _start"]
     else:
-        asm += [f"global _{comp_unit.name}_init"]
+        asm += [f"global {init_label}", f"global {data_label}"]
 
     asm += ["", "__err:", "call __exception", ""]
 
     if len(comp_unit.fields.keys()) > 0:
         # Field initializers
-        asm += [f"_{comp_unit.name}_init:", "push ebp", "mov ebp, esp"]
+        asm += [f"{init_label}:", "push ebp", "mov ebp, esp"]
         temps = sorted(reduce(
             lambda acc, field: acc.union(find_temps(field.canonical[0])), comp_unit.fields.values(), set()
         ))
@@ -60,7 +62,7 @@ def tile_comp_unit(comp_unit: IRCompUnit):
         asm += func_asm
 
     # Class vtable
-    asm += ["section .data", f"_class_{comp_unit.name}:"]
+    asm += ["section .data", f"{data_label}:"]
 
     for field in comp_unit.fields.keys():
         asm += [f"dd 0"]
