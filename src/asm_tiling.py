@@ -1,11 +1,12 @@
 import logging
 from functools import reduce
-from typing import Dict, List, Set, Tuple, TYPE_CHECKING
+from typing import Dict, List, Set, Tuple
 
 from tir import (
     IRBinExpr,
     IRCall,
     IRCJump,
+    IRComment,
     IRCompUnit,
     IRConst,
     IRExpr,
@@ -21,7 +22,6 @@ from tir import (
     IRSeq,
     IRStmt,
     IRTemp,
-    IRComment,
 )
 
 log = logging.getLogger(__name__)
@@ -42,9 +42,11 @@ def tile_comp_unit(comp_unit: IRCompUnit):
     if len(comp_unit.fields.keys()) > 0:
         # Field initializers
         asm += [f"{init_label}:", "push ebp", "mov ebp, esp"]
-        temps = sorted(reduce(
-            lambda acc, field: acc.union(find_temps(field.canonical[0])), comp_unit.fields.values(), set()
-        ))
+        temps = sorted(
+            reduce(
+                lambda acc, field: acc.union(find_temps(field.canonical[0])), comp_unit.fields.values(), set()
+            )
+        )
         temp_dict = dict([(temp, i) for i, temp in enumerate(temps)])
         asm += [f"sub esp, {len(temps)*4}"]
 
@@ -188,7 +190,7 @@ def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, fu
             asm += [
                 f"call _{comp_unit.name}_{t.name.split('.')[-1]}"
                 if t.name != "__exception"
-                else f"call __exception",
+                else "call __exception",
                 f"add esp, {len(args)*4}",  # pop off arguments
             ]
             return asm
@@ -280,7 +282,7 @@ def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, fu
 
                 case IRMem(address=a):
                     assert isinstance(a, IRTemp)
-                    return asm + tile_expr(a, "eax", temp_dict, comp_unit, func) + [f"mov [eax], ecx"]
+                    return asm + tile_expr(a, "eax", temp_dict, comp_unit, func) + ["mov [eax], ecx"]
 
         case IRReturn(ret=ret):
             if stmt.ret is None:
@@ -312,8 +314,6 @@ def tile_expr(
 ) -> List[str]:
     asm = []
     hold = ""
-
-    # log.info(f"tiling expr {expr}")
 
     match expr:
         case IRConst(value=v):
@@ -366,7 +366,7 @@ def tile_expr(
                     "call __exception",
                     f"_{label_id}_nonzero:",
                     f"idiv {right}",  # Quotient stored in eax, remainder stored in edx
-                    "mov eax, edx"
+                    "mov eax, edx",
                 ]
 
             elif o in bin_op_to_short.keys():
@@ -407,7 +407,7 @@ def tile_expr(
 
                     # Accessing array.length
                     if var_type.node_type == "array_type":
-                        asm += [f"mov eax, [eax - 4]"]
+                        asm += ["mov eax, [eax - 4]"]
 
                     hold = "eax"
                     # raise Exception(f"unimplemented field access of objects!")
