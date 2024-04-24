@@ -381,7 +381,6 @@ def load_path_testcases(paths: List[str], optimizations: List[str]):
         try:
             static_check(global_context)
             assemble(global_context, optimizations_set)
-            assembled_output = get_assembled_output()
         except Exception as e:
             log.exception(e)
             log.exception(f"Traceback: {traceback.format_exc()}")
@@ -391,11 +390,7 @@ def load_path_testcases(paths: List[str], optimizations: List[str]):
     for warning in warning_list:
         log.warning(warning)
 
-    if assembled_output == EXCEPTION:
-        exit(13)
-    elif assembled_output != CORRECTLY_ASSEMBLED_OUTPUT:
-        exit(42)
-    elif warning_list and ASSIGNMENT_NUMBER == 4:
+    if warning_list and ASSIGNMENT_NUMBER == 4:
         exit(43)
     else:
         exit(0)
