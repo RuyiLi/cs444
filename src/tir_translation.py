@@ -201,10 +201,27 @@ def lower_ambiguous_name(
                         raise Exception(
                             f"couldn't find instance field {symbol.name} in {symbol_type.referenced_type.name}!"
                         )
+
+                    nonnull_label = f"_{get_id()}_lnnull"
                     return (
                         "expression_name",
                         symbol,
-                        IRMem(IRBinExpr("ADD", mem, IRBinExpr("MUL", IRConst(4), IRConst(index)))),
+                        IRESeq(
+                            IRSeq(
+                                [
+                                    IRComment("expr_name nullcheck"),
+                                    IRCJump(
+                                        IRBinExpr("NOT_EQ", mem, IRConst(0)),
+                                        IRName(nonnull_label),
+                                        None,
+                                    ),
+                                    IRJump(IRName(err_label)),
+                                    IRLabel(nonnull_label),
+                                    IRComment("expr_name nullcheck end"),
+                                ]
+                            ),
+                            IRMem(IRBinExpr("ADD", mem, IRBinExpr("MUL", IRConst(4), IRConst(index)))),
+                        ),
                     )
 
                 raise Exception(
