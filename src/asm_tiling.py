@@ -61,7 +61,7 @@ def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
     temp_dict = dict([(temp, i) for i, temp in enumerate(temps)])
 
     if len(temps) > 0:
-        asm += ["push ebp", "mov ebp, esp", f"sub esp, {len(temps)*4}"]
+        asm += ["push ebp", "mov ebp, esp", f"sub esp, {len(temps) * 4}"]
 
     instance_fields = []
 
@@ -176,7 +176,9 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit, context: Context) -> List
 
     # Allocate space for local temps
     temps = sorted(find_temps(func.body) - set(params) - {"%RET"})
-    asm += [f"sub esp, {len(temps)*4}"]
+    asm += [f"sub esp, {len(temps) * 4}"]
+
+    print(f"For function {comp_unit.name}.{func.name}, temps are {temps}")
 
     for i, var in enumerate(temps):
         temp_dict[var] = i
@@ -348,7 +350,7 @@ def tile_stmt(
             return [f"{n}:"]
 
         case IRMove(target=t, source=s):
-            asm = tile_expr(s, "ecx", temp_dict, comp_unit, func)
+            asm = [f"; begin move from {s} to {t}"] + tile_expr(s, "ecx", temp_dict, comp_unit, func)
 
             match t:
                 case IRTemp(name=n):
@@ -367,6 +369,22 @@ def tile_stmt(
                         return asm + [f"mov [_field_{comp_unit.name}_{parts[-1]} + 4*{index}], ecx"]
 
                     if (loc := temp_dict.get(n, None)) is not None:
+                        if n in func.actual_local_var_decls:
+                            return asm + [f"mov {fmt_bp(loc)}, ecx"]
+
+                        # implicit this
+                        # does not handle k = 9; int k = 3; case
+                        type_decl = context.resolve(ClassInterfaceDecl, comp_unit.name)
+                        if n in type_decl.all_instance_fields:
+                            index = type_decl.all_instance_fields.index(n)
+                            this_addr = temp_dict["%THIS"]
+                            return asm + [
+                                f"; begin implicit this for {n}",
+                                f"mov ebx, {fmt_bp(this_addr)}",
+                                f"mov [ebx+{index * 4 + 4}], ecx",
+                            ]
+
+                        # an actual intermediate result
                         return asm + [f"mov {fmt_bp(loc)}, ecx"]
 
                     raise Exception(f"var {n} doesn't exist in temp dict {temp_dict}!")
@@ -376,11 +394,11 @@ def tile_stmt(
                     return asm + tile_expr(a, "eax", temp_dict, comp_unit, func) + ["mov [eax], ecx"]
 
         case IRReturn(ret=ret):
-            if stmt.ret is None:
+            if ret is None:
                 return []
 
             # Return always uses eax register
-            stmts = tile_expr(stmt.ret, "eax", temp_dict, comp_unit, func)
+            stmts = tile_expr(ret, "eax", temp_dict, comp_unit, func)
             return stmts + ["mov esp, ebp", "pop ebp", "ret"]
 
         case IRSeq(stmts=ss):

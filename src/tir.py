@@ -323,6 +323,7 @@ class IRFuncDecl(IRNode):
     local_vars: Dict[str, SymbolType]
     formal_param_types: List[PrimitiveType | ReferenceType]
     is_constructor: bool
+    actual_local_var_decls: List[str]
 
     def __init__(
         self,
@@ -333,7 +334,8 @@ class IRFuncDecl(IRNode):
         params: List[str],
         local_vars: Dict[str, SymbolType],
         formal_param_types: List[PrimitiveType | ReferenceType],
-        is_constructor = False
+        is_constructor: bool = False,
+        actual_local_var_decls: List[str] = None,
     ):
         super().__init__([body])
         self.name = name
@@ -344,6 +346,9 @@ class IRFuncDecl(IRNode):
         self.local_vars = local_vars
         self.formal_param_types = formal_param_types
         self.is_constructor = is_constructor
+        self.actual_local_var_decls = actual_local_var_decls or []
+
+        self.actual_local_var_decls.extend(self.params)
 
     def __str__(self):
         return f"FuncDecl({self.name}, {self.body})"
@@ -359,7 +364,8 @@ class IRFuncDecl(IRNode):
                 self.params,
                 self.local_vars,
                 self.formal_param_types,
-                self.is_constructor
+                self.is_constructor,
+                self.actual_local_var_decls,
             )
             if child_body != self.body
             else self

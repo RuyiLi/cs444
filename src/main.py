@@ -116,27 +116,27 @@ def assemble(context: GlobalContext, optimizations_set: set[str]):
 
         # Lower functions into canonical form
         for k, v in comp_unit.functions.items():
-            log.info(f"old {v.body}")
+            log.debug(f"old {v.body}")
             canonical = canonicalize_statement(v.body)
 
             visitor = CanonicalVisitor()
             result = visitor.visit(None, canonical)
-            log.info(f"Canonical? {result}")
+            log.debug(f"Canonical? {result}")
 
             v.body = canonical
-            log.info(f"{canonical}")
+            log.debug(f"{canonical}")
 
         # Lower fields into canonical form
         for k, v in comp_unit.fields.items():
-            log.info(f"old {v}")
+            log.debug(f"old {v}")
             canonical = canonicalize_expression(v.expr)
             v.canonical = canonical
 
             visitor = CanonicalVisitor()
             result = visitor.visit(None, v)
-            log.info(f"Canonical? {result}")
+            log.debug(f"Canonical? {result}")
 
-            log.info(f"{canonical}")
+            log.debug(f"{canonical}")
 
         for optimization in optimizations_set:
             if optimization in OPTIMIZATIONS_MAP:

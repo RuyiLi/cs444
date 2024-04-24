@@ -66,7 +66,8 @@ def lower_comp_unit(context: Context, parent_context: GlobalContext):
 
     function_decls = [lower_function(f, context) for f in list(context.tree.find_data("method_declaration"))]
     constructor_decls = [
-        lower_constructor(f, dict(instance_field_decls), context) for f in list(context.tree.find_data("constructor_declaration"))
+        lower_constructor(f, dict(instance_field_decls), context)
+        for f in list(context.tree.find_data("constructor_declaration"))
     ]
     return IRCompUnit(context.parent_node.name, dict(field_decls), dict(function_decls + constructor_decls))
 
@@ -91,6 +92,16 @@ def lower_field(tree: Tree, context: Context):
 local_vars = dict()
 
 
+def extract_actual_local_vars(tree: Tree):
+    # this will not handle the local var declared after case
+    local_var_decls = list(tree.find_data("local_var_declaration"))
+    actual_local_vars = []
+    for local_var_decl in local_var_decls:
+        declarator_id = get_tree_token(local_var_decl, "var_declarator_id", "IDENTIFIER")
+        actual_local_vars.append(declarator_id)
+    return actual_local_vars
+
+
 def lower_function(tree: Tree, context: Context):
     method_declarator = next(tree.find_data("method_declarator"))
     method_name = get_nested_token(method_declarator, "IDENTIFIER")
@@ -112,6 +123,8 @@ def lower_function(tree: Tree, context: Context):
         local_vars.clear()
         body = lower_statement(method_body.children[0], nested_context)
 
+        actual_local_vars = extract_actual_local_vars(method_body)
+
         # Add parameters to local var type dictionary
         for i in range(len(formal_param_names)):
             local_vars[formal_param_names[i]] = formal_param_types[i]
@@ -126,13 +139,23 @@ def lower_function(tree: Tree, context: Context):
                 formal_param_names,
                 local_vars.copy(),
                 formal_param_types,
+                False,
+                actual_local_vars,
             ),
         )
 
     return (
         method_sig,
         IRFuncDecl(
-            method_name, modifiers, return_type, IRStmt(), formal_param_names, dict(), formal_param_types
+            method_name,
+            modifiers,
+            return_type,
+            IRStmt(),
+            formal_param_names,
+            dict(),
+            formal_param_types,
+            False,
+            [],
         ),
     )
 
@@ -153,19 +176,29 @@ def lower_constructor(tree: Tree, instance_fields: Dict[str, IRFieldDecl], conte
     body_block = next(tree.find_data("block"), None)
     if body_block is None or len(body_block.children) == 0:
         body = IRStmt()
+        actual_local_vars = []
     else:
         local_vars.clear()
         body = lower_statement(body_block.children[0], nested_context)
+        actual_local_vars = extract_actual_local_vars(body_block)
         for i in range(len(formal_param_names)):
             local_vars[formal_param_names[i]] = formal_param_types[i]
 
     field_inits = []
     for field_name, field in instance_fields.items():
+        # Increase offset by 4 to account for vtable
         index = class_decl.all_instance_fields.index(field_name)
-        # Increase index by 1 to account for vtable
-        field_inits.append(IRMove(IRMem(IRBinExpr("ADD", IRTemp(f"%THIS"), IRConst(4*(index + 1)))), field.expr))
+        offset = 4 * index + 4
+        field_inits.extend(
+            [
+                IRComment(f"field init {field_name} {offset}"),
+                IRMove(IRMem(IRBinExpr("ADD", IRTemp("%THIS"), IRConst(offset))), field.expr),
+            ]
+        )
 
-    body = IRSeq(field_inits + [body])
+    body = IRSeq(field_inits + [IRComment("body start"), body])
+
+    print("bruh", type_decl.name, signature, body)
 
     # TODO call super constructor?
     return (
@@ -178,7 +211,8 @@ def lower_constructor(tree: Tree, instance_fields: Dict[str, IRFieldDecl], conte
             formal_param_names,
             local_vars.copy(),
             formal_param_types,
-            True
+            True,
+            actual_local_vars,
         ),
     )
 
@@ -575,6 +609,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             label_id = get_id()
             ref_temp = f"_{label_id}_ref"
             stmts: List[IRStmt] = [
+                IRComment(f"class_instance_creation {class_decl.name} {size}"),
                 IRMove(
                     IRTemp(ref_temp),
                     IRCall(IRName("__malloc"), [IRConst(size)]),
@@ -582,7 +617,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             ]
 
             args.insert(0, IRTemp(ref_temp))
-            arg_types.insert(0, class_decl.name)
+            # arg_types.insert(0, class_decl.name)
 
             return IRESeq(
                 IRSeq(stmts),
