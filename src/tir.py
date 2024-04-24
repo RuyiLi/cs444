@@ -6,6 +6,8 @@ from typing import Dict, List, Literal, Tuple, TypeVar, TYPE_CHECKING
 if TYPE_CHECKING:
     from joos_types import SymbolType
 
+from context import ReferenceType, PrimitiveType
+
 T = TypeVar("T")
 
 
@@ -21,6 +23,9 @@ class IRNode:
 
     def aggregate_children(self, visitor):
         return reduce(lambda a, c: visitor.bind(a, visitor.visit(self, c)), self.children, visitor.unit())
+
+    def __repr__(self):
+        return str(self)
 
 
 class IRStmt(IRNode):
@@ -112,15 +117,18 @@ class IRMem(IRExpr):
 class IRCall(IRExpr):
     target: IRExpr
     args: List[IRExpr]
+    arg_types: List[str]
 
-    def __init__(self, target: IRExpr, args: List[IRExpr] = None):
-        args = args if args is not None else []
+    def __init__(self, target: IRExpr, args: List[IRExpr] = None, arg_types: List[str] = None):
+        args = args or []
+        arg_types = arg_types or []
         super().__init__([target] + args)
         self.target = target
         self.args = args
+        self.arg_types = arg_types
 
     def __str__(self):
-        return f"CALL(target={self.target}, args=[{','.join(arg.__str__() for arg in self.args)}])"
+        return f"CALL(target={self.target}, args=[{','.join(map(str, self.args))}], arg_types=[{','.join(self.arg_types)}])"
 
     def visit_children(self, visitor):
         target_expr = visitor.visit(self, self.target)
@@ -307,6 +315,7 @@ class IRFuncDecl(IRNode):
     body: IRStmt
     params: List[str]
     local_vars: Dict[str, SymbolType]
+    formal_param_types: List[PrimitiveType | ReferenceType]
 
     def __init__(
         self,
@@ -316,6 +325,7 @@ class IRFuncDecl(IRNode):
         body: IRStmt,
         params: List[str],
         local_vars: Dict[str, SymbolType],
+        formal_param_types: List[PrimitiveType | ReferenceType],
     ):
         super().__init__([body])
         self.name = name
@@ -324,6 +334,7 @@ class IRFuncDecl(IRNode):
         self.body = body
         self.params = params
         self.local_vars = local_vars
+        self.formal_param_types = formal_param_types
 
     def __str__(self):
         return f"FuncDecl({self.name}, {self.body})"
@@ -331,7 +342,15 @@ class IRFuncDecl(IRNode):
     def visit_children(self, visitor):
         child_body = visitor.visit(self, self.body)
         return (
-            IRFuncDecl(self.name, self.modifiers, self.return_type, child_body, self.params, self.local_vars)
+            IRFuncDecl(
+                self.name,
+                self.modifiers,
+                self.return_type,
+                child_body,
+                self.params,
+                self.local_vars,
+                self.formal_param_types,
+            )
             if child_body != self.body
             else self
         )

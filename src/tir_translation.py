@@ -39,7 +39,7 @@ from tir import (
     IRTemp,
     IRComment,
 )
-from type_check import resolve_expression
+from type_check import resolve_expression, get_argument_types
 
 log = logging.getLogger(__name__)
 
@@ -72,7 +72,10 @@ def lower_field(tree: Tree, context: Context):
 
     static_context = copy.copy(context)
     static_context.is_static = "static" in modifiers
-    return (field_name, IRFieldDecl(field_name, modifiers, field_type, lower_expression(rhs_tree.children[0], context)))
+    return (
+        field_name,
+        IRFieldDecl(field_name, modifiers, field_type, lower_expression(rhs_tree.children[0], context)),
+    )
 
 
 local_vars = dict()
@@ -88,22 +91,38 @@ def lower_function(tree: Tree, context: Context):
     formal_param_types, formal_param_names = get_formal_params(tree)
     nested_context = context.child_map[method_name]
 
+    type_decl = get_enclosing_type_decl(context)
+    formal_param_types = [type_decl.resolve_type(t) for t in formal_param_types]
+
+    method_sig = method_name + "^" + ",".join(p.name for p in formal_param_types)
+
     if method_body := next(tree.find_data("method_body"), None):
         local_vars.clear()
         body = lower_statement(method_body.children[0], nested_context)
 
         # Add parameters to local var type dictionary
         for i in range(len(formal_param_names)):
-            local_vars[formal_param_names[i]] = get_enclosing_type_decl(nested_context).resolve_type(
-                formal_param_types[i]
-            )
+            local_vars[formal_param_names[i]] = formal_param_types[i]
 
         return (
-            method_name,
-            IRFuncDecl(method_name, modifiers, return_type, body, formal_param_names, local_vars.copy()),
+            method_sig,
+            IRFuncDecl(
+                method_name,
+                modifiers,
+                return_type,
+                body,
+                formal_param_names,
+                local_vars.copy(),
+                formal_param_types,
+            ),
         )
 
-    return (method_name, IRFuncDecl(method_name, modifiers, return_type, IRStmt(), formal_param_names, dict()))
+    return (
+        method_sig,
+        IRFuncDecl(
+            method_name, modifiers, return_type, IRStmt(), formal_param_names, dict(), formal_param_types
+        ),
+    )
 
 
 def lower_token(token: Token):
@@ -125,15 +144,18 @@ def get_arguments(context: Context, tree: Tree) -> List[IRExpr]:
     return []
 
 
-def lower_ambiguous_name(context, ids, arg_types = []) -> (
+def lower_ambiguous_name(
+    context, ids, arg_types=None
+) -> (
     tuple[Literal["package_name"], None, IRExpr]
     | tuple[Literal["type_name"], ClassInterfaceDecl, IRExpr]
     | tuple[Literal["expression_name"], LocalVarDecl | FieldDecl | MethodDecl, IRExpr]
 ):
+    arg_types = arg_types or []
     last_id = ids[-1]
     enclosing_type_decl = get_enclosing_type_decl(context)
 
-    if len(ids) == 1:   # Do we need to check ?
+    if len(ids) == 1:  # Do we need to check ?
         symbol = context.resolve(LocalVarDecl, last_id) or context.resolve(FieldDecl, last_id)
         if symbol is not None:
             return ("expression_name", symbol, IRTemp(symbol.name))
@@ -154,7 +176,11 @@ def lower_ambiguous_name(context, ids, arg_types = []) -> (
 
             case ("type_name", pre_symbol, _):
                 if symbol := pre_symbol.resolve_field(last_id, enclosing_type_decl, True):
-                    return ("expression_name", symbol, IRMem(IRName(f"_field_{pre_symbol.name}_{symbol.name}")))
+                    return (
+                        "expression_name",
+                        symbol,
+                        IRMem(IRName(f"_field_{pre_symbol.name}_{symbol.name}")),
+                    )
 
                 raise Exception(f"'{last_id}' is not the name of a field in type '{pre_name}'.")
 
@@ -172,8 +198,14 @@ def lower_ambiguous_name(context, ids, arg_types = []) -> (
                         index = symbol_type.referenced_type.instance_fields.get(symbol)
 
                     if index is None:
-                        raise Exception(f"couldn't find instance field {symbol.name} in {symbol_type.referenced_type.name}!")
-                    return ("expression_name", symbol, IRMem(IRBinExpr("ADD", mem, IRBinExpr("MUL", IRConst(4), IRConst(index)))))
+                        raise Exception(
+                            f"couldn't find instance field {symbol.name} in {symbol_type.referenced_type.name}!"
+                        )
+                    return (
+                        "expression_name",
+                        symbol,
+                        IRMem(IRBinExpr("ADD", mem, IRBinExpr("MUL", IRConst(4), IRConst(index)))),
+                    )
 
                 raise Exception(
                     f"'{last_id}' is not the name of a field or method in expression '{pre_name}' of type '{symbol_type}'."
@@ -194,7 +226,8 @@ def resolve_bare_refname(name: str, context: Context):
         return symbol
 
 
-def lower_name(name: str, context: Context, arg_types=[]) -> IRExpr:
+def lower_name(name: str, context: Context, arg_types=None) -> IRExpr:
+    arg_types = arg_types or []
     refs = name.split(".")
 
     if len(refs) == 1:
@@ -281,7 +314,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
 
         case "expression_name":
             name = extract_name(tree)
-            return lower_name(name, context) # IRTemp(name)  # if context.resolve(LocalVarDecl, name)
+            return lower_name(name, context)  # IRTemp(name)  # if context.resolve(LocalVarDecl, name)
 
         case "field_access":
             primary, identifier = tree.children
@@ -293,21 +326,25 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             assert isinstance(primary_type, ReferenceType)
 
             if isinstance(primary_type, ArrayType):
-                return IRESeq(primary_expr.stmt, IRMem(IRBinExpr("SUB", primary_expr.expr, IRConst(4))));
+                return IRESeq(primary_expr.stmt, IRMem(IRBinExpr("SUB", primary_expr.expr, IRConst(4))))
 
             raise Exception(f"unimplemented field access on {primary}, {identifier}!")
 
         case "method_invocation":
+            # i think if we want to resolve to a methoddecl here?? idk what irname does
+            arg_types = get_argument_types(context, tree)
             if isinstance(tree.children[0], Tree) and tree.children[0].data == "method_name":
                 args = get_arguments(context, tree)
-
-                return IRCall(IRName(extract_name(tree.children[0])), args)
+                name = extract_name(tree.children[0])
+                return IRCall(IRName(name), args, arg_types)
 
             # lhs is expression
             args = get_arguments(context, tree if len(tree.children) == 2 else tree.children[-1])
             expr_type = resolve_expression(tree.children[0], context)
 
-            return IRCall(IRName(f"java.lang.{expr_type.name.capitalize()}.{extract_name(tree)}"), args)
+            return IRCall(
+                IRName(f"java.lang.{expr_type.name.capitalize()}.{extract_name(tree)}"), args, arg_types
+            )
 
         case "unary_negative_expr":
             return IRBinExpr("MUL", IRConst(-1), lower_expression(tree.children[0], context))
@@ -349,7 +386,9 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                 IRSeq(
                     [
                         IRMove(IRTemp(ref_temp), lower_expression(ref_array, context)),
-                        IRCJump(IRBinExpr("NOT_EQ", IRTemp(ref_temp), IRConst(0)), IRName(nonnull_label), None),
+                        IRCJump(
+                            IRBinExpr("NOT_EQ", IRTemp(ref_temp), IRConst(0)), IRName(nonnull_label), None
+                        ),
                         IRJump(IRName(err_label)),
                         IRLabel(nonnull_label),
                         IRMove(IRTemp(index_temp), lower_expression(index, context)),
@@ -357,7 +396,9 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                             IRBinExpr(
                                 "LOGICAL_OR",
                                 IRBinExpr(
-                                    "GT_EQ", IRTemp(index_temp), IRMem(IRBinExpr("SUB", IRTemp(ref_temp), IRConst(4)))
+                                    "GT_EQ",
+                                    IRTemp(index_temp),
+                                    IRMem(IRBinExpr("SUB", IRTemp(ref_temp), IRConst(4))),
                                 ),
                                 IRBinExpr("LT", IRTemp(index_temp), IRConst(0)),
                             ),
@@ -415,7 +456,9 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                         IRBinExpr("EQ", IRTemp(index_temp), IRTemp(size_temp)), IRName(false_label), None
                     ),  # for (i = 0; i < n)
                     IRMove(IRMem(IRTemp(counter_temp)), IRConst(0)),  # mem(c) = 0
-                    IRMove(IRTemp(counter_temp), IRBinExpr("ADD", IRTemp(counter_temp), IRConst(4))),  # c += 4
+                    IRMove(
+                        IRTemp(counter_temp), IRBinExpr("ADD", IRTemp(counter_temp), IRConst(4))
+                    ),  # c += 4
                     IRMove(IRTemp(index_temp), IRBinExpr("ADD", IRTemp(index_temp), IRConst(1))),  # i++
                     IRJump(IRName(cond_label)),
                     IRLabel(false_label),

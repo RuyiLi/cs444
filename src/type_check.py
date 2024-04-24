@@ -566,7 +566,6 @@ def resolve_expression(
                         arg_types=get_argument_types(context, tree, meta),
                         field=field,
                     )
-
                     if isinstance(ref_type, MethodDecl):
                         return ref_type.return_symbol
                     else:
