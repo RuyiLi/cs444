@@ -13,8 +13,8 @@ class IRNode:
     label: str
     children: List[IRNode]
 
-    def __init__(self, children=[]):
-        self.children = children
+    def __init__(self, children=None):
+        self.children = children if children is not None else []
 
     def visit_children(self, visitor):
         return self
@@ -113,7 +113,8 @@ class IRCall(IRExpr):
     target: IRExpr
     args: List[IRExpr]
 
-    def __init__(self, target: IRExpr, args: List[IRExpr] = []):
+    def __init__(self, target: IRExpr, args: List[IRExpr] = None):
+        args = args if args is not None else []
         super().__init__([target] + args)
         self.target = target
         self.args = args
@@ -307,7 +308,15 @@ class IRFuncDecl(IRNode):
     params: List[str]
     local_vars: Dict[str, SymbolType]
 
-    def __init__(self, name: str, modifiers: List[str], return_type: SymbolType, body: IRStmt, params: List[str], local_vars: Dict[str, SymbolType]):
+    def __init__(
+        self,
+        name: str,
+        modifiers: List[str],
+        return_type: SymbolType,
+        body: IRStmt,
+        params: List[str],
+        local_vars: Dict[str, SymbolType],
+    ):
         super().__init__([body])
         self.name = name
         self.modifiers = modifiers
@@ -335,7 +344,14 @@ class IRFieldDecl(IRNode):
     expr: IRExpr
     canonical: Tuple[IRStmt, IRExpr] | None
 
-    def __init__(self, name: str, modifiers: List[str], field_type: SymbolType, expr: IRExpr, canonical: Tuple[IRStmt, IRExpr] | None = None):
+    def __init__(
+        self,
+        name: str,
+        modifiers: List[str],
+        field_type: SymbolType,
+        expr: IRExpr,
+        canonical: Tuple[IRStmt, IRExpr] | None = None,
+    ):
         super().__init__(list(canonical) if canonical is not None else [expr])
         self.name = name
         self.modifiers = modifiers
@@ -353,11 +369,17 @@ class IRFieldDecl(IRNode):
             child_expr = visitor.visit(self, expr)
 
             if child_stmt != stmt or child_expr != expr:
-                return IRFieldDecl(self.name, self.modifiers, self.field_type, self.expr, (child_stmt, child_expr))
+                return IRFieldDecl(
+                    self.name, self.modifiers, self.field_type, self.expr, (child_stmt, child_expr)
+                )
             return self
 
         child_expr = visitor.visit(self, self.expr)
-        return IRFieldDecl(self.name, self.modifiers, self.field_type, child_expr, None) if child_expr != self.expr else self
+        return (
+            IRFieldDecl(self.name, self.modifiers, self.field_type, child_expr, None)
+            if child_expr != self.expr
+            else self
+        )
 
     def aggregate_children(self, visitor):
         children = self.canonical if self.canonical is not None else [self.expr]
