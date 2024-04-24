@@ -328,7 +328,7 @@ def lower_ambiguous_name(
                 if isinstance(symbol_type, ReferenceType) and (
                     symbol := symbol_type.resolve_method(last_id, arg_types, enclosing_type_decl)
                 ):
-                    index = symbol_type.referenced_type.all_instance_methods.index(symbol.signature())
+                    index = symbol_type.referenced_type.all_instance_methods.index(symbol.signature()) + 1
                     return (
                         "expression_name",
                         symbol,
@@ -355,7 +355,7 @@ def lower_ambiguous_name(
                     if isinstance(symbol_type, ArrayType) and last_id == "length":
                         index = -1
                     else:
-                        index = symbol_type.referenced_type.all_instance_fields.index(symbol.name)
+                        index = symbol_type.referenced_type.all_instance_fields.index(symbol.name) + 1
 
                     if index is None:
                         raise Exception(
@@ -540,10 +540,9 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             lhs = lower_expression(lhs_tree, context)
             rhs = lower_expression(tree.children[1], context)
 
-            if lhs_tree.data != "array_access":
+            if not isinstance(lhs, IRESeq):
                 return IRESeq(IRMove(lhs, rhs), lhs)
 
-            assert isinstance(lhs, IRESeq)
             assert isinstance(lhs.stmt, IRSeq)
 
             lhs.stmt.stmts.append(IRMove(lhs.expr, rhs))

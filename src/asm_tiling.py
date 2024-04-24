@@ -178,10 +178,15 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit, context: Context) -> List
     temps = sorted(find_temps(func.body) - set(params) - {"%RET"})
     asm += [f"sub esp, {len(temps) * 4}"]
 
+    # print(f"For function {comp_unit.name}.{func.name}, temps are {temps}")
+
     for i, var in enumerate(temps):
         temp_dict[var] = i
 
     asm += tile_stmt(func.body, temp_dict, comp_unit, func, context)
+
+    if func.is_constructor:
+        asm += [f"mov eax, {fmt_bp(temp_dict.get('%THIS'))}"]
 
     if func.name != "test":
         asm += ["mov esp, ebp", "pop ebp", "ret"]  # Restore stack and base pointers
