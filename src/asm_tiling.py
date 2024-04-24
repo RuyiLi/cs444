@@ -64,7 +64,8 @@ def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
         asm += ["push ebp", "mov ebp, esp", f"sub esp, {len(temps)*4}"]
 
     for field in comp_unit.fields.values():
-        asm += tile_field(field, temp_dict, comp_unit, None, context)
+        if "static" in field.modifiers:
+            asm += tile_static_field(field, temp_dict, comp_unit, None, context)
 
     if len(temps) > 0:
         asm += ["mov esp, ebp", "pop ebp"]
@@ -111,7 +112,7 @@ def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
     return asm
 
 
-def tile_field(
+def tile_static_field(
     field: IRFieldDecl,
     temp_dict: Dict[str, int],
     comp_unit: IRCompUnit,
@@ -119,7 +120,7 @@ def tile_field(
     context: Context,
 ) -> List[str]:
     stmt, expr = field.canonical
-    asm = tile_stmt(stmt, temp_dict, comp_unit, func, context) if stmt.__str__() != "EMPTY" else []
+    asm = tile_stmt(stmt, temp_dict, comp_unit, func, context) if str(stmt) != "EMPTY" else []
 
     return asm + tile_stmt(
         IRMove(IRTemp(f"{comp_unit.name}.{field.name}"), expr), temp_dict, comp_unit, func, context

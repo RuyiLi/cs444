@@ -252,13 +252,16 @@ class ClassInterfaceDecl(Symbol):
 
     @property
     def all_instance_fields(self):
-        fields = set()
-        for field in self.fields:
-            if "static" not in field.modifiers:
-                fields.add(field)
+        # need to maintain order
+        fields = []
         for extend in self.extends:
             if parent := self.resolve_name(extend):
-                fields = fields | parent.all_instance_fields
+                for field in parent.all_instance_fields:
+                    if field not in fields:
+                        fields.append(field)
+        for field in self.fields:
+            if "static" not in field.modifiers and field.name not in fields:
+                fields.append(field.name)
         return fields
 
     def populate_method_return_symbols(self):
