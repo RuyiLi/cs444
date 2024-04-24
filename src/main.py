@@ -144,8 +144,7 @@ def assemble(context: GlobalContext, optimizations_set: set[str]):
                 comp_unit = optimization_function(comp_unit)
             else:
                 print(f"Could not find optimization {optimization} in the OPTIMIZATIONS_MAP")
-        asm = tile_comp_unit(comp_unit)
-
+        asm = tile_comp_unit(comp_unit, context)
         f = open(f"output/test{i}.s", "w")
         f.write("\n".join(asm))
         f.write("\n")
@@ -169,7 +168,7 @@ def get_result_string(result: int):
     elif result == SUCCESS:
         return "success"
     else:
-        return "unrecognized result"
+        return result
 
 
 def get_expected_result(path_name: str):
@@ -263,7 +262,7 @@ def load_assignment_testcases(
             if assembled_output == EXCEPTION:
                 actual_result = EXCEPTION
             elif assembled_output != CORRECTLY_ASSEMBLED_OUTPUT:
-                actual_result = ERROR
+                actual_result = assembled_output
             elif warning_list:
                 actual_result = WARNING
             else:

@@ -167,7 +167,11 @@ def class_hierarchy_check(symbol: ClassDecl):
             methods_to_inherit[method.signature()].append(method)
 
         # symbol.methods += inherit_methods(symbol, exist_sym)
-        symbol.fields += inherit_fields(symbol, exist_sym)
+        for field in inherit_fields(symbol, exist_sym):
+            symbol.fields.append(field)
+
+            if "static" not in field.modifiers:
+                symbol.instance_fields[field] = len(symbol.instance_fields)
 
     for implement in symbol.implements:
         exist_sym = symbol.resolve_name(implement)
@@ -189,11 +193,19 @@ def class_hierarchy_check(symbol: ClassDecl):
             methods_to_inherit[method.signature()].append(method)
 
         # symbol.methods += inherit_methods(symbol, exist_sym)
-        symbol.fields += inherit_fields(symbol, exist_sym)
+        for field in inherit_fields(symbol, exist_sym):
+            symbol.fields.append(field)
 
-    symbol.methods += inherit_methods(symbol, merge_methods(methods_to_inherit))
+            if "static" not in field.modifiers:
+                symbol.instance_fields[field] = len(symbol.instance_fields)
 
-    # don't acctually extend object, do it implicitly (see resolve_method)
+    for method in inherit_methods(symbol, merge_methods(methods_to_inherit)):
+        symbol.methods.append(method)
+
+        if "static" not in method.modifiers:
+            symbol.instance_methods[method] = len(symbol.instance_methods)
+
+    # don't actually extend object, do it implicitly (see resolve_method)
     if symbol.name != "java.lang.Object" and not extends_java_object(symbol):
         java_object = symbol.resolve_name("java.lang.Object")
         java_object_methods = set(m.signature() for m in java_object.methods)
@@ -232,8 +244,17 @@ def interface_hierarchy_check(symbol: InterfaceDecl):
         # Ensure parents have inherited their methods first
         interface_hierarchy_check(exist_sym)
 
-        symbol.methods += inherit_methods(symbol, exist_sym.methods)
-        symbol.fields += inherit_fields(symbol, exist_sym)
+        for method in inherit_methods(symbol, exist_sym.methods):
+            symbol.methods.append(method)
+
+            if "static" not in method.modifiers:
+                symbol.instance_methods[method] = len(symbol.instance_methods)
+
+        for field in inherit_fields(symbol, exist_sym):
+            symbol.fields.append(field)
+
+            if "static" not in field.modifiers:
+                symbol.instance_fields[field] = len(symbol.instance_fields)
 
     # Interfaces do not actually extend from Object but rather implicitly
     # declare many of the same methods as Object, so we check if "inherit

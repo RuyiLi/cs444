@@ -125,6 +125,9 @@ class ClassInterfaceDecl(Symbol):
     methods: List[MethodDecl]
     type_names: Dict[str, ClassInterfaceDecl]
 
+    instance_fields: Dict[FieldDecl, int]
+    instance_methods: Dict[MethodDecl, int]
+
     def __init__(
         self,
         context: Context,
@@ -139,7 +142,9 @@ class ClassInterfaceDecl(Symbol):
         self.imports = imports
 
         self.fields = []
+        self.instance_fields = dict()
         self.methods = []
+        self.instance_methods = dict()
         self.type_names = {}
 
         self._checked = False
@@ -340,6 +345,9 @@ class FieldDecl(Symbol):
         assert isinstance(self.context.parent_node, ClassInterfaceDecl)
         self.context.parent_node.fields.append(self)
 
+        if "static" not in self.modifiers:
+            self.context.parent_node.instance_fields[self] = len(self.context.parent_node.instance_fields)
+
     @property
     def resolved_sym_type(self) -> SymbolType:
         # assumes type linking is finished
@@ -366,6 +374,9 @@ class MethodDecl(Symbol):
 
         assert isinstance(self.context.parent_node, ClassInterfaceDecl)
         self.context.parent_node.methods.append(self)
+
+        if "static" not in self.modifiers:
+            self.context.parent_node.instance_methods[self] = len(self.context.parent_node.instance_methods)
 
     @property
     def param_types(self):

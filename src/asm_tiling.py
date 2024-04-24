@@ -1,6 +1,11 @@
+from __future__ import annotations
+
 import logging
 from functools import reduce
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from context import GlobalContext
 
 from tir import (
     IRBinExpr,
@@ -27,53 +32,62 @@ from tir import (
 log = logging.getLogger(__name__)
 
 
-def tile_comp_unit(comp_unit: IRCompUnit):
+externs = []
+
+def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
+    externs.clear()
     asm = ["extern __malloc", "extern __exception", "extern __debexit"]
     init_label = f"_{comp_unit.name}_init"
-    data_label = f"_class_{comp_unit.name}"
 
     if any(func == "test" for func in comp_unit.functions.keys()):
-        asm += ["global _start"]
+        asm += [f"extern _{child.parent_node.name}_init" for child in context.children if child.parent_node.name != comp_unit.name] + ["global _start"]
     else:
-        asm += [f"global {init_label}", f"global {data_label}"]
+        asm += [f"global {init_label}"]
 
     asm += ["", "__err:", "call __exception", ""]
 
-    if len(comp_unit.fields.keys()) > 0:
-        # Field initializers
-        asm += [f"{init_label}:", "push ebp", "mov ebp, esp"]
-        temps = sorted(
-            reduce(
-                lambda acc, field: acc.union(find_temps(field.canonical[0])), comp_unit.fields.values(), set()
-            )
-        )
-        temp_dict = dict([(temp, i) for i, temp in enumerate(temps)])
-        asm += [f"sub esp, {len(temps)*4}"]
+    # Field initializers
+    asm += [f"{init_label}:"]
 
-        for field in comp_unit.fields.values():
-            asm += tile_field(field, temp_dict, comp_unit, None)
-        asm += ["mov esp, ebp", "pop ebp", "ret", ""]
+    temps = sorted(reduce(
+        lambda acc, field: acc.union(find_temps(field.canonical[0])), comp_unit.fields.values(), set()
+    ))
+    temp_dict = dict([(temp, i) for i, temp in enumerate(temps)])
+
+    if len(temps) > 0:
+        asm += ["push ebp", "mov ebp, esp", f"sub esp, {len(temps)*4}"]
+
+    for field in comp_unit.fields.values():
+        asm += tile_field(field, temp_dict, comp_unit, None)
+
+    if len(temps) > 0:
+        asm += ["mov esp, ebp", "pop ebp"]
+
+    asm += ["ret", ""]
 
     # Declared methods
     for name, func in comp_unit.functions.items():
         func_asm = tile_func(func, comp_unit) + [""]
 
-        if name == "test" and len(comp_unit.fields.keys()) > 0:
-            func_asm.insert(1, f"call _{comp_unit.name}_init")
+        if name == "test":
+            func_asm = func_asm[:1] + [f"call _{child.parent_node.name}_init" for child in context.children] + func_asm[1:]
 
         asm += func_asm
 
-    # Class vtable
-    asm += ["section .data", f"{data_label}:"]
+    asm += ["section .data"]
 
-    for field in comp_unit.fields.keys():
-        asm += [f"dd 0"]
+    static_fields = set()
 
-    for func in comp_unit.functions.keys():
-        if func == "test":
-            continue
-        asm += [f"dd _{comp_unit.name}_{func}"]
+    # Static fields
+    for field_name, field in comp_unit.fields.items():
+        if "static" in field.modifiers:
+            asm += [f"_field_{comp_unit.name}_{field_name}:", f"dd 0"]
+            static_fields.add(f"_field_{comp_unit.name}_{field_name}")
 
+    # TODO: Class vtable (for instance methods)
+
+    # Extern used static fields, make local static fields globally available
+    asm = asm[:3] + [f"global {f}" for f in static_fields] + [f"extern {e}" for e in externs if e not in static_fields] + asm[3:]
     return asm
 
 
@@ -117,7 +131,7 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit) -> List[str]:
 
     # Allocate space for local temps
     temps = sorted(find_temps(func.body) - set(func.params) - {"%RET"})
-    print("TEMPS", temps)
+    # print("TEMPS", temps)
     asm += [f"sub esp, {len(temps)*4}"]
 
     for i, var in enumerate(temps):
@@ -158,6 +172,10 @@ def process_expr(
 ) -> Tuple[str | int, List[str]]:
     if isinstance(expr, IRConst):
         return (expr.value, [])
+
+    if isinstance(expr, IRName):
+        externs.append(expr.name)
+        return (reg, [f"mov {reg}, {expr.name}"])
 
     return (reg, tile_expr(expr, reg, temp_dict, comp_unit, func))
 
@@ -273,7 +291,7 @@ def tile_stmt(stmt: IRStmt, temp_dict: Dict[str, int], comp_unit: IRCompUnit, fu
                         # assert ".".join(parts[:-1]) == comp_unit.name
 
                         index = list(comp_unit.fields.keys()).index(parts[-1])
-                        return asm + [f"mov [_class_{comp_unit.name} + 4*{index}], ecx"]
+                        return asm + [f"mov [_field_{comp_unit.name}_{parts[-1]} + 4*{index}], ecx"]
 
                     if (loc := temp_dict.get(n, None)) is not None:
                         return asm + [f"mov {fmt_bp(loc)}, ecx"]
@@ -413,7 +431,7 @@ def tile_expr(
                     # raise Exception(f"unimplemented field access of objects!")
                 else:
                     index = list(comp_unit.fields.keys()).index(parts[-1])
-                    asm += [f"mov eax, [_class_{comp_unit.name} + 4*{index}]"]
+                    asm += [f"mov eax, [_field_{comp_unit.name}_{parts[-1]} + 4*{index}]"]
                     hold = "eax"
 
         case x:

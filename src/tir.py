@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import reduce
-from typing import Dict, List, Tuple, TypeVar, TYPE_CHECKING
+from typing import Dict, List, Literal, Tuple, TypeVar, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from joos_types import SymbolType
@@ -23,17 +23,6 @@ class IRNode:
         return reduce(lambda a, c: visitor.bind(a, visitor.visit(self, c)), self.children, visitor.unit())
 
 
-class IRComment(IRNode):
-    comment: str
-
-    def __init__(self, comment: str):
-        super().__init__()
-        self.comment = comment
-
-    def __str__(self):
-        return f"COMMENT({self.comment})"
-
-
 class IRStmt(IRNode):
     def __str__(self) -> str:
         return "EMPTY"
@@ -47,10 +36,21 @@ class IRExpr(IRNode):
         self.is_constant = is_constant
 
 
-class IRConst(IRExpr):
-    value: int
+class IRComment(IRStmt):
+    comment: str
 
-    def __init__(self, value: int):
+    def __init__(self, comment: str):
+        super().__init__()
+        self.comment = comment
+
+    def __str__(self):
+        return f"COMMENT({self.comment})"
+
+
+class IRConst(IRExpr):
+    value: int | Literal["null"]
+
+    def __init__(self, value: int | Literal["null"]):
         super().__init__([], True)
         self.value = value
 
@@ -301,13 +301,17 @@ class IRReturn(IRStmt):
 
 class IRFuncDecl(IRNode):
     name: str
+    modifiers: List[str]
+    return_type: SymbolType
     body: IRStmt
     params: List[str]
     local_vars: Dict[str, SymbolType]
 
-    def __init__(self, name: str, body: IRStmt, params: List[str], local_vars: Dict[str, SymbolType]):
+    def __init__(self, name: str, modifiers: List[str], return_type: SymbolType, body: IRStmt, params: List[str], local_vars: Dict[str, SymbolType]):
         super().__init__([body])
         self.name = name
+        self.modifiers = modifiers
+        self.return_type = return_type
         self.body = body
         self.params = params
         self.local_vars = local_vars
@@ -318,7 +322,7 @@ class IRFuncDecl(IRNode):
     def visit_children(self, visitor):
         child_body = visitor.visit(self, self.body)
         return (
-            IRFuncDecl(self.name, child_body, self.params, self.local_vars)
+            IRFuncDecl(self.name, self.modifiers, self.return_type, child_body, self.params, self.local_vars)
             if child_body != self.body
             else self
         )
@@ -326,12 +330,16 @@ class IRFuncDecl(IRNode):
 
 class IRFieldDecl(IRNode):
     name: str
+    modifiers: List[str]
+    field_type: SymbolType
     expr: IRExpr
     canonical: Tuple[IRStmt, IRExpr] | None
 
-    def __init__(self, name: str, expr: IRExpr, canonical: Tuple[IRStmt, IRExpr] | None = None):
+    def __init__(self, name: str, modifiers: List[str], field_type: SymbolType, expr: IRExpr, canonical: Tuple[IRStmt, IRExpr] | None = None):
         super().__init__(list(canonical) if canonical is not None else [expr])
         self.name = name
+        self.modifiers = modifiers
+        self.field_type = field_type
         self.expr = expr
         self.canonical = canonical
 
@@ -345,11 +353,11 @@ class IRFieldDecl(IRNode):
             child_expr = visitor.visit(self, expr)
 
             if child_stmt != stmt or child_expr != expr:
-                return IRFieldDecl(self.name, self.expr, (child_stmt, child_expr))
+                return IRFieldDecl(self.name, self.modifiers, self.field_type, self.expr, (child_stmt, child_expr))
             return self
 
         child_expr = visitor.visit(self, self.expr)
-        return IRFieldDecl(self.name, child_expr, None) if child_expr != self.expr else self
+        return IRFieldDecl(self.name, self.modifiers, self.field_type, child_expr, None) if child_expr != self.expr else self
 
     def aggregate_children(self, visitor):
         children = self.canonical if self.canonical is not None else [self.expr]
@@ -371,11 +379,11 @@ class IRCompUnit(IRNode):
         return "COMPUNIT"
 
     def visit_children(self, visitor):
-        child_fields = [visitor.visit(self, field) for _, field in self.fields]
-        child_funcs = [visitor.visit(self, func) for _, func in self.functions]
+        child_fields = dict([(name, visitor.visit(self, field)) for name, field in self.fields.items()])
+        child_funcs = dict([(name, visitor.visit(self, func)) for name, func in self.functions.items()])
 
-        if any(field != child_fields[i] for i, field in enumerate(self.fields)) or any(
-            func != child_funcs[i] for i, func in enumerate(self.functions)
+        if any(field != child_fields[name] for name, field in self.fields) or any(
+            func != child_funcs[name] for name, func in self.functions
         ):
             return IRCompUnit(self.name, child_fields, child_funcs)
 

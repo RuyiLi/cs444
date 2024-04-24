@@ -679,4 +679,4 @@ def resolve_expression(
             return ReferenceType(context.resolve(ClassInterfaceDecl, "java.lang.String"))
 
         case x:
-            log.warn(f"Unknown tree data {x}")
+            raise Exception(f"Unknown tree data {x}")

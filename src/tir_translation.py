@@ -1,14 +1,19 @@
+import copy
 import logging
-from typing import List
+from typing import List, Literal
 
-from context import Context, GlobalContext
+from context import ClassInterfaceDecl, Context, FieldDecl, GlobalContext, LocalVarDecl, MethodDecl
 from helper import (
     extract_name,
+    extract_type,
     get_child_tree,
     get_enclosing_type_decl,
     get_formal_params,
+    get_modifiers,
     get_nested_token,
+    get_return_type,
     get_tree_token,
+    is_static_context,
 )
 from lark import Token, Tree
 from joos_types import ArrayType, ReferenceType
@@ -58,12 +63,16 @@ def lower_comp_unit(context: Context, parent_context: GlobalContext):
 
 def lower_field(tree: Tree, context: Context):
     field_name = get_nested_token(tree, "IDENTIFIER")
+    modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
+    field_type = context.parent_node.resolve_type(extract_type(next(tree.find_data("type"))))
 
     rhs_tree = next(tree.find_data("var_initializer"), None)
     if rhs_tree is None:
-        return (field_name, IRFieldDecl(field_name, IRConst("null")))
+        return (field_name, IRFieldDecl(field_name, modifiers, field_type, IRConst("null")))
 
-    return (field_name, IRFieldDecl(field_name, lower_expression(rhs_tree.children[0], context)))
+    static_context = copy.copy(context)
+    static_context.is_static = "static" in modifiers
+    return (field_name, IRFieldDecl(field_name, modifiers, field_type, lower_expression(rhs_tree.children[0], context)))
 
 
 local_vars = dict()
@@ -72,6 +81,10 @@ local_vars = dict()
 def lower_function(tree: Tree, context: Context):
     method_declarator = next(tree.find_data("method_declarator"))
     method_name = get_nested_token(method_declarator, "IDENTIFIER")
+
+    modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
+    return_type = context.parent_node.resolve_type(get_return_type(tree))
+
     formal_param_types, formal_param_names = get_formal_params(tree)
     nested_context = context.child_map[method_name]
 
@@ -87,10 +100,10 @@ def lower_function(tree: Tree, context: Context):
 
         return (
             method_name,
-            IRFuncDecl(method_name, body, formal_param_names, local_vars.copy()),
+            IRFuncDecl(method_name, modifiers, return_type, body, formal_param_names, local_vars.copy()),
         )
 
-    return (method_name, IRFuncDecl(method_name, IRStmt(), formal_param_names, dict()))
+    return (method_name, IRFuncDecl(method_name, modifiers, return_type, IRStmt(), formal_param_names, dict()))
 
 
 def lower_token(token: Token):
@@ -110,6 +123,90 @@ def get_arguments(context: Context, tree: Tree) -> List[IRExpr]:
         # get the last one, because find_data fetches bottom-up
         return [lower_expression(c, context) for c in arg_lists[-1].children]
     return []
+
+
+def lower_ambiguous_name(context, ids, arg_types = []) -> (
+    tuple[Literal["package_name"], None, IRExpr]
+    | tuple[Literal["type_name"], ClassInterfaceDecl, IRExpr]
+    | tuple[Literal["expression_name"], LocalVarDecl | FieldDecl | MethodDecl, IRExpr]
+):
+    last_id = ids[-1]
+    enclosing_type_decl = get_enclosing_type_decl(context)
+
+    if len(ids) == 1:   # Do we need to check ?
+        symbol = context.resolve(LocalVarDecl, last_id) or context.resolve(FieldDecl, last_id)
+        if symbol is not None:
+            return ("expression_name", symbol, IRTemp(symbol.name))
+        elif type_name := enclosing_type_decl.resolve_name(last_id):
+            return ("type_name", type_name, IRExpr())
+        else:
+            return ("package_name", None, IRExpr())
+    else:
+        qualifier = lower_ambiguous_name(context, ids[:-1])
+        pre_name = ".".join(ids[:-1])
+
+        match qualifier:
+            case ("package_name", _, _):
+                if type_name := enclosing_type_decl.resolve_name(".".join(ids)):
+                    return ("type_name", type_name, IRExpr())
+                else:
+                    return ("package_name", None, IRExpr())
+
+            case ("type_name", pre_symbol, _):
+                if symbol := pre_symbol.resolve_field(last_id, enclosing_type_decl, True):
+                    return ("expression_name", symbol, IRMem(IRName(f"_field_{pre_symbol.name}_{symbol.name}")))
+
+                raise Exception(f"'{last_id}' is not the name of a field in type '{pre_name}'.")
+
+            case ("expression_name", pre_symbol, mem):
+                assert not isinstance(pre_symbol, MethodDecl)
+
+                symbol_type = pre_symbol.resolved_sym_type
+
+                if isinstance(symbol_type, ReferenceType) and (
+                    symbol := symbol_type.resolve_field(last_id, enclosing_type_decl)
+                ):
+                    if isinstance(symbol_type, ArrayType) and last_id == "length":
+                        index = -1
+                    else:
+                        index = symbol_type.referenced_type.instance_fields.get(symbol)
+
+                    if index is None:
+                        raise Exception(f"couldn't find instance field {symbol.name} in {symbol_type.referenced_type.name}!")
+                    return ("expression_name", symbol, IRMem(IRBinExpr("ADD", mem, IRBinExpr("MUL", IRConst(4), IRConst(index)))))
+
+                raise Exception(
+                    f"'{last_id}' is not the name of a field or method in expression '{pre_name}' of type '{symbol_type}'."
+                )
+
+
+def resolve_bare_refname(name: str, context: Context):
+    type_decl = get_enclosing_type_decl(context)
+
+    if symbol := context.resolve(LocalVarDecl, name):
+        return symbol
+
+    if not is_static_context(context):
+        if symbol := (context.resolve(FieldDecl, name) or type_decl.resolve_field(name, type_decl)):
+            return symbol
+
+    if symbol := type_decl.resolve_name(name):
+        return symbol
+
+
+def lower_name(name: str, context: Context, arg_types=[]) -> IRExpr:
+    refs = name.split(".")
+
+    if len(refs) == 1:
+        symbol = resolve_bare_refname(refs[0], context)
+
+        if symbol is None:
+            print(f"couldn't resolve {refs}, context {context.symbol_map}")
+            return IRTemp(name)
+
+        return IRTemp(symbol.name)
+
+    return lower_ambiguous_name(context, refs, arg_types)[2]
 
 
 def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
@@ -184,7 +281,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
 
         case "expression_name":
             name = extract_name(tree)
-            return IRTemp(name)  # if context.resolve(LocalVarDecl, name)
+            return lower_name(name, context) # IRTemp(name)  # if context.resolve(LocalVarDecl, name)
 
         case "field_access":
             primary, identifier = tree.children
