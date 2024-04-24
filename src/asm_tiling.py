@@ -178,8 +178,6 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit, context: Context) -> List
     temps = sorted(find_temps(func.body) - set(params) - {"%RET"})
     asm += [f"sub esp, {len(temps) * 4}"]
 
-    print(f"For function {comp_unit.name}.{func.name}, temps are {temps}", temp_dict)
-
     for i, var in enumerate(temps):
         temp_dict[var] = i
 
@@ -362,7 +360,7 @@ def tile_stmt(
                             ]
 
                         # an actual intermediate result
-                        return asm + [f"mov {fmt_bp(loc)}, ecx"]
+                        return asm + [f"; move from {s} to {t} at {fmt_bp(loc)}", f"mov {fmt_bp(loc)}, ecx"]
 
                     raise Exception(f"var {n} doesn't exist in temp dict {temp_dict}!")
 

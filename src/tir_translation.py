@@ -185,7 +185,6 @@ def lower_constructor(tree: Tree, instance_fields: Dict[str, IRFieldDecl], conte
             local_vars[formal_param_names[i]] = formal_param_types[i]
 
     # call super constructor
-    i = 0
     super_calls = []
     for extend in class_decl.extends:
         superclass = class_decl.resolve_name(extend)
@@ -194,7 +193,7 @@ def lower_constructor(tree: Tree, instance_fields: Dict[str, IRFieldDecl], conte
                 IRComment(f"super call {superclass.name}"),
                 IRMove(
                     IRTemp("__hopefullynobodycallstheirvariablethis"),
-                    IRCall(IRName(f"{superclass.name}.constructor"), [IRTemp("%THIS")], [], True),
+                    IRCall(IRName(f"_{superclass.name}_constructor_"), [IRTemp("%THIS")]),
                 ),
             ]
         )
@@ -211,7 +210,7 @@ def lower_constructor(tree: Tree, instance_fields: Dict[str, IRFieldDecl], conte
             ]
         )
 
-    body = IRSeq(super_calls + field_inits + [IRComment("body start"), body])
+    body = IRSeq(super_calls + field_inits + [IRComment("body start"), body, IRReturn(IRTemp("%THIS"))])
 
     # TODO call super constructor?
     return (
@@ -340,7 +339,11 @@ def lower_ambiguous_name(
                                 "ADD",
                                 mem,
                                 IRMem(
-                                    IRBinExpr("ADD", IRMem(mem), IRBinExpr("MUL", IRConst(4), IRConst(index)))
+                                    IRBinExpr(
+                                        "ADD",
+                                        IRMem(mem),
+                                        IRConst(index * 4 + 4),
+                                    )
                                 ),
                             ),
                         ),
@@ -364,7 +367,7 @@ def lower_ambiguous_name(
                         symbol,
                         IRESeq(
                             nonnull_check,
-                            IRMem(IRBinExpr("ADD", mem, IRBinExpr("MUL", IRConst(4), IRConst(index)))),
+                            IRMem(IRBinExpr("ADD", mem, IRConst(index * 4 + 4))),
                         ),
                     )
 
@@ -759,9 +762,7 @@ def lower_statement(tree: Tree, context: Context) -> IRStmt:
         case "local_var_declaration":
             expr = next(tree.find_data("var_initializer")).children[0]
             var_name = get_tree_token(tree, "var_declarator_id", "IDENTIFIER")
-
             local_vars[var_name] = resolve_expression(expr, context)
-
             return IRMove(IRTemp(var_name), lower_expression(expr, context))
 
         case "if_st" | "if_st_no_short_if":
