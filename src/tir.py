@@ -117,24 +117,18 @@ class IRMem(IRExpr):
 class IRCall(IRExpr):
     target: IRExpr
     args: List[IRExpr]
-    arg_types: List[str]
-    is_ctor: bool
 
     def __init__(
         self,
         target: IRExpr,
-        args: List[IRExpr] = [],
-        arg_types: List[str] = [],
-        is_ctor: bool = False,
+        args: List[IRExpr] = []
     ):
         super().__init__([target] + args)
         self.target = target
         self.args = args
-        self.arg_types = arg_types
-        self.is_ctor = is_ctor
 
     def __str__(self):
-        return f"CALL(target={self.target}, args=[{','.join(map(str, self.args))}], arg_types=[{','.join(self.arg_types)}])"
+        return f"CALL(target={self.target}, args=[{','.join(map(str, self.args))}])"
 
     def visit_children(self, visitor):
         target_expr = visitor.visit(self, self.target)
