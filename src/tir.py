@@ -118,14 +118,22 @@ class IRCall(IRExpr):
     target: IRExpr
     args: List[IRExpr]
     arg_types: List[str]
+    is_ctor: bool
 
-    def __init__(self, target: IRExpr, args: List[IRExpr] = None, arg_types: List[str] = None):
+    def __init__(
+        self,
+        target: IRExpr,
+        args: List[IRExpr] = None,
+        arg_types: List[str] = None,
+        is_ctor: bool = False,
+    ):
         args = args or []
         arg_types = arg_types or []
         super().__init__([target] + args)
         self.target = target
         self.args = args
         self.arg_types = arg_types
+        self.is_ctor = is_ctor
 
     def __str__(self):
         return f"CALL(target={self.target}, args=[{','.join(map(str, self.args))}], arg_types=[{','.join(self.arg_types)}])"

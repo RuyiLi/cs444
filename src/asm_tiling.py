@@ -139,7 +139,8 @@ def find_temps(node: IRNode) -> Set[str]:
 
 
 def fix_param_names(param_names: str) -> str:
-    return param_names.replace("[]", "ARRTYPE")  # fix array types
+    # this probably breaks if the typename is literally ARRTYPE lol
+    return param_names.replace("[]", "ARRTYPE")
 
 
 def func_label(func: IRFuncDecl, comp_unit: IRCompUnit) -> str:
@@ -234,7 +235,7 @@ def tile_stmt(
     # log.info(f"tiling stmt {stmt}")
 
     match stmt:
-        case IRCall(target=t, args=args, arg_types=arg_types):
+        case IRCall(target=t, args=args, arg_types=arg_types, is_ctor=is_ctor):
             if t.name == "__malloc":
                 # malloc() allocates eax bytes and returns address in eax
                 return tile_expr(args[0], "eax", temp_dict, comp_unit, func) + ["call __malloc"]
@@ -256,8 +257,13 @@ def tile_stmt(
                 lhs = type_decl.resolve_type(lhs).name
                 ref_type = context.resolve(ClassInterfaceDecl, lhs)
 
-            # force true for now because we haven't implemented instance methods
-            method = ref_type.resolve_method(method_name, arg_types, type_decl, True)
+            if is_ctor:
+                # print("is_ctor", ref_type, arg_types)
+                method = ref_type.resolve_constructor(arg_types)
+            else:
+                # force true for now because we haven't implemented instance methods
+                method = ref_type.resolve_method(method_name, arg_types, type_decl, True)
+
             # assert lhs == ref_type.name
             param_names = "_".join(method.param_types)
             call_name = f"_{lhs}_{method.name}_{fix_param_names(param_names)}"

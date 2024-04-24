@@ -56,7 +56,12 @@ def canonicalize_expression(expr: IRExpr) -> Tuple[IRStmt, IRExpr]:
             stmts.extend([c_stmt, IRMove(IRTemp(f"{label}_{i}"), c_expr)])
 
         stmts.append(
-            IRCall(expr.target, [IRTemp(f"{label}_{i}") for i in range(len(expr.args))], expr.arg_types)
+            IRCall(
+                expr.target,
+                [IRTemp(f"{label}_{i}") for i in range(len(expr.args))],
+                expr.arg_types,
+                expr.is_ctor,
+            )
         )
 
         return (IRSeq(stmts), IRTemp("%RET"))

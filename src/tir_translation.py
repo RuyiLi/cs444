@@ -2,7 +2,7 @@ import copy
 import logging
 from typing import List, Literal
 
-from context import ClassInterfaceDecl, Context, FieldDecl, GlobalContext, LocalVarDecl, MethodDecl
+from context import ClassInterfaceDecl, ClassDecl, Context, FieldDecl, GlobalContext, LocalVarDecl, MethodDecl
 from helper import (
     extract_name,
     extract_type,
@@ -54,11 +54,12 @@ def get_id():
 
 
 def lower_comp_unit(context: Context, parent_context: GlobalContext):
-    return IRCompUnit(
-        context.parent_node.name,
-        dict([lower_field(f, context) for f in list(context.tree.find_data("field_declaration"))]),
-        dict([lower_function(f, context) for f in list(context.tree.find_data("method_declaration"))]),
-    )
+    field_decls = [lower_field(f, context) for f in list(context.tree.find_data("field_declaration"))]
+    function_decls = [lower_function(f, context) for f in list(context.tree.find_data("method_declaration"))]
+    constructor_decls = [
+        lower_constructor(f, context) for f in list(context.tree.find_data("constructor_declaration"))
+    ]
+    return IRCompUnit(context.parent_node.name, dict(field_decls), dict(function_decls + constructor_decls))
 
 
 def lower_field(tree: Tree, context: Context):
@@ -89,7 +90,9 @@ def lower_function(tree: Tree, context: Context):
     return_type = context.parent_node.resolve_type(get_return_type(tree))
 
     formal_param_types, formal_param_names = get_formal_params(tree)
-    nested_context = context.child_map[method_name]
+    # TODO this could potentially be problematic if we have conflicting typenames
+    uninitialized_signature = method_name + "^" + ",".join(formal_param_types)
+    nested_context = context.child_map[uninitialized_signature]
 
     type_decl = get_enclosing_type_decl(context)
     formal_param_types = [type_decl.resolve_type(t) for t in formal_param_types]
@@ -125,6 +128,41 @@ def lower_function(tree: Tree, context: Context):
     )
 
 
+def lower_constructor(tree: Tree, context: Context):
+    modifiers = [modifier.value for modifier in get_modifiers(tree.children)]
+    class_decl = context.parent_node
+    formal_param_types, formal_param_names = get_formal_params(tree)
+    uninitialized_signature = "constructor^" + ",".join(formal_param_types)
+    nested_context = context.child_map[uninitialized_signature]
+
+    type_decl = get_enclosing_type_decl(context)
+    formal_param_types = [type_decl.resolve_type(t) for t in formal_param_types]
+
+    signature = "constructor^" + ",".join(p.name for p in formal_param_types)
+    body_block = next(tree.find_data("block"), None)
+    if body_block is None or len(body_block.children) == 0:
+        body = IRStmt()
+    else:
+        local_vars.clear()
+        body = lower_statement(body_block.children[0], nested_context)
+        for i in range(len(formal_param_names)):
+            local_vars[formal_param_names[i]] = formal_param_types[i]
+
+    # TODO initialize fields? call super constructor?
+    return (
+        signature,
+        IRFuncDecl(
+            "constructor",
+            modifiers,
+            class_decl,
+            body,
+            formal_param_names,
+            local_vars.copy(),
+            formal_param_types,
+        ),
+    )
+
+
 def lower_token(token: Token):
     match token.type:
         case "INTEGER_L" | "char_l" | "NULL":
@@ -133,6 +171,8 @@ def lower_token(token: Token):
             return IRConst(1 if token.value == "true" else 0)
         case "string_l":
             raise Exception("strings are objects")
+        case "THIS_KW":
+            return IRTemp("this")  # FIXME
         case x:
             raise Exception(f"couldn't parse token {x}")
 
@@ -348,7 +388,6 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             raise Exception(f"unimplemented field access on {primary}, {identifier}!")
 
         case "method_invocation":
-            # i think if we want to resolve to a methoddecl here?? idk what irname does
             arg_types = get_argument_types(context, tree)
             if isinstance(tree.children[0], Tree) and tree.children[0].data == "method_name":
                 args = get_arguments(context, tree)
@@ -486,6 +525,51 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
 
         case "char_l":
             return IRConst(tree.children[0].value)
+
+        case "string_l":
+            return IRConst(tree.children[0].value)
+
+        case "class_instance_creation":
+            if len(tree.children) == 3:
+                _new_kw, class_name, arg_list = tree.children
+                arg_types = get_argument_types(context, arg_list)
+                args = get_arguments(context, arg_list)
+            else:
+                _new_kw, class_name = tree.children
+                arg_types = []
+                args = []
+
+            class_name = extract_name(class_name)
+            type_decl = get_enclosing_type_decl(context)
+            class_decl = type_decl.resolve_name(class_name)
+
+            # # need to find ctor
+            assert isinstance(class_decl, ClassDecl)
+            # arg_types = list(map(type_decl.resolve_type, arg_types))
+
+            size = 4 * len(class_decl.all_instance_fields) + 4
+
+            print("ligma", class_decl.name, size, class_decl.all_instance_fields)
+
+            # just treat it like an IRCall i guess
+            label_id = get_id()
+            ref_temp = f"_{label_id}_ref"
+            stmts: List[IRStmt] = [
+                IRMove(
+                    IRTemp(ref_temp),
+                    IRCall(IRName("__malloc"), [IRConst(size)]),
+                ),
+            ]
+
+            return IRESeq(
+                IRSeq(stmts),
+                IRCall(
+                    IRName(f"{class_decl.name}.constructor"),
+                    args,
+                    arg_types,
+                    True,
+                ),
+            )
 
         case _:
             log.info(f"{tree}")

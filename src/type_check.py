@@ -372,7 +372,7 @@ def resolve_expression(
 
             for constructor in ref_type.constructors:
                 # find matching constructor
-                ctor_param_names = [param.name for param in constructor.resolved_param_types]
+                ctor_param_names = [param.name for param in constructor.param_types]
                 if ctor_param_names == arg_types:
                     # construction using new keyword is only allowed if
                     # 1) calling class is a subclass of the class being constructed

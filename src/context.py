@@ -250,6 +250,17 @@ class ClassInterfaceDecl(Symbol):
                 return field
         return None
 
+    @property
+    def all_instance_fields(self):
+        fields = set()
+        for field in self.fields:
+            if "static" not in field.modifiers:
+                fields.add(field)
+        for extend in self.extends:
+            if parent := self.resolve_name(extend):
+                fields = fields | parent.all_instance_fields
+        return fields
+
     def populate_method_return_symbols(self):
         for method in self.methods:
             if method.return_symbol is None:
@@ -287,6 +298,13 @@ class ClassDecl(ClassInterfaceDecl):
         self.implements = implements
         self.constructors = []
 
+    def resolve_constructor(self, arg_types) -> Optional[ConstructorDecl]:
+        signature = "constructor^" + ",".join(param.name for param in arg_types)
+        for constructor in self.constructors:
+            if constructor.sym_id() == signature:
+                return constructor
+        return None
+
     def implements_interface(self, name: str):
         for interface in self.implements:
             if (interface := self.resolve_name(interface)) and name == interface.name:
@@ -316,21 +334,21 @@ class InterfaceDecl(ClassInterfaceDecl):
 class ConstructorDecl(Symbol):
     node_type = "constructor"
 
-    def __init__(self, context, param_types, modifiers):
+    def __init__(self, context, raw_param_types, modifiers):
         super().__init__(context, "constructor")
-        self.param_types = param_types or []
+        self.raw_param_types = raw_param_types or []
         self.modifiers = modifiers
 
         assert isinstance(self.context.parent_node, ClassDecl)
         self.context.parent_node.constructors.append(self)
 
     def sym_id(self):
-        return "constructor^" + ",".join(self.param_types)
+        return "constructor^" + ",".join(param.name for param in self.param_types)
 
     @property
-    def resolved_param_types(self):
+    def param_types(self):
         # assumes type linking is finished
-        return [self.context.parent_node.resolve_type(param) for param in self.param_types]
+        return [self.context.parent_node.resolve_type(param) for param in self.raw_param_types]
 
 
 class FieldDecl(Symbol):
@@ -383,7 +401,8 @@ class MethodDecl(Symbol):
         # a little sus, but here we assume that type linking is already finished
         if self.raw_param_types is None:
             return []
-        resolutions = map(self.context.parent_node.resolve_name, self.raw_param_types)
+        resolutions = map(self.context.parent_node.resolve_type, self.raw_param_types)
+        # print("MethodDecl", self.name, self.raw_param_types, resolutions)
         return [(self.raw_param_types[i] if r is None else r.name) for i, r in enumerate(resolutions)]
 
     def signature(self):
