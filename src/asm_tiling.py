@@ -63,9 +63,13 @@ def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
     if len(temps) > 0:
         asm += ["push ebp", "mov ebp, esp", f"sub esp, {len(temps)*4}"]
 
+    instance_fields = []
+
     for field in comp_unit.fields.values():
         if "static" in field.modifiers:
             asm += tile_static_field(field, temp_dict, comp_unit, None, context)
+        else:
+            instance_fields.append(field)
 
     if len(temps) > 0:
         asm += ["mov esp, ebp", "pop ebp"]
@@ -84,7 +88,7 @@ def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
                 + func_asm[1:]
             )
 
-        if "static" in func.modifiers:
+        if "static" in func.modifiers or func.is_constructor:
             # maybe add 'public' to modifier condition?
             static_methods.add(func_label(func, comp_unit))
 
@@ -162,12 +166,16 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit, context: Context) -> List
 
     asm += ["mov ebp, esp"]  # Update base pointer to start in this call frame
 
+    params = func.params
+    if "static" not in func.modifiers:
+        params.insert(0, "%THIS")
+
     # Parameters are behind the return address on the stack, so we make them -2
-    temp_dict = dict([(param, -(i + 2)) for i, param in enumerate(reversed(func.params))])
+    temp_dict = dict([(param, -(i + 2)) for i, param in enumerate(reversed(params))])
     temp_dict["%RET"] = -100
 
     # Allocate space for local temps
-    temps = sorted(find_temps(func.body) - set(func.params) - {"%RET"})
+    temps = sorted(find_temps(func.body) - set(params) - {"%RET"})
     asm += [f"sub esp, {len(temps)*4}"]
 
     for i, var in enumerate(temps):
@@ -260,7 +268,8 @@ def tile_stmt(
 
             if is_ctor:
                 # print("is_ctor", ref_type, arg_types)
-                method = ref_type.resolve_constructor(arg_types)
+                # Cut off receiver argument for constructors
+                method = ref_type.resolve_constructor(arg_types[1:])
             else:
                 # force true for now because we haven't implemented instance methods
                 method = ref_type.resolve_method(method_name, arg_types, type_decl, True)

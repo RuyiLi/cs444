@@ -123,12 +123,10 @@ class IRCall(IRExpr):
     def __init__(
         self,
         target: IRExpr,
-        args: List[IRExpr] = None,
-        arg_types: List[str] = None,
+        args: List[IRExpr] = [],
+        arg_types: List[str] = [],
         is_ctor: bool = False,
     ):
-        args = args or []
-        arg_types = arg_types or []
         super().__init__([target] + args)
         self.target = target
         self.args = args
@@ -324,6 +322,7 @@ class IRFuncDecl(IRNode):
     params: List[str]
     local_vars: Dict[str, SymbolType]
     formal_param_types: List[PrimitiveType | ReferenceType]
+    is_constructor: bool
 
     def __init__(
         self,
@@ -334,6 +333,7 @@ class IRFuncDecl(IRNode):
         params: List[str],
         local_vars: Dict[str, SymbolType],
         formal_param_types: List[PrimitiveType | ReferenceType],
+        is_constructor = False
     ):
         super().__init__([body])
         self.name = name
@@ -343,6 +343,7 @@ class IRFuncDecl(IRNode):
         self.params = params
         self.local_vars = local_vars
         self.formal_param_types = formal_param_types
+        self.is_constructor = is_constructor
 
     def __str__(self):
         return f"FuncDecl({self.name}, {self.body})"
@@ -358,6 +359,7 @@ class IRFuncDecl(IRNode):
                 self.params,
                 self.local_vars,
                 self.formal_param_types,
+                self.is_constructor
             )
             if child_body != self.body
             else self
