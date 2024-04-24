@@ -198,7 +198,7 @@ def lower_constructor(tree: Tree, instance_fields: Dict[str, IRFieldDecl], conte
 
     body = IRSeq(field_inits + [IRComment("body start"), body])
 
-    print("bruh", type_decl.name, signature, body)
+    # print("bruh", type_decl.name, signature, body)
 
     # TODO call super constructor?
     return (
@@ -312,14 +312,14 @@ def lower_ambiguous_name(
                 if isinstance(symbol_type, ReferenceType) and (
                     symbol := symbol_type.resolve_method(last_id, arg_types, enclosing_type_decl)
                 ):
-                    index = symbol_type.referenced_type.all_instance_methods.index(symbol.signature())
+                    index = symbol_type.referenced_type.all_instance_methods.index(symbol.signature()) + 1
                     return (
                         "expression_name",
                         symbol,
                         IRESeq(
                             nonnull_check,
                             # Hack to return two memory locations
-                            IRBinExpr("ADD", mem, IRMem(IRBinExpr("ADD", IRMem(mem), IRBinExpr("MUL", IRConst(4), IRConst(index))))),
+                            IRBinExpr("ADD", mem, IRMem(IRBinExpr("ADD", IRMem(mem), IRConst(index*4)))),
                         ),
                     )
 
@@ -329,7 +329,7 @@ def lower_ambiguous_name(
                     if isinstance(symbol_type, ArrayType) and last_id == "length":
                         index = -1
                     else:
-                        index = symbol_type.referenced_type.all_instance_fields.index(symbol.name)
+                        index = symbol_type.referenced_type.all_instance_fields.index(symbol.name) + 1
 
                     if index is None:
                         raise Exception(
@@ -341,7 +341,7 @@ def lower_ambiguous_name(
                         symbol,
                         IRESeq(
                             nonnull_check,
-                            IRMem(IRBinExpr("ADD", mem, IRBinExpr("MUL", IRConst(4), IRConst(index)))),
+                            IRMem(IRBinExpr("ADD", mem, IRConst(index*4))),
                         ),
                     )
 
@@ -516,10 +516,9 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             lhs = lower_expression(lhs_tree, context)
             rhs = lower_expression(tree.children[1], context)
 
-            if lhs_tree.data != "array_access":
+            if not isinstance(lhs, IRESeq):
                 return IRESeq(IRMove(lhs, rhs), lhs)
 
-            assert isinstance(lhs, IRESeq)
             assert isinstance(lhs.stmt, IRSeq)
 
             lhs.stmt.stmts.append(IRMove(lhs.expr, rhs))

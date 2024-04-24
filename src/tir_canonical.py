@@ -98,18 +98,17 @@ def canonicalize_statement(stmt: IRStmt) -> IRStmt:
         return IRSeq([c_stmt, IRReturn(c_expr)])
 
     if isinstance(stmt, IRMove):
+        c_stmt, c_expr = canonicalize_expression(stmt.source)
+
         if isinstance(stmt.target, IRTemp):
-            c_stmt, c_expr = canonicalize_expression(stmt.source)
             return IRSeq([c_stmt, IRMove(stmt.target, c_expr)])
 
         if isinstance(stmt.target, IRMem):
             ct_stmt, ct_expr = canonicalize_expression(stmt.target.address)
-            cs_stmt, cs_expr = canonicalize_expression(stmt.source)
-
             label = f"_{get_id()}"
 
             return IRSeq(
-                [ct_stmt, IRMove(IRTemp(label), ct_expr), cs_stmt, IRMove(IRMem(IRTemp(label)), cs_expr)]
+                [ct_stmt, IRMove(IRTemp(label), ct_expr), c_stmt, IRMove(IRMem(IRTemp(label)), c_expr)]
             )
 
     if isinstance(stmt, IRStmt) and str(stmt) == "EMPTY":
