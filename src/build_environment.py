@@ -122,6 +122,7 @@ def parse_node(tree: ParseTree, context: Context):
             modifiers = list(map(lambda m: m.value, get_modifiers(tree.children)))
 
             formal_param_types, formal_param_names = get_formal_params(tree)
+            uninitialized_signature = "constructor^" + ",".join(formal_param_types)
 
             symbol = ConstructorDecl(context, formal_param_types, modifiers)
             logging.debug(f"constructor_declaration {formal_param_types} {modifiers}")
@@ -130,7 +131,7 @@ def parse_node(tree: ParseTree, context: Context):
             if (nested_tree := get_child_tree(tree, "block")) is not None:
                 nested_context = Context(context, symbol, nested_tree)
                 context.children.append(nested_context)
-                context.child_map["__constructor"] = nested_context
+                context.child_map[uninitialized_signature] = nested_context
 
                 for p_type, p_name in zip(formal_param_types, formal_param_names):
                     nested_context.declare(LocalVarDecl(nested_context, p_name, p_type, tree.meta))
@@ -143,6 +144,7 @@ def parse_node(tree: ParseTree, context: Context):
             method_declarator = next(tree.find_data("method_declarator"))
             method_name = get_nested_token(method_declarator, "IDENTIFIER")
             formal_param_types, formal_param_names = get_formal_params(tree)
+            uninitialized_signature = method_name + "^" + ",".join(formal_param_types)
 
             return_type = get_return_type(tree)
             nested_tree = next(tree.find_data("method_body"), None)
@@ -155,7 +157,7 @@ def parse_node(tree: ParseTree, context: Context):
             if nested_tree is not None:
                 nested_context = Context(context, symbol, nested_tree)
                 context.children.append(nested_context)
-                context.child_map[method_name] = nested_context
+                context.child_map[uninitialized_signature] = nested_context
 
                 for p_type, p_name in zip(formal_param_types, formal_param_names):
                     nested_context.declare(LocalVarDecl(nested_context, p_name, p_type, tree.meta))
