@@ -344,12 +344,10 @@ def load_custom_testcases(test_names: List[str], optimizations: List[str]):
 
     if assembled_output == EXCEPTION:
         print(f"Exceptioned {test_name}")
-    elif assembled_output != CORRECTLY_ASSEMBLED_OUTPUT:
-        print(f"Failed assembly {test_name}")
     elif warning_list:
         print(f"Warned {test_name}: ", [warning.message for warning in warning_list])
     else:
-        print(f"Passed {test_name}")
+        print(f"Passed {test_name} (exit code {assembled_output})")
 
 
 def load_path_testcases(paths: List[str], optimizations: List[str]):

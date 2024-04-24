@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import List, Literal
+from typing import Dict, List, Literal
 
 from context import ClassInterfaceDecl, ClassDecl, Context, FieldDecl, GlobalContext, LocalVarDecl, MethodDecl
 from helper import (
@@ -54,10 +54,19 @@ def get_id():
 
 
 def lower_comp_unit(context: Context, parent_context: GlobalContext):
-    field_decls = [lower_field(f, context) for f in list(context.tree.find_data("field_declaration"))]
+    field_decls = []
+    instance_field_decls = []
+
+    for f in list(context.tree.find_data("field_declaration")):
+        field_decl = lower_field(f, context)
+        field_decls.append(field_decl)
+
+        if "static" not in field_decl[1].modifiers:
+            instance_field_decls.append(field_decl)
+
     function_decls = [lower_function(f, context) for f in list(context.tree.find_data("method_declaration"))]
     constructor_decls = [
-        lower_constructor(f, context) for f in list(context.tree.find_data("constructor_declaration"))
+        lower_constructor(f, dict(instance_field_decls), context) for f in list(context.tree.find_data("constructor_declaration"))
     ]
     return IRCompUnit(context.parent_node.name, dict(field_decls), dict(function_decls + constructor_decls))
 
@@ -128,9 +137,11 @@ def lower_function(tree: Tree, context: Context):
     )
 
 
-def lower_constructor(tree: Tree, context: Context):
+def lower_constructor(tree: Tree, instance_fields: Dict[str, IRFieldDecl], context: Context):
     modifiers = [modifier.value for modifier in get_modifiers(tree.children)]
     class_decl = context.parent_node
+    assert isinstance(class_decl, ClassDecl)
+
     formal_param_types, formal_param_names = get_formal_params(tree)
     uninitialized_signature = "constructor^" + ",".join(formal_param_types)
     nested_context = context.child_map[uninitialized_signature]
@@ -148,17 +159,26 @@ def lower_constructor(tree: Tree, context: Context):
         for i in range(len(formal_param_names)):
             local_vars[formal_param_names[i]] = formal_param_types[i]
 
-    # TODO initialize fields? call super constructor?
+    field_inits = []
+    for field_name, field in instance_fields.items():
+        index = class_decl.all_instance_fields.index(field_name)
+        # Increase index by 1 to account for vtable
+        field_inits.append(IRMove(IRMem(IRBinExpr("ADD", IRTemp(f"%THIS"), IRConst(4*(index + 1)))), field.expr))
+
+    body = IRSeq(field_inits + [body])
+
+    # TODO call super constructor?
     return (
         signature,
         IRFuncDecl(
             "constructor",
             modifiers,
-            class_decl,
+            ReferenceType(class_decl),
             body,
             formal_param_names,
             local_vars.copy(),
             formal_param_types,
+            True
         ),
     )
 
@@ -560,6 +580,9 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                     IRCall(IRName("__malloc"), [IRConst(size)]),
                 ),
             ]
+
+            args.insert(0, IRTemp(ref_temp))
+            arg_types.insert(0, class_decl.name)
 
             return IRESeq(
                 IRSeq(stmts),

@@ -301,8 +301,8 @@ class ClassDecl(ClassInterfaceDecl):
         self.implements = implements
         self.constructors = []
 
-    def resolve_constructor(self, arg_types) -> Optional[ConstructorDecl]:
-        signature = "constructor^" + ",".join(param.name for param in arg_types)
+    def resolve_constructor(self, arg_types: List[str]) -> Optional[ConstructorDecl]:
+        signature = "constructor^" + ",".join(param for param in arg_types)
         for constructor in self.constructors:
             if constructor.sym_id() == signature:
                 return constructor
