@@ -426,11 +426,11 @@ class IRCompUnit(IRNode):
     fields: Dict[str, IRFieldDecl]
     functions: Dict[str, IRFuncDecl]
 
-    def __init__(self, name: str, fields: Dict[str, IRFieldDecl], functions: Dict[str, IRFuncDecl] = {}):
+    def __init__(self, name: str, fields: Dict[str, IRFieldDecl], functions: Dict[str, IRFuncDecl] = None):
         super().__init__(list(fields.values()) + list(functions.values()))
         self.name = name
         self.fields = fields
-        self.functions = functions
+        self.functions = functions or {}
 
     def __str__(self):
         return "COMPUNIT"

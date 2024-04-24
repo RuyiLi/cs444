@@ -184,6 +184,21 @@ def lower_constructor(tree: Tree, instance_fields: Dict[str, IRFieldDecl], conte
         for i in range(len(formal_param_names)):
             local_vars[formal_param_names[i]] = formal_param_types[i]
 
+    # call super constructor
+    i = 0
+    super_calls = []
+    for extend in class_decl.extends:
+        superclass = class_decl.resolve_name(extend)
+        super_calls.extend(
+            [
+                IRComment(f"super call {superclass.name}"),
+                IRMove(
+                    IRTemp("__hopefullynobodycallstheirvariablethis"),
+                    IRCall(IRName(f"{superclass.name}.constructor"), [IRTemp("%THIS")], [], True),
+                ),
+            ]
+        )
+
     field_inits = []
     for field_name, field in instance_fields.items():
         # Increase offset by 4 to account for vtable
@@ -196,9 +211,7 @@ def lower_constructor(tree: Tree, instance_fields: Dict[str, IRFieldDecl], conte
             ]
         )
 
-    body = IRSeq(field_inits + [IRComment("body start"), body])
-
-    print("bruh", type_decl.name, signature, body)
+    body = IRSeq(super_calls + field_inits + [IRComment("body start"), body])
 
     # TODO call super constructor?
     return (
@@ -603,7 +616,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
 
             size = 4 * len(class_decl.all_instance_fields) + 4
 
-            print("ligma", class_decl.name, size, class_decl.all_instance_fields)
+            # print("ligma", class_decl.name, size, class_decl.all_instance_fields)
 
             # just treat it like an IRCall i guess
             label_id = get_id()

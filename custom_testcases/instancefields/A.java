@@ -6,8 +6,11 @@ public class A extends B {
     // int k = 3;
   }
   public static int test() {
-    A a = new A();
+    // A a = new A();
     // a.k = a.k - 3;
-    return a.k;
+    // return a.x + a.y + a.z + a.k;
+
+    C c = new C();
+    return c.x;
   }
 }

@@ -178,7 +178,7 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit, context: Context) -> List
     temps = sorted(find_temps(func.body) - set(params) - {"%RET"})
     asm += [f"sub esp, {len(temps) * 4}"]
 
-    print(f"For function {comp_unit.name}.{func.name}, temps are {temps}")
+    print(f"For function {comp_unit.name}.{func.name}, temps are {temps}", temp_dict)
 
     for i, var in enumerate(temps):
         temp_dict[var] = i
@@ -350,7 +350,7 @@ def tile_stmt(
             return [f"{n}:"]
 
         case IRMove(target=t, source=s):
-            asm = [f"; begin move from {s} to {t}"] + tile_expr(s, "ecx", temp_dict, comp_unit, func)
+            asm = tile_expr(s, "ecx", temp_dict, comp_unit, func)
 
             match t:
                 case IRTemp(name=n):
@@ -429,7 +429,7 @@ def tile_expr(
 
     def free_register(reg):
         available_regs.append(reg)
-    
+
     hold = ""
 
     def spill_to_memory(var_name):
@@ -438,7 +438,7 @@ def tile_expr(
         asm += [f"mov {fmt_bp(reg)}, {output_reg}"]
         free_register(output_reg)
         temp_dict[var_name] = None
-    
+
     def process_temp(temp: str):
         nonlocal asm, output_reg
         if temp in temp_dict:
@@ -453,7 +453,7 @@ def tile_expr(
             temp_dict[temp] = reg
             asm += [f"mov {reg}, {fmt_bp(reg)}"]
             output_reg = reg
-    
+
     match expr:
         case IRConst(value=v):
             hold = v if v != "null" else 0
@@ -560,7 +560,7 @@ def tile_expr(
 
     if output_reg != hold:
         asm += [f"mov {output_reg}, {hold}"]
-    
+
     # if output_reg not in ["eax", "ebx", "ecx", "edx"]:
     #     print("AAADSDSDAD")
     #     spill_to_memory(output_reg)
