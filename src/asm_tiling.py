@@ -246,7 +246,7 @@ def tile_stmt(
     # log.info(f"tiling stmt {stmt}")
 
     match stmt:
-        case IRCall(target=t, args=args, arg_types=arg_types, is_ctor=is_ctor):
+        case IRCall(target=t, args=args):
             if t.name == "__malloc":
                 # malloc() allocates eax bytes and returns address in eax
                 return tile_expr(args[0], "eax", temp_dict, comp_unit, func) + ["call __malloc"]
@@ -257,32 +257,10 @@ def tile_stmt(
                 r, r_asm = process_expr(arg, temp_dict, comp_unit, func)
                 asm += r_asm + [f"push {r}"]
 
-            lhs = t.name.split(".")
-            method_name = lhs.pop()
-            lhs = ".".join(lhs)
-            ref_type = context.resolve(ClassInterfaceDecl, lhs)
-            type_decl = context.resolve(ClassInterfaceDecl, comp_unit.name)
-            if ref_type is None:
-                # nonnull -> Fully.Qualified.Name.staticmethod(args)
-                # null -> ImportedClass.staticmethod(args)
-                lhs = type_decl.resolve_type(lhs).name
-                ref_type = context.resolve(ClassInterfaceDecl, lhs)
+            target, target_asm = process_expr(t, temp_dict, comp_unit, func)
 
-            if is_ctor:
-                # print("is_ctor", ref_type, arg_types)
-                # Cut off receiver argument for constructors
-                method = ref_type.resolve_constructor(arg_types[1:])
-            else:
-                # force true for now because we haven't implemented instance methods
-                method = ref_type.resolve_method(method_name, arg_types, type_decl, True)
-
-            # assert lhs == ref_type.name
-            param_names = "_".join(method.param_types)
-            call_name = f"_{lhs}_{method.name}_{fix_param_names(param_names)}"
-            externs.add(call_name)
-
-            asm += [
-                f"call {call_name}" if t.name != "__exception" else "call __exception",
+            asm += target_asm + [
+                f"call {target}" if t.name != "__exception" else "call __exception",
                 f"add esp, {len(args)*4}",  # pop off arguments
             ]
 
@@ -365,11 +343,10 @@ def tile_stmt(
                         # print(".".join(parts[:-1]), comp_unit.name)
                         # assert ".".join(parts[:-1]) == comp_unit.name
 
-                        index = list(comp_unit.fields.keys()).index(parts[-1])
-                        return asm + [f"mov [_field_{comp_unit.name}_{parts[-1]} + 4*{index}], ecx"]
+                        return asm + [f"mov [_field_{comp_unit.name}_{parts[-1]}], ecx"]
 
                     if (loc := temp_dict.get(n, None)) is not None:
-                        if n in func.actual_local_var_decls:
+                        if func is not None and n in func.actual_local_var_decls:
                             return asm + [f"mov {fmt_bp(loc)}, ecx"]
 
                         # implicit this
@@ -551,8 +528,7 @@ def tile_expr(
                     hold = "eax"
                     # raise Exception(f"unimplemented field access of objects!")
                 else:
-                    index = list(comp_unit.fields.keys()).index(parts[-1])
-                    asm += [f"mov eax, [_field_{comp_unit.name}_{parts[-1]} + 4*{index}]"]
+                    asm += [f"mov eax, [_field_{comp_unit.name}_{parts[-1]}]"]
                     hold = "eax"
 
         case x:

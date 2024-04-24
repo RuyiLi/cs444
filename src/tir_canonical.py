@@ -59,8 +59,6 @@ def canonicalize_expression(expr: IRExpr) -> Tuple[IRStmt, IRExpr]:
             IRCall(
                 expr.target,
                 [IRTemp(f"{label}_{i}") for i in range(len(expr.args))],
-                expr.arg_types,
-                expr.is_ctor,
             )
         )
 

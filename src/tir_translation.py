@@ -251,8 +251,13 @@ def get_arguments(context: Context, tree: Tree) -> List[IRExpr]:
     return []
 
 
+def fix_param_names(param_names: str) -> str:
+    # this probably breaks if the typename is literally ARRTYPE lol
+    return param_names.replace("[]", "ARRTYPE")
+
+
 def lower_ambiguous_name(
-    context, ids, arg_types=None
+    context, ids, arg_types: List[str] = []
 ) -> (
     tuple[Literal["package_name"], None, IRExpr]
     | tuple[Literal["type_name"], ClassInterfaceDecl, IRExpr]
@@ -282,6 +287,16 @@ def lower_ambiguous_name(
                     return ("package_name", None, IRExpr())
 
             case ("type_name", pre_symbol, _):
+                # Static method
+                if symbol := pre_symbol.resolve_method(last_id, arg_types, enclosing_type_decl, True):
+                    param_names = "_".join(symbol.param_types)
+                    return (
+                        "expression_name",
+                        symbol,
+                        IRName(f"_{pre_symbol.name}_{symbol.name}_{fix_param_names(param_names)}"),
+                    )
+
+                # Static field
                 if symbol := pre_symbol.resolve_field(last_id, enclosing_type_decl, True):
                     return (
                         "expression_name",
@@ -296,37 +311,59 @@ def lower_ambiguous_name(
 
                 symbol_type = pre_symbol.resolved_sym_type
 
+                nonnull_label = f"_{get_id()}_lnnull"
+                nonnull_check = IRSeq(
+                    [
+                        IRComment("expr_name nullcheck"),
+                        IRCJump(
+                            IRBinExpr("NOT_EQ", mem, IRConst(0)),
+                            IRName(nonnull_label),
+                            None,
+                        ),
+                        IRJump(IRName(err_label)),
+                        IRLabel(nonnull_label),
+                        IRComment("expr_name nullcheck end"),
+                    ]
+                )
+
+                if isinstance(symbol_type, ReferenceType) and (
+                    symbol := symbol_type.resolve_method(last_id, arg_types, enclosing_type_decl)
+                ):
+                    index = symbol_type.referenced_type.all_instance_methods.index(symbol.signature())
+                    return (
+                        "expression_name",
+                        symbol,
+                        IRESeq(
+                            nonnull_check,
+                            # Hack to return two memory locations
+                            IRBinExpr(
+                                "ADD",
+                                mem,
+                                IRMem(
+                                    IRBinExpr("ADD", IRMem(mem), IRBinExpr("MUL", IRConst(4), IRConst(index)))
+                                ),
+                            ),
+                        ),
+                    )
+
                 if isinstance(symbol_type, ReferenceType) and (
                     symbol := symbol_type.resolve_field(last_id, enclosing_type_decl)
                 ):
                     if isinstance(symbol_type, ArrayType) and last_id == "length":
                         index = -1
                     else:
-                        index = symbol_type.referenced_type.instance_fields.get(symbol)
+                        index = symbol_type.referenced_type.all_instance_fields.index(symbol.name)
 
                     if index is None:
                         raise Exception(
                             f"couldn't find instance field {symbol.name} in {symbol_type.referenced_type.name}!"
                         )
 
-                    nonnull_label = f"_{get_id()}_lnnull"
                     return (
                         "expression_name",
                         symbol,
                         IRESeq(
-                            IRSeq(
-                                [
-                                    IRComment("expr_name nullcheck"),
-                                    IRCJump(
-                                        IRBinExpr("NOT_EQ", mem, IRConst(0)),
-                                        IRName(nonnull_label),
-                                        None,
-                                    ),
-                                    IRJump(IRName(err_label)),
-                                    IRLabel(nonnull_label),
-                                    IRComment("expr_name nullcheck end"),
-                                ]
-                            ),
+                            nonnull_check,
                             IRMem(IRBinExpr("ADD", mem, IRBinExpr("MUL", IRConst(4), IRConst(index)))),
                         ),
                     )
@@ -350,8 +387,7 @@ def resolve_bare_refname(name: str, context: Context):
         return symbol
 
 
-def lower_name(name: str, context: Context, arg_types=None) -> IRExpr:
-    arg_types = arg_types or []
+def lower_name(name: str, context: Context, arg_types: List[str] = []) -> IRExpr:
     refs = name.split(".")
 
     if len(refs) == 1:
@@ -459,14 +495,35 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             if isinstance(tree.children[0], Tree) and tree.children[0].data == "method_name":
                 args = get_arguments(context, tree)
                 name = extract_name(tree.children[0])
-                return IRCall(IRName(name), args, arg_types)
+
+                if "." in name:
+                    _, symbol, expr = lower_ambiguous_name(context, name.split("."), arg_types)
+                    assert isinstance(symbol, MethodDecl)
+
+                    # Static method
+                    if isinstance(expr, IRName):
+                        return IRCall(expr, args)
+
+                    # Instance method
+                    assert isinstance(expr, IRBinExpr)
+                    mem = expr.left
+                    method = expr.right
+                    # Insert receiver argument
+                    args.insert(0, mem)
+                    return IRCall(method, args)
 
             # lhs is expression
             args = get_arguments(context, tree if len(tree.children) == 2 else tree.children[-1])
             expr_type = resolve_expression(tree.children[0], context)
 
-            return IRCall(
-                IRName(f"java.lang.{expr_type.name.capitalize()}.{extract_name(tree)}"), args, arg_types
+            assert isinstance(expr_type, ReferenceType)
+
+            expr_label = f"_{get_id()}"
+            args.insert(0, IRTemp(expr_label))
+
+            return IRESeq(
+                IRMove(IRTemp(expr_label), lower_expression(tree.children[0], context)),
+                IRCall(IRName(f"_{expr_type.referenced_type.name}.{tree.children[1]}"), args),
             )
 
         case "unary_negative_expr":
@@ -616,8 +673,6 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
 
             size = 4 * len(class_decl.all_instance_fields) + 4
 
-            # print("ligma", class_decl.name, size, class_decl.all_instance_fields)
-
             # just treat it like an IRCall i guess
             label_id = get_id()
             ref_temp = f"_{label_id}_ref"
@@ -635,10 +690,8 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             return IRESeq(
                 IRSeq(stmts),
                 IRCall(
-                    IRName(f"{class_decl.name}.constructor"),
+                    IRName(f"_{class_decl.name}_constructor_{fix_param_names('_'.join(arg_types[1:]))}"),
                     args,
-                    arg_types,
-                    True,
                 ),
             )
 

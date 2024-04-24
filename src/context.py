@@ -251,7 +251,7 @@ class ClassInterfaceDecl(Symbol):
         return None
 
     @property
-    def all_instance_fields(self):
+    def all_instance_fields(self) -> List[str]:
         # need to maintain order
         fields = []
         for extend in self.extends:
@@ -263,6 +263,20 @@ class ClassInterfaceDecl(Symbol):
             if "static" not in field.modifiers and field.name not in fields:
                 fields.append(field.name)
         return fields
+
+    @property
+    def all_instance_methods(self) -> List[str]:
+        # need to maintain order
+        methods: List[str] = []
+        for extend in self.extends:
+            if parent := self.resolve_name(extend):
+                for method in parent.all_instance_methods:
+                    if method not in methods:
+                        methods.append(method)
+        for method in self.methods:
+            if "static" not in method.modifiers and method.name not in methods:
+                methods.append(method.signature())
+        return methods
 
     def populate_method_return_symbols(self):
         for method in self.methods:
