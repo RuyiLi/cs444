@@ -395,8 +395,38 @@ def tile_expr(
     expr: IRExpr, output_reg: str, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl
 ) -> List[str]:
     asm = []
+    available_regs = ["eax", "ebx", "ecx", "edx"]
+
+    def allocate_register():
+        return available_regs.pop(0) if available_regs else None
+
+    def free_register(reg):
+        available_regs.append(reg)
+    
     hold = ""
 
+    def spill_to_memory(var_name):
+        nonlocal asm
+        reg = temp_dict[var_name]
+        asm += [f"mov {fmt_bp(reg)}, {output_reg}"]
+        free_register(output_reg)
+        temp_dict[var_name] = None
+    
+    def process_temp(temp: str):
+        nonlocal asm, output_reg
+        if temp in temp_dict:
+            reg = temp_dict[temp]
+            if reg is None:
+                reg = allocate_register()
+                temp_dict[temp] = reg
+                asm += [f"mov {reg}, {fmt_bp(reg)}"]
+            output_reg = reg
+        else:
+            reg = allocate_register()
+            temp_dict[temp] = reg
+            asm += [f"mov {reg}, {fmt_bp(reg)}"]
+            output_reg = reg
+    
     match expr:
         case IRConst(value=v):
             hold = v if v != "null" else 0
@@ -503,6 +533,10 @@ def tile_expr(
 
     if output_reg != hold:
         asm += [f"mov {output_reg}, {hold}"]
+    
+    # if output_reg not in ["eax", "ebx", "ecx", "edx"]:
+    #     print("AAADSDSDAD")
+    #     spill_to_memory(output_reg)
 
     # log.info(f"{asm}")
     return asm
