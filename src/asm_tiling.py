@@ -83,7 +83,7 @@ def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
     # Declared methods
     static_methods = set()
     for name, func in comp_unit.functions.items():
-        func_asm = tile_func(func, comp_unit, context, used_regs, used_temps)  + [""]
+        func_asm = tile_func(func, comp_unit, context, used_regs, used_temps) + [""]
 
         if name == "test^":
             func_asm = (
@@ -169,7 +169,9 @@ def func_label(func: IRFuncDecl, comp_unit: IRCompUnit) -> str:
     return f"_{comp_unit.name}_{func.name}_{fix_param_names(param_names)}"
 
 
-def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit, context: Context, used_regs: Set[str], used_temps: Set[str]) -> List[str]:
+def tile_func(
+    func: IRFuncDecl, comp_unit: IRCompUnit, context: Context, used_regs: Set[str], used_temps: Set[str]
+) -> List[str]:
     asm = []
 
     if func.name == "test":
@@ -233,7 +235,13 @@ def fmt_bp(index: int | None):
 
 
 def process_expr(
-    expr: IRExpr, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl, reg="ecx"
+    expr: IRExpr,
+    temp_dict: Dict[str, int],
+    comp_unit: IRCompUnit,
+    func: IRFuncDecl,
+    used_regs: Set[str],
+    used_temps: Set[str],
+    reg="ecx",
 ) -> Tuple[str | int, List[str]]:
     if isinstance(expr, IRConst):
         return (expr.value, [])
@@ -242,7 +250,21 @@ def process_expr(
         externs.add(expr.name)
         return (reg, [f"mov {reg}, {expr.name}"])
 
-    return (reg, tile_expr(expr, reg, temp_dict, comp_unit, func))
+    # if isinstance(expr, IRTemp):
+    #     if expr.name in temp_dict:
+    #         expr_reg = temp_dict[expr.name]
+    #         if expr_reg is None:
+    #             # The variable is spilled to memory, load it into a register
+    #             reg = used_regs.pop() if used_regs else reg
+    #             return (reg, [f"mov {reg}, {fmt_bp(temp_dict[expr.name])}"])
+    #         else:
+    #             # The variable is already in a register
+    #             return (f"[ebp-{4*expr_reg}]", [])
+    #     else:
+    #         # Unknown variable, treat as global
+    #         return (reg, [f"mov {reg}, {expr.name}"])
+
+    return (reg, tile_expr(expr, reg, temp_dict, comp_unit, func, used_regs, used_temps))
 
 
 bin_op_to_short = {
@@ -270,15 +292,17 @@ def tile_stmt(
         case IRCall(target=t, args=args):
             if t.name == "__malloc":
                 # malloc() allocates eax bytes and returns address in eax
-                return tile_expr(args[0], "eax", temp_dict, comp_unit, func) + ["call __malloc"]
+                return tile_expr(args[0], "eax", temp_dict, comp_unit, func, used_regs, used_temps) + [
+                    "call __malloc"
+                ]
 
             asm = []
 
             for arg in args:
-                r, r_asm = process_expr(arg, temp_dict, comp_unit, func)
+                r, r_asm = process_expr(arg, temp_dict, comp_unit, func, used_regs, used_temps)
                 asm += r_asm + [f"push {r}"]
 
-            target, target_asm = process_expr(t, temp_dict, comp_unit, func)
+            target, target_asm = process_expr(t, temp_dict, comp_unit, func, used_regs, used_temps)
 
             asm += target_asm + [
                 f"call {target}" if t.name != "__exception" else "call __exception",
@@ -308,7 +332,7 @@ def tile_stmt(
 
                     left = temp_dict.get(l.name)
 
-                    right, r_asm = process_expr(r, temp_dict, comp_unit, func)
+                    right, r_asm = process_expr(r, temp_dict, comp_unit, func, used_regs, used_temps)
                     asm += r_asm
 
                     if o in bin_op_to_short.keys():
@@ -349,7 +373,7 @@ def tile_stmt(
             return [f"{n}:"]
 
         case IRMove(target=t, source=s):
-            asm = tile_expr(s, "ecx", temp_dict, comp_unit, func)
+            asm = tile_expr(s, "ecx", temp_dict, comp_unit, func, used_regs, used_temps)
 
             match t:
                 case IRTemp(name=n):
@@ -389,14 +413,18 @@ def tile_stmt(
 
                 case IRMem(address=a):
                     assert isinstance(a, IRTemp)
-                    return asm + tile_expr(a, "eax", temp_dict, comp_unit, func) + ["mov [eax], ecx"]
+                    return (
+                        asm
+                        + tile_expr(a, "eax", temp_dict, comp_unit, func, used_regs, used_temps)
+                        + ["mov [eax], ecx"]
+                    )
 
         case IRReturn(ret=ret):
             if ret is None:
                 return []
 
             # Return always uses eax register
-            stmts = tile_expr(ret, "eax", temp_dict, comp_unit, func)
+            stmts = tile_expr(ret, "eax", temp_dict, comp_unit, func, used_regs, used_temps)
             return stmts + ["mov esp, ebp", "pop ebp", "ret"]
 
         case IRSeq(stmts=ss):
@@ -417,16 +445,24 @@ def tile_stmt(
 
 
 def tile_expr(
-    expr: IRExpr, output_reg: str, temp_dict: Dict[str, int], comp_unit: IRCompUnit, func: IRFuncDecl
+    expr: IRExpr,
+    output_reg: str,
+    temp_dict: Dict[str, int],
+    comp_unit: IRCompUnit,
+    func: IRFuncDecl,
+    used_regs: Set[str],
+    used_temps: Set[str],
 ) -> List[str]:
     asm = []
     available_regs = ["eax", "ebx", "ecx", "edx"]
 
     def allocate_register():
-        return available_regs.pop(0) if available_regs else None
-
-    def free_register(reg):
-        available_regs.append(reg)
+        for reg in available_regs:
+            if reg not in used_regs:
+                used_regs.add(reg)
+                return reg
+        return None
+    
 
     hold = ""
 
@@ -434,7 +470,7 @@ def tile_expr(
         nonlocal asm
         reg = temp_dict[var_name]
         asm += [f"mov {fmt_bp(reg)}, {output_reg}"]
-        free_register(output_reg)
+        used_regs.discard(output_reg)
         temp_dict[var_name] = None
 
     def process_temp(temp: str):
@@ -443,13 +479,24 @@ def tile_expr(
             reg = temp_dict[temp]
             if reg is None:
                 reg = allocate_register()
-                temp_dict[temp] = reg
-                asm += [f"mov {reg}, {fmt_bp(reg)}"]
+                if reg is None:
+                    # Spill to memory
+                    reg = output_reg
+                    spill_to_memory(temp)
+                else:
+                    temp_dict[temp] = reg
+                    asm += [f"mov {reg}, {fmt_bp(reg)}"]
+                used_temps.add(temp)
             output_reg = reg
         else:
             reg = allocate_register()
-            temp_dict[temp] = reg
-            asm += [f"mov {reg}, {fmt_bp(reg)}"]
+            if reg is None:
+                # Spill to memory
+                reg = output_reg
+                spill_to_memory(temp)
+            else:
+                temp_dict[temp] = reg
+                asm += [f"mov {reg}, {fmt_bp(reg)}"]
             output_reg = reg
 
     match expr:
@@ -461,7 +508,7 @@ def tile_expr(
 
             left = temp_dict.get(l.name)
 
-            right, r_asm = process_expr(r, temp_dict, comp_unit, func)
+            right, r_asm = process_expr(r, temp_dict, comp_unit, func, used_regs, used_temps)
             asm += r_asm
 
             asm.append(f"mov eax, {fmt_bp(left)}")
@@ -522,12 +569,14 @@ def tile_expr(
             hold = "eax"
 
         case IRMem(address=a):
-            address_reg, address_asm = process_expr(a, temp_dict, comp_unit, func)
+            address_reg, address_asm = process_expr(a, temp_dict, comp_unit, func, used_regs, used_temps)
             asm += address_asm + [f"mov {address_reg}, [{address_reg}]"]
             hold = address_reg
 
         case IRTemp(name=n):
             if "." not in expr.name:
+                # process_temp(n)
+                # hold = fmt_bp(temp_dict[n])
                 if (loc := temp_dict.get(n, None)) is not None:
                     hold = fmt_bp(loc)
                 else:
@@ -559,7 +608,6 @@ def tile_expr(
         asm += [f"mov {output_reg}, {hold}"]
 
     # if output_reg not in ["eax", "ebx", "ecx", "edx"]:
-    #     print("AAADSDSDAD")
     #     spill_to_memory(output_reg)
 
     # log.info(f"{asm}")
