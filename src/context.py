@@ -360,6 +360,9 @@ class ConstructorDecl(Symbol):
         self.context.parent_node.constructors.append(self)
 
     def sym_id(self):
+        if len(self.param_types) > 0 and self.param_types[0] is None:
+            return "constructor^" + ",".join(param for param in self.raw_param_types)
+
         return "constructor^" + ",".join(param.name for param in self.param_types)
 
     @property

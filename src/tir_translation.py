@@ -475,6 +475,10 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             name = extract_name(tree)
             return lower_name(name, context)  # IRTemp(name)  # if context.resolve(LocalVarDecl, name)
 
+        case "type_name":
+            name = extract_name(tree)
+            return IRName(name)
+
         case "field_access":
             primary, identifier = tree.children
 
@@ -542,6 +546,11 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                     # Insert receiver argument
                     args.insert(0, mem)
                     return IRESeq(expr.stmt, IRCall(method, args))
+                else:
+                    type_decl = get_enclosing_type_decl(context)
+                    symbol = type_decl.resolve_method(name, arg_types, type_decl)
+                    param_names = "_".join(symbol.param_types)
+                    return IRCall(IRName(f"_{type_decl.name}_{name}_{fix_param_names(param_names)}"), args)
 
                 type_decl = get_enclosing_type_decl(context)
                 arg_types = list(map(type_decl.resolve_type, arg_types))
