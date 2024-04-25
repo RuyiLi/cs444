@@ -60,6 +60,10 @@ def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
     )
     temp_dict = dict([(temp, i) for i, temp in enumerate(temps)])
 
+    # Track register and temp usage
+    used_regs = set()
+    used_temps = set()
+
     if len(temps) > 0:
         asm += ["push ebp", "mov ebp, esp", f"sub esp, {len(temps) * 4}"]
 
@@ -67,7 +71,7 @@ def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
 
     for field in comp_unit.fields.values():
         if "static" in field.modifiers:
-            asm += tile_static_field(field, temp_dict, comp_unit, None, context)
+            asm += tile_static_field(field, temp_dict, comp_unit, None, context, used_regs, used_temps)
         else:
             instance_fields.append(field)
 
@@ -79,7 +83,7 @@ def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
     # Declared methods
     static_methods = set()
     for name, func in comp_unit.functions.items():
-        func_asm = tile_func(func, comp_unit, context) + [""]
+        func_asm = tile_func(func, comp_unit, context, used_regs, used_temps)  + [""]
 
         if name == "test^":
             func_asm = (
@@ -122,12 +126,24 @@ def tile_static_field(
     comp_unit: IRCompUnit,
     func: IRFuncDecl,
     context: Context,
+    used_regs: Set[str],
+    used_temps: Set[str],
 ) -> List[str]:
     stmt, expr = field.canonical
-    asm = tile_stmt(stmt, temp_dict, comp_unit, func, context) if str(stmt) != "EMPTY" else []
+    asm = (
+        tile_stmt(stmt, temp_dict, comp_unit, func, context, used_regs, used_temps)
+        if str(stmt) != "EMPTY"
+        else []
+    )
 
     return asm + tile_stmt(
-        IRMove(IRTemp(f"{comp_unit.name}.{field.name}"), expr), temp_dict, comp_unit, func, context
+        IRMove(IRTemp(f"{comp_unit.name}.{field.name}"), expr),
+        temp_dict,
+        comp_unit,
+        func,
+        context,
+        used_regs,
+        used_temps,
     )
 
 
@@ -153,7 +169,7 @@ def func_label(func: IRFuncDecl, comp_unit: IRCompUnit) -> str:
     return f"_{comp_unit.name}_{func.name}_{fix_param_names(param_names)}"
 
 
-def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit, context: Context) -> List[str]:
+def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit, context: Context, used_regs: Set[str], used_temps: Set[str]) -> List[str]:
     asm = []
 
     if func.name == "test":
@@ -183,7 +199,7 @@ def tile_func(func: IRFuncDecl, comp_unit: IRCompUnit, context: Context) -> List
     for i, var in enumerate(temps):
         temp_dict[var] = i
 
-    asm += tile_stmt(func.body, temp_dict, comp_unit, func, context)
+    asm += tile_stmt(func.body, temp_dict, comp_unit, func, context, used_regs, used_temps)
 
     if func.is_constructor:
         asm += [f"mov eax, {fmt_bp(temp_dict.get('%THIS'))}"]
@@ -245,6 +261,8 @@ def tile_stmt(
     comp_unit: IRCompUnit,
     func: IRFuncDecl,
     context: Context,
+    used_regs: Set[str],
+    used_temps: Set[str],
 ) -> List[str]:
     # log.info(f"tiling stmt {stmt}")
 
@@ -384,7 +402,7 @@ def tile_stmt(
         case IRSeq(stmts=ss):
             asm = []
             for s in ss:
-                tiled = tile_stmt(s, temp_dict, comp_unit, func, context)
+                tiled = tile_stmt(s, temp_dict, comp_unit, func, context, used_regs, used_temps)
                 # log.info(f"tiled to {tiled}")
                 asm += tiled
             return asm
