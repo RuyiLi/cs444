@@ -110,6 +110,71 @@ def static_check(context: GlobalContext, quiet=False):
 OPTIMIZATIONS_MAP = {"opt-reg-only": register_allocation, "opt-none": no_optimization}
 
 
+def parse_instructions(assembly_lines):
+    instructions = []
+    for line in assembly_lines:
+        line = line.strip().split("#")[0]
+        if not line:
+            continue
+        parts = line.split(None, 1)
+        instruction = parts[0].strip()
+        operands = parts[1].strip() if len(parts) > 1 else ""
+        instructions.append((instruction, operands))
+    return instructions
+
+
+def perform_register_allocation(instructions):
+    active_intervals = []
+    register_map = {}
+    register_pool = ["eax", "ebx", "ecx", "edx"]
+
+    for index, (instruction, operands) in enumerate(instructions):
+        for operand in operands.split(","):
+            operand = operand.strip()
+            if operand in register_map:
+                active_intervals[register_map[operand]][2] = index
+            else:
+                active_intervals.append((operand, index, index))
+
+    active_intervals.sort(key=lambda x: x[1])
+
+    for interval in active_intervals:
+        variable = interval[0]
+        start_index = interval[1]
+        end_index = interval[2]
+
+        if variable not in register_map:
+            if register_pool:
+                register_map[variable] = register_pool.pop(0)
+            else:
+                register_map[variable] = "memory_location"  # How do I map to a memory location????
+
+    return register_map
+
+
+def write_optimized_file(file_path, instructions, register_map):
+    with open(file_path, "w") as file:
+        for instruction, operands in instructions:
+            if operands and any(operand.strip() in register_map for operand in operands.split(",")):
+                new_operands = ", ".join(
+                    register_map.get(operand.strip(), operand.strip()) for operand in operands.split(",")
+                )
+                file.write(f"{instruction} {new_operands}\n")
+            else:
+                file.write(f"{instruction} {operands}\n")
+
+
+def read_file_and_perform_allocation(file_path):
+    with open(file_path, "r") as file:
+        assembly_lines = file.readlines()
+
+    instructions = parse_instructions(assembly_lines)
+    allocated_registers = perform_register_allocation(instructions)
+    write_optimized_file(file_path, instructions, allocated_registers)
+
+    return allocated_registers
+
+
 def assemble(context: GlobalContext, optimizations_set: set[str]):
     for i, child_context in enumerate(context.children):
         comp_unit = lower_comp_unit(child_context, context)
@@ -451,3 +516,7 @@ if __name__ == "__main__":
 
     elif args.g is not None:
         load_parse_trees(args.g)
+
+    # i = 9
+    # file_path = f"output/test{i}.s"
+    # read_file_and_perform_allocation(file_path)
