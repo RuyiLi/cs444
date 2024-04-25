@@ -38,7 +38,12 @@ externs = set()
 
 def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
     externs.clear()
-    asm = ["extern __malloc", "extern __exception", "extern __debexit"]
+    asm = [
+        r"%define null 0",
+        "extern __malloc",
+        "extern __exception",
+        "extern __debexit",
+    ]
     init_label = f"_{comp_unit.name}_init"
 
     if any(func == "test^" for func in comp_unit.functions.keys()):

@@ -616,9 +616,9 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             type_decl = get_enclosing_type_decl(context)
             target_type = type_decl.resolve_type(target_type_name)
             _, target_expr_symbol, target_expr = lower_ambiguous_name(context, target_expr_name.split("."))
-            print("CAST", type_decl.name, target_expr_name, target_expr_symbol)
-            print()
-            print()
+            # print("CAST", type_decl.name, target_expr_name, target_expr_symbol)
+            # print()
+            # print()
 
             if target_expr is None:
                 target_expr = lower_expression(tree.children[-1], context)
@@ -643,7 +643,6 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                     IRTemp(ref_temp),
                     IRCall(IRName("__malloc"), [IRConst(size)]),
                 ),
-                IRMove(IRMem(IRTemp(ref_temp)), IRName(f"_vtable_{class_decl.name}")),
             ]
 
             table_ptr = f"_{label_id}_table"
@@ -778,10 +777,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             stmts: List[IRStmt] = [
                 IRMove(
                     IRTemp(ref_temp),
-                    IRCall(
-                        IRName("__malloc"),
-                        [IRConst(size)],
-                    ),
+                    IRCall(IRName("__malloc"), [IRConst(size)]),
                 ),
                 IRMove(IRMem(IRTemp(ref_temp)), IRConst(size)),
             ]
@@ -789,13 +785,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             for i, c in enumerate(s):
                 stmts.append(
                     IRMove(
-                        IRMem(
-                            IRBinExpr(
-                                "ADD",
-                                IRTemp(ref_temp),
-                                IRConst(4 + i * 4),
-                            ),
-                        ),
+                        IRMem(IRBinExpr("ADD", IRTemp(ref_temp), IRConst(4 + i * 4))),
                         IRConst(ord(c)),
                     )
                 )
@@ -818,7 +808,6 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                     IRTemp(table_ptr),
                     IRCall(IRName("__malloc"), [IRConst(size)]),
                 ),
-                IRMove(IRMem(IRTemp(table_ptr)), IRName(f"_vtable_{class_decl.name}")),
             ]
 
             return IRESeq(
@@ -858,7 +847,6 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                     IRTemp(ref_temp),
                     IRCall(IRName("__malloc"), [IRConst(size)]),
                 ),
-                IRMove(IRMem(IRTemp(ref_temp)), IRName(f"_vtable_{class_decl.name}")),
             ]
 
             args.insert(0, IRTemp(ref_temp))
