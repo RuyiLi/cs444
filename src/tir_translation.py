@@ -238,7 +238,7 @@ def lower_token(token: Token):
         case "string_l":
             raise Exception("strings are objects")
         case "THIS_KW":
-            return IRTemp("this")  # FIXME
+            return IRTemp("%THIS")
         case x:
             raise Exception(f"couldn't parse token {x}")
 
@@ -272,6 +272,9 @@ def lower_ambiguous_name(
             return ("expression_name", symbol, IRTemp(symbol.name))
         elif type_name := enclosing_type_decl.resolve_name(last_id):
             return ("type_name", type_name, IRExpr())
+        # elif last_id == "this":
+        #     method = get_enclosing_decl(context, MethodDecl)
+        #     return ("expression_name", enclosing_type_decl, IRTemp("%THIS"))
         else:
             return ("package_name", None, IRExpr())
     else:
@@ -335,17 +338,7 @@ def lower_ambiguous_name(
                         IRESeq(
                             nonnull_check,
                             # Hack to return two memory locations
-                            IRBinExpr(
-                                "ADD",
-                                mem,
-                                IRMem(
-                                    IRBinExpr(
-                                        "ADD",
-                                        IRMem(mem),
-                                        IRConst(index * 4 + 4),
-                                    )
-                                ),
-                            ),
+                            IRBinExpr("ADD", mem, IRMem(IRBinExpr("ADD", IRMem(mem), IRConst(index * 4)))),
                         ),
                     )
 
@@ -367,7 +360,7 @@ def lower_ambiguous_name(
                         symbol,
                         IRESeq(
                             nonnull_check,
-                            IRMem(IRBinExpr("ADD", mem, IRConst(index * 4 + 4))),
+                            IRMem(IRBinExpr("ADD", mem, IRConst(index * 4))),
                         ),
                     )
 
@@ -483,15 +476,46 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             primary, identifier = tree.children
 
             primary_expr = lower_expression(primary, context)
-            assert isinstance(primary_expr, IRESeq)
 
-            primary_type = resolve_expression(primary, context)
-            assert isinstance(primary_type, ReferenceType)
+            if isinstance(primary_expr, IRESeq):
+                primary_type = resolve_expression(primary, context)
+                assert isinstance(primary_type, ReferenceType)
 
-            if isinstance(primary_type, ArrayType):
-                return IRESeq(primary_expr.stmt, IRMem(IRBinExpr("SUB", primary_expr.expr, IRConst(4))))
+                if isinstance(primary_type, ArrayType):
+                    return IRESeq(primary_expr.stmt, IRMem(IRBinExpr("SUB", primary_expr.expr, IRConst(4))))
 
-            raise Exception(f"unimplemented field access on {primary}, {identifier}!")
+                raise Exception(f"unimplemented field access on {primary}, {identifier}!")
+
+            if isinstance(primary_expr, IRTemp) and primary_expr.name == "%THIS":
+                type_decl = get_enclosing_type_decl(context)
+                index = type_decl.all_instance_fields.index(identifier.value) + 1
+
+                nonnull_label = f"_{get_id()}_lnnull"
+                nonnull_check = IRSeq(
+                    [
+                        IRComment("expr_name nullcheck"),
+                        IRCJump(
+                            IRBinExpr("NOT_EQ", primary_expr, IRConst(0)),
+                            IRName(nonnull_label),
+                            None,
+                        ),
+                        IRJump(IRName(err_label)),
+                        IRLabel(nonnull_label),
+                        IRComment("expr_name nullcheck end"),
+                    ]
+                )
+
+                return IRESeq(
+                    nonnull_check,
+                    IRMem(IRBinExpr("ADD", primary_expr, IRConst(index * 4))),
+                )
+
+            primary_name = extract_name(primary) if isinstance(primary, Tree) else primary.value
+            a, symbol, expr = lower_ambiguous_name(context, primary_name.split(".") + [identifier.value])
+
+            print(primary_name, identifier.value, a, symbol, expr)
+
+            return expr
 
         case "method_invocation":
             arg_types = get_argument_types(context, tree)
@@ -514,6 +538,15 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                     # Insert receiver argument
                     args.insert(0, mem)
                     return IRCall(method, args)
+
+                type_decl = get_enclosing_type_decl(context)
+                arg_types = list(map(type_decl.resolve_type, arg_types))
+                mem = IRTemp("%THIS")
+                method = type_decl.resolve_method(name, arg_types, type_decl)
+                args.insert(0, mem)
+                return IRCall(
+                    IRName(f"_{type_decl.name}_{method.name}_{fix_param_names('_'.join(arg_types))}"), args
+                )
 
             # lhs is expression
             args = get_arguments(context, tree if len(tree.children) == 2 else tree.children[-1])
@@ -692,7 +725,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             return IRESeq(
                 IRSeq(stmts),
                 IRCall(
-                    IRName(f"_{class_decl.name}_constructor_{fix_param_names('_'.join(arg_types[1:]))}"),
+                    IRName(f"_{class_decl.name}_constructor_{fix_param_names('_'.join(arg_types))}"),
                     args,
                 ),
             )

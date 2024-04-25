@@ -7,7 +7,7 @@ public class A extends B {
   }
   public static int test() {
     A a = new A();
-    // a.k = a.k - 3;
+    a.k = a.k - 3;
     return a.x + a.y + a.z + a.k;
 
     // B b = new B();

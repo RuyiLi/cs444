@@ -40,6 +40,9 @@ class IRExpr(IRNode):
         super().__init__(children)
         self.is_constant = is_constant
 
+    def __str__(self) -> str:
+        return f"EXPR(children={self.children}, is_constant={self.is_constant})"
+
 
 class IRComment(IRStmt):
     comment: str
@@ -118,11 +121,7 @@ class IRCall(IRExpr):
     target: IRExpr
     args: List[IRExpr]
 
-    def __init__(
-        self,
-        target: IRExpr,
-        args: List[IRExpr] = []
-    ):
+    def __init__(self, target: IRExpr, args: List[IRExpr] = []):
         super().__init__([target] + args)
         self.target = target
         self.args = args
