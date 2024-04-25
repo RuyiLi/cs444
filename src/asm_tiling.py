@@ -108,6 +108,17 @@ def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
             static_fields.add(f"_field_{comp_unit.name}_{field_name}")
 
     # TODO: Class vtable (for instance methods)
+    asm += [f"_vtable_{comp_unit.name}:"]
+
+    classinterface_decl = next(child.parent_node for child in context.children if child.parent_node.name == comp_unit.name)
+    assert isinstance(classinterface_decl, ClassInterfaceDecl)
+
+    for func_signature in classinterface_decl.all_instance_methods:
+        if local_func := comp_unit.functions[func_signature]:
+            asm += [f"dd {func_label(local_func, comp_unit)}"]
+        else:
+            # TODO Somehow get the inherited method
+            print(func_signature)
 
     # Extern used static fields, make local static fields globally available
     statics = static_fields | static_methods
@@ -194,7 +205,8 @@ def tile_func(
 
     # Allocate space for local temps
     temps = sorted(find_temps(func.body) - set(params) - {"%RET"})
-    asm += [f"sub esp, {len(temps) * 4}"]
+    if len(temps) > 0:
+        asm += [f"sub esp, {len(temps) * 4}"]
 
     # print(f"For function {comp_unit.name}.{func.name}, temps are {temps}")
 
@@ -203,11 +215,14 @@ def tile_func(
 
     asm += tile_stmt(func.body, temp_dict, comp_unit, func, context, used_regs, used_temps)
 
+    void_func = asm[-1] != "ret"
+
     if func.is_constructor:
         asm += [f"mov eax, {fmt_bp(temp_dict.get('%THIS'))}"]
 
     if func.name != "test":
-        asm += ["mov esp, ebp", "pop ebp", "ret"]  # Restore stack and base pointers
+        if void_func:
+            asm += ["mov esp, ebp", "pop ebp", "ret"]  # Restore stack and base pointers
         return asm
 
     main_return = [
@@ -290,11 +305,14 @@ def tile_stmt(
 
     match stmt:
         case IRCall(target=t, args=args):
-            if t.name == "__malloc":
-                # malloc() allocates eax bytes and returns address in eax
-                return tile_expr(args[0], "eax", temp_dict, comp_unit, func, used_regs, used_temps) + [
-                    "call __malloc"
-                ]
+            if isinstance(t, IRName):
+                if t.name == "__malloc":
+                    # malloc() allocates eax bytes and returns address in eax
+                    return tile_expr(args[0], "eax", temp_dict, comp_unit, func, used_regs, used_temps) + ["call __malloc"]
+
+                if t.name == "__exception":
+                    assert len(args) == 0
+                    return ["call __exception"]
 
             asm = []
 
@@ -305,7 +323,7 @@ def tile_stmt(
             target, target_asm = process_expr(t, temp_dict, comp_unit, func, used_regs, used_temps)
 
             asm += target_asm + [
-                f"call {target}" if t.name != "__exception" else "call __exception",
+                f"call {target}",
                 f"add esp, {len(args)*4}",  # pop off arguments
             ]
 
@@ -502,6 +520,9 @@ def tile_expr(
     match expr:
         case IRConst(value=v):
             hold = v if v != "null" else 0
+
+        case IRName(name=n):
+            hold = n
 
         case IRBinExpr(op_type=o, left=l, right=r):
             assert isinstance(l, IRTemp)

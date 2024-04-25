@@ -331,14 +331,17 @@ def lower_ambiguous_name(
                 if isinstance(symbol_type, ReferenceType) and (
                     symbol := symbol_type.resolve_method(last_id, arg_types, enclosing_type_decl)
                 ):
-                    index = symbol_type.referenced_type.all_instance_methods.index(symbol.signature()) + 1
+                    index = symbol_type.referenced_type.all_instance_methods.index(symbol.signature())
+                    vtable_label = f"_{get_id()}_vtable"
                     return (
                         "expression_name",
                         symbol,
                         IRESeq(
-                            nonnull_check,
+                            IRSeq([nonnull_check, IRMove(IRTemp(vtable_label), IRMem(mem))]),
                             # Hack to return two memory locations
-                            IRBinExpr("ADD", mem, IRMem(IRBinExpr("ADD", IRMem(mem), IRConst(index * 4)))),
+                            IRBinExpr(
+                                "ADD", mem, IRMem(IRBinExpr("ADD", IRTemp(vtable_label), IRConst(index * 4)))
+                            ),
                         ),
                     )
 
@@ -532,12 +535,13 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                         return IRCall(expr, args)
 
                     # Instance method
-                    assert isinstance(expr, IRBinExpr)
-                    mem = expr.left
-                    method = expr.right
+                    assert isinstance(expr, IRESeq)
+                    assert isinstance(expr.expr, IRBinExpr)
+                    mem = expr.expr.left
+                    method = expr.expr.right
                     # Insert receiver argument
                     args.insert(0, mem)
-                    return IRCall(method, args)
+                    return IRESeq(expr.stmt, IRCall(method, args))
 
                 type_decl = get_enclosing_type_decl(context)
                 arg_types = list(map(type_decl.resolve_type, arg_types))
@@ -717,6 +721,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                     IRTemp(ref_temp),
                     IRCall(IRName("__malloc"), [IRConst(size)]),
                 ),
+                IRMove(IRMem(IRTemp(ref_temp)), IRName(f"_vtable_{class_decl.name}")),
             ]
 
             args.insert(0, IRTemp(ref_temp))
