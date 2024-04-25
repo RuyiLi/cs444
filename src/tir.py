@@ -41,7 +41,9 @@ class IRExpr(IRNode):
         self.is_constant = is_constant
 
     def __str__(self) -> str:
-        return f"EXPR(children={self.children}, is_constant={self.is_constant})"
+        return (
+            f"EXPR(type={self.__class__.__name__}, children={self.children}, is_constant={self.is_constant})"
+        )
 
 
 class IRComment(IRStmt):

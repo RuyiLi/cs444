@@ -7,6 +7,7 @@ from helper import (
     extract_name,
     extract_type,
     get_child_tree,
+    get_enclosing_decl,
     get_enclosing_type_decl,
     get_formal_params,
     get_modifiers,
@@ -16,7 +17,7 @@ from helper import (
     is_static_context,
 )
 from lark import Token, Tree
-from joos_types import ArrayType, ReferenceType
+from joos_types import ArrayType, ReferenceType, PrimitiveType
 from tir import (
     IRBinExpr,
     IRCall,
@@ -271,12 +272,11 @@ def lower_ambiguous_name(
         if symbol is not None:
             return ("expression_name", symbol, IRTemp(symbol.name))
         elif type_name := enclosing_type_decl.resolve_name(last_id):
-            return ("type_name", type_name, IRExpr())
-        # elif last_id == "this":
-        #     method = get_enclosing_decl(context, MethodDecl)
-        #     return ("expression_name", enclosing_type_decl, IRTemp("%THIS"))
+            return ("type_name", type_name, IRConst("bad_resolution! " + last_id))
+        elif symbol := get_enclosing_decl(context, MethodDecl):
+            print(symbol)
         else:
-            return ("package_name", None, IRExpr())
+            return ("package_name", None, IRConst("bad_resolution! " + last_id))
     else:
         qualifier = lower_ambiguous_name(context, ids[:-1])
         pre_name = ".".join(ids[:-1])
@@ -284,9 +284,9 @@ def lower_ambiguous_name(
         match qualifier:
             case ("package_name", _, _):
                 if type_name := enclosing_type_decl.resolve_name(".".join(ids)):
-                    return ("type_name", type_name, IRExpr())
+                    return ("type_name", type_name, IRConst("bad_resolution! " + ids))
                 else:
-                    return ("package_name", None, IRExpr())
+                    return ("package_name", None, IRConst("bad_resolution! " + ids))
 
             case ("type_name", pre_symbol, _):
                 # Static method
@@ -473,6 +473,7 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
 
         case "expression_name":
             name = extract_name(tree)
+            # print(name, lower_name(name, context))
             return lower_name(name, context)  # IRTemp(name)  # if context.resolve(LocalVarDecl, name)
 
         case "type_name":
@@ -481,7 +482,6 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
 
         case "field_access":
             primary, identifier = tree.children
-
             primary_expr = lower_expression(primary, context)
 
             if isinstance(primary_expr, IRESeq):
@@ -491,7 +491,11 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
                 if isinstance(primary_type, ArrayType):
                     return IRESeq(primary_expr.stmt, IRMem(IRBinExpr("SUB", primary_expr.expr, IRConst(4))))
 
-                raise Exception(f"unimplemented field access on {primary}, {identifier}!")
+                referenced_type = primary_type.referenced_type
+                index = referenced_type.all_instance_fields.index(identifier.value) + 1
+                return IRMem(IRBinExpr("ADD", primary_expr.expr, IRConst(index * 4)))
+
+                # raise Exception(f"unimplemented field access on {primary}, {identifier}!")
 
             if isinstance(primary_expr, IRTemp) and primary_expr.name == "%THIS":
                 type_decl = get_enclosing_type_decl(context)
@@ -594,10 +598,76 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             lhs.stmt.stmts.append(IRMove(lhs.expr, rhs))
             return IRESeq(lhs.stmt, lhs.expr)
 
+        case "type_name":
+            return IRConst(0)
+
         case "cast_expr":
-            cast_target = tree.children[-1]
-            # We might need to do some conversions?
-            return lower_expression(cast_target, context)
+            target_type_name = (
+                extract_name(tree.children[0])
+                if isinstance(tree.children[0], Tree)
+                else tree.children[0].value
+            )
+            target_expr_name = (
+                extract_name(tree.children[-1])
+                if isinstance(tree.children[-1], Tree)
+                else tree.children[-1].value
+            )
+
+            type_decl = get_enclosing_type_decl(context)
+            target_type = type_decl.resolve_type(target_type_name)
+            _, target_expr_symbol, target_expr = lower_ambiguous_name(context, target_expr_name.split("."))
+            print("CAST", type_decl.name, target_expr_name, target_expr_symbol)
+            print()
+            print()
+
+            if target_expr is None:
+                target_expr = lower_expression(tree.children[-1], context)
+
+            if isinstance(target_type, PrimitiveType):
+                return target_expr
+
+            if isinstance(target_type, ArrayType):
+                # TODO
+                return target_expr
+
+            # literally just instantiate a new class and copy over the fields
+            assert isinstance(target_type, ReferenceType)
+            class_decl = target_type.referenced_type
+            size = 4 * len(class_decl.all_instance_fields) + 4
+
+            label_id = get_id()
+            ref_temp = f"_{label_id}_ref"
+            stmts: List[IRStmt] = [
+                IRComment(f"class_instance_creation for cast {class_decl.name} {size}"),
+                IRMove(
+                    IRTemp(ref_temp),
+                    IRCall(IRName("__malloc"), [IRConst(size)]),
+                ),
+                IRMove(IRMem(IRTemp(ref_temp)), IRName(f"_vtable_{class_decl.name}")),
+            ]
+
+            table_ptr = f"_{label_id}_table"
+            stmts.append(
+                IRMove(
+                    IRTemp(table_ptr),
+                    IRCall(
+                        IRName(f"_{class_decl.name}_constructor_"),
+                        [IRTemp(ref_temp)],
+                    ),
+                )
+            )
+
+            # now copy the fields!
+            field_exprs = []
+            source_type = target_expr_symbol.resolved_sym_type.referenced_type
+            for field_name in source_type.all_instance_fields:
+                index = class_decl.all_instance_fields.index(field_name)
+                offset = 4 * index + 4
+                field_expr = IRMem(IRBinExpr("ADD", IRTemp(ref_temp), IRConst(offset)))
+                field_expr = IRESeq(IRMove(IRTemp("%THIS"), field_expr), IRTemp("%THIS"))
+                field_exprs.append(field_expr)
+
+            return IRESeq(IRSeq(stmts + field_exprs), IRTemp("%THIS"))
 
         case "for_update":
             return lower_expression(tree.children[0], context)
@@ -699,7 +769,65 @@ def lower_expression(tree: Tree | Token, context: Context) -> IRExpr:
             return IRConst(tree.children[0].value)
 
         case "string_l":
-            return IRConst(tree.children[0].value)
+            s = "".join(c.value for c in tree.children)
+
+            label_id = get_id()
+
+            size = len(s) * 4 + 8
+            ref_temp = f"_{label_id}_ref_temp"
+            stmts: List[IRStmt] = [
+                IRMove(
+                    IRTemp(ref_temp),
+                    IRCall(
+                        IRName("__malloc"),
+                        [IRConst(size)],
+                    ),
+                ),
+                IRMove(IRMem(IRTemp(ref_temp)), IRConst(size)),
+            ]
+
+            for i, c in enumerate(s):
+                stmts.append(
+                    IRMove(
+                        IRMem(
+                            IRBinExpr(
+                                "ADD",
+                                IRTemp(ref_temp),
+                                IRConst(4 + i * 4),
+                            ),
+                        ),
+                        IRConst(ord(c)),
+                    )
+                )
+
+            arr_ref = f"_{label_id}_ref"
+            stmts.append(IRMove(IRTemp(arr_ref), IRBinExpr("ADD", IRTemp(ref_temp), IRConst(4))))
+
+            # time for ctor
+            type_decl = get_enclosing_type_decl(context)
+            class_decl = type_decl.resolve_name("java.lang.String")
+
+            assert isinstance(class_decl, ClassDecl)
+            size = 4 * len(class_decl.all_instance_fields) + 4
+
+            label_id = get_id()
+            table_ptr = f"_{label_id}_table"
+            stmts: List[IRStmt] = [
+                IRComment(f"class_instance_creation {class_decl.name} {size}"),
+                IRMove(
+                    IRTemp(table_ptr),
+                    IRCall(IRName("__malloc"), [IRConst(size)]),
+                ),
+                IRMove(IRMem(IRTemp(table_ptr)), IRName(f"_vtable_{class_decl.name}")),
+            ]
+
+            return IRESeq(
+                IRSeq(stmts),
+                IRCall(
+                    IRName("_java.lang.String_constructor_charARRTYPE"),
+                    [IRTemp(table_ptr), IRTemp(arr_ref)],
+                ),
+            )
 
         case "class_instance_creation":
             if len(tree.children) == 3:

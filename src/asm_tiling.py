@@ -110,11 +110,13 @@ def tile_comp_unit(comp_unit: IRCompUnit, context: GlobalContext):
     # TODO: Class vtable (for instance methods)
     asm += [f"_vtable_{comp_unit.name}:"]
 
-    classinterface_decl = next(child.parent_node for child in context.children if child.parent_node.name == comp_unit.name)
+    classinterface_decl = next(
+        child.parent_node for child in context.children if child.parent_node.name == comp_unit.name
+    )
     assert isinstance(classinterface_decl, ClassInterfaceDecl)
 
     for func_signature in classinterface_decl.all_instance_methods:
-        if local_func := comp_unit.functions[func_signature]:
+        if local_func := comp_unit.functions.get(func_signature):
             asm += [f"dd {func_label(local_func, comp_unit)}"]
         else:
             # TODO Somehow get the inherited method
@@ -308,7 +310,9 @@ def tile_stmt(
             if isinstance(t, IRName):
                 if t.name == "__malloc":
                     # malloc() allocates eax bytes and returns address in eax
-                    return tile_expr(args[0], "eax", temp_dict, comp_unit, func, used_regs, used_temps) + ["call __malloc"]
+                    return tile_expr(args[0], "eax", temp_dict, comp_unit, func, used_regs, used_temps) + [
+                        "call __malloc"
+                    ]
 
                 if t.name == "__exception":
                     assert len(args) == 0
@@ -377,6 +381,8 @@ def tile_stmt(
                             ]
                         case "SUB":
                             return asm + [f"mov edx, {fmt_bp(left)}", f"sub edx, {right}", f"jle {t.name}"]
+                        case "INSTANCEOF_KW":
+                            return asm + [f"jmp {t.name}"]
                         case x:
                             raise Exception(f"CJump with unimplemented cond IRBinExpr with optype {o}")
 
@@ -480,7 +486,6 @@ def tile_expr(
                 used_regs.add(reg)
                 return reg
         return None
-    
 
     hold = ""
 
