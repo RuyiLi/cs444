@@ -121,7 +121,8 @@ def assemble(context: GlobalContext, optimizations_set: set[str]):
 
             visitor = CanonicalVisitor()
             result = visitor.visit(None, canonical)
-            log.debug(f"Canonical? {result}")
+            if not result:
+                raise Exception(f"IR was not canonical!")
 
             v.body = canonical
             log.debug(f"{canonical}")
@@ -134,7 +135,8 @@ def assemble(context: GlobalContext, optimizations_set: set[str]):
 
             visitor = CanonicalVisitor()
             result = visitor.visit(None, v)
-            log.debug(f"Canonical? {result}")
+            if not result:
+                raise Exception(f"IR was not canonical!")
 
             log.debug(f"{canonical}")
 
