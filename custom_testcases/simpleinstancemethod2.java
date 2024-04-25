@@ -8,8 +8,9 @@ public class simpleinstancemethod2 {
   public simpleinstancemethod2(int x) { this.x = x; }
 
   public static int test() {
-    simpleinstancemethod s = new simpleinstancemethod(3);
+    simpleinstancemethod2 s = new simpleinstancemethod2(3);
     // simpleinstancemethod s = new simpleinstancemethod();
     return s.addOne(s.x);
     // return s.x;
+  }
 }
